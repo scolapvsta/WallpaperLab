@@ -1,0 +1,9 @@
+[submodule "vendor/engine"]
+	path = vendor/engine
+	url = https://github.com/Almamu/linux-wallpaperengine.git
+[submodule "vendor/hellpaper"]
+	path = vendor/hellpaper
+	url = https://github.com/Belial02/hellpaper.git
+[submodule "vendor/raylib"]
+	path = vendor/raylib
+	url = https://github.com/raysan5/raylib.git

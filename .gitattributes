@@ -1,0 +1,3 @@
+# Preserve upstream patch context and verbatim third-party license notices.
+*.patch -whitespace
+assets/LICENSE.* -whitespace

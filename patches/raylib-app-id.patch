@@ -1,0 +1,13 @@
+diff --git a/src/platforms/rcore_desktop_glfw.c b/src/platforms/rcore_desktop_glfw.c
+index baf2967..7f8872a 100644
+--- a/src/platforms/rcore_desktop_glfw.c
++++ b/src/platforms/rcore_desktop_glfw.c
+@@ -1306,6 +1306,8 @@ int InitPlatform(void)
+     // Initialize graphic device: display/window and graphic context
+     //----------------------------------------------------------------------------
+     glfwDefaultWindowHints();                       // Set default windows hints
++    glfwWindowHintString(GLFW_WAYLAND_APP_ID, "wallpaper-lab");
++    glfwWindowHintString(GLFW_X11_CLASS_NAME, "wallpaper-lab");
+     //glfwWindowHint(GLFW_RED_BITS, 8);             // Framebuffer red color component bits
+     //glfwWindowHint(GLFW_GREEN_BITS, 8);           // Framebuffer green color component bits
+     //glfwWindowHint(GLFW_BLUE_BITS, 8);            // Framebuffer blue color component bits

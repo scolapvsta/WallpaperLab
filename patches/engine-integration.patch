@@ -1,0 +1,75 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 11565a1..38e326d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -27,6 +27,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-narrowing")
+ find_package(X11)
+ find_package(OpenGL REQUIRED)
+ find_package(GLEW REQUIRED)
++find_package(glfw3 3.4 REQUIRED)
+ 
+ find_package(DBus REQUIRED)
+ find_package(GLUT REQUIRED)
+@@ -695,7 +696,7 @@ install(TARGETS linux-wallpaperengine
+     RUNTIME DESTINATION .
+ )
+ install(TARGETS linux-wallpaperengine-lib
+-    LIBRARY DESTINATION .
++    LIBRARY DESTINATION . COMPONENT engine-library
+ )
+ 
+ # Install everything else from the output directory (CEF resources, helper binaries, etc.)
+diff --git a/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp b/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
+index 01063d9..c24274d 100644
+--- a/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
++++ b/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
+@@ -32,9 +32,10 @@ GLFWOpenGLDriver::GLFWOpenGLDriver (const char* windowTitle, ApplicationContext&
+     glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 3);
+     glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+     glfwWindowHint (GLFW_VISIBLE, GLFW_FALSE);
++    glfwWindowHintString (GLFW_WAYLAND_APP_ID, "wallpaper-lab");
+     // set X11-specific hints
+-    glfwWindowHintString (GLFW_X11_CLASS_NAME, "linux-wallpaperengine");
+-    glfwWindowHintString (GLFW_X11_INSTANCE_NAME, "linux-wallpaperengine");
++    glfwWindowHintString (GLFW_X11_CLASS_NAME, "wallpaper-lab");
++    glfwWindowHintString (GLFW_X11_INSTANCE_NAME, "wallpaper-lab");
+ 
+     // for forced window mode, we can set some hints that'll help position the window
+     if (context.settings.render.mode == Application::ApplicationContext::EXPLICIT_WINDOW) {
+@@ -54,6 +55,13 @@ GLFWOpenGLDriver::GLFWOpenGLDriver (const char* windowTitle, ApplicationContext&
+ 	sLog.exception ("Cannot create window");
+     }
+ 
++    // Wallpaper Lab previews can be dismissed without compositor shortcuts.
++    if (context.settings.render.mode != ApplicationContext::DESKTOP_BACKGROUND) {
++        glfwSetKeyCallback(this->m_window, [](GLFWwindow* window, int key, int, int action, int) {
++            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
++        });
++    }
++
+     // make context current, required for glew initialization
+     glfwMakeContextCurrent (this->m_window);
+ 
+@@ -170,19 +178,19 @@ __attribute__ ((constructor)) void registerGLFWOpenGLDriver () {
+     sVideoFactories.registerDriver (
+ 	ApplicationContext::DESKTOP_BACKGROUND, "x11",
+ 	[] (ApplicationContext& context, WallpaperApplication& application) -> std::unique_ptr<VideoDriver> {
+-	    return std::make_unique<GLFWOpenGLDriver> ("wallpaperengine", context, application);
++	    return std::make_unique<GLFWOpenGLDriver> ("Wallpaper Lab - Scena live (ESC per chiudere)", context, application);
+ 	}
+     );
+     sVideoFactories.registerDriver (
+ 	ApplicationContext::EXPLICIT_WINDOW, DEFAULT_WINDOW_NAME,
+ 	[] (ApplicationContext& context, WallpaperApplication& application) -> std::unique_ptr<VideoDriver> {
+-	    return std::make_unique<GLFWOpenGLDriver> ("wallpaperengine", context, application);
++	    return std::make_unique<GLFWOpenGLDriver> ("Wallpaper Lab - Scena live (ESC per chiudere)", context, application);
+ 	}
+     );
+     sVideoFactories.registerDriver (
+ 	ApplicationContext::NORMAL_WINDOW, DEFAULT_WINDOW_NAME,
+ 	[] (ApplicationContext& context, WallpaperApplication& application) -> std::unique_ptr<VideoDriver> {
+-	    return std::make_unique<GLFWOpenGLDriver> ("wallpaperengine", context, application);
++	    return std::make_unique<GLFWOpenGLDriver> ("Wallpaper Lab - Scena live (ESC per chiudere)", context, application);
+ 	}
+     );
+ }

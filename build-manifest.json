@@ -1,0 +1,16 @@
+{
+  "project": "Wallpaper Lab",
+  "version": "0.1.0",
+  "date": "2026-10-26",
+  "upstream_commits": {
+    "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
+    "hellpaper": "9774fe954bc01957defcb62629d71139231f2b8e",
+    "raylib": "c1ab645ca298a2801097931d1079b10ff7eb9df8"
+  },
+  "patches": {
+    "patches/engine-integration.patch": "f9cfbc7137264b7d187d3dd311312141fe153a6e36918801456872bf32d234b7",
+    "patches/raylib-app-id.patch": "f2af296d4406e42ded808ae18f09e918239eb20eaf300506b66fe6ec66dfeff9"
+  },
+  "runtime": "single application executable plus separately built engine shared library",
+  "portable_dependencies": "local development prefix, not committed"
+}
