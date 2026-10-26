@@ -131,5 +131,6 @@ WALLPAPER_LAB_TEST_OUTPUT="$PWD/local/screenshots" wallpaper-lab --ui-test
 ```
 
 Risultati e limiti della sessione iniziale in `tests/RESULTS.md`.
-Il repository Git è locale; nome definitivo e destinazione GitHub sono da decidere.
+Repository privata: https://github.com/scolapvsta/wallpaper-engine-customized.
+Il nome definitivo dell'applicazione resta da scegliere.
 Attribuzioni e licenze in `THIRD_PARTY.md` e `LICENSE`.

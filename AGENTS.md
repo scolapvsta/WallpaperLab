@@ -17,4 +17,6 @@
   o nelle directory XDG della macchina. Non committare asset del Workshop.
 - Fare test di catalogo, lifecycle dei processi e prove grafiche mirate; dichiarare
   limiti e risultati effettivi. Nessun cambio dell'avvio automatico senza backup.
-- Repository Git locale; nome e destinazione GitHub ancora da decidere con Simone.
+- Repository privata: `scolapvsta/wallpaper-engine-customized`. Non cambiarne la visibilità.
+- Il progetto Codex di riferimento è Wallpaper Engine Customized (WIP).
+  Il nome definitivo dell'applicazione è ancora da decidere.
