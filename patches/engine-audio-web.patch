@@ -1,0 +1,981 @@
+diff --git a/src/WallpaperEngine/Application/WallpaperApplication.cpp b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+index c9107af..40462ba 100644
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -75,6 +75,12 @@ void WallpaperApplication::initializeSubsystems () {
+     m_mediaSource = std::make_unique<WallpaperEngine::Media::DBusMediaSource> (std::chrono::milliseconds (2000));
+ }
+ 
++WallpaperApplication::~WallpaperApplication () {
++    // Close browser instances while CEF and the OpenGL context still exist.
++    m_renderContext.reset ();
++    m_browserContext.reset ();
++}
++
+ AssetLocatorUniquePtr WallpaperApplication::setupAssetLocator (const std::string& bg) const {
+     auto container = std::make_unique<Container> ();
+ 
+@@ -951,6 +957,13 @@ void WallpaperApplication::render () {
+     this->m_screenShotTaken = true;
+ }
+ 
++bool WallpaperApplication::isReady () const {
++    return m_renderContext && !m_renderContext->getWallpapers ().empty () &&
++        std::ranges::all_of (m_renderContext->getWallpapers (), [](const auto& entry) {
++            return entry.second->isReady ();
++        });
++}
++
+ void WallpaperApplication::cleanup () {
+     sLog.out ("Stopping");
+ 
+@@ -997,4 +1010,4 @@ void WallpaperApplication::setDestinationFramebuffer (GLuint framebuffer) {
+     };
+ }
+ 
+-GLuint WallpaperApplication::getDestinationFramebuffer () const { return this->m_destinationFramebuffer; }
+\ No newline at end of file
++GLuint WallpaperApplication::getDestinationFramebuffer () const { return this->m_destinationFramebuffer; }
+diff --git a/src/WallpaperEngine/Application/WallpaperApplication.h b/src/WallpaperEngine/Application/WallpaperApplication.h
+index 1d1302a..d8b2ade 100644
+--- a/src/WallpaperEngine/Application/WallpaperApplication.h
++++ b/src/WallpaperEngine/Application/WallpaperApplication.h
+@@ -32,6 +32,7 @@ using namespace WallpaperEngine::Data::Model;
+ class WallpaperApplication {
+ public:
+     explicit WallpaperApplication (ApplicationContext& context);
++    ~WallpaperApplication ();
+ 
+     /**
+      * Prepares the application for rendering.
+@@ -45,6 +46,7 @@ public:
+      * Cleans up all the resources used by the application.
+      */
+     static void cleanup ();
++    bool isReady () const;
+     /**
+      * Shows the application until it's closed
+      */
+diff --git a/src/WallpaperEngine/Audio/Drivers/Recorders/PlaybackRecorder.h b/src/WallpaperEngine/Audio/Drivers/Recorders/PlaybackRecorder.h
+index d46b83e..bd23530 100644
+--- a/src/WallpaperEngine/Audio/Drivers/Recorders/PlaybackRecorder.h
++++ b/src/WallpaperEngine/Audio/Drivers/Recorders/PlaybackRecorder.h
+@@ -7,6 +7,10 @@ public:
+ 
+     virtual void update ();
+ 
++    float audio16Right[16] = { 0 };
++    float audio32Right[32] = { 0 };
++    float audio64Right[64] = { 0 };
++
+     float audio16[16] = { 0 };
+     float audio32[32] = { 0 };
+     float audio64[64] = { 0 };
+diff --git a/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.cpp b/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.cpp
+index 5831d4a..d19c9f7 100644
+--- a/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.cpp
++++ b/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.cpp
+@@ -1,266 +1,168 @@
+ #include "PulseAudioPlaybackRecorder.h"
+ #include "WallpaperEngine/Logging/Log.h"
++#include <algorithm>
+ #include <cmath>
+ #include <cstring>
+-#include <glm/common.hpp>
++#include <cstdlib>
++#include <thread>
+ 
+-float movetowards (float current, float target, float maxDelta) {
+-    if (abs (target - current) <= maxDelta) {
+-	return target;
+-    }
++namespace WallpaperEngine::Audio::Drivers::Recorders {
++namespace {
++constexpr size_t captureBytes = WAVE_BUFFER_SIZE * 2 * sizeof (float);
+ 
+-    return current + glm::sign (target - current) * maxDelta;
++void streamState (pa_stream* stream, void*) {
++    if (pa_stream_get_state (stream) == PA_STREAM_FAILED)
++        sLog.error ("Cannot open output monitor. Audio processing is unavailable");
+ }
+ 
+-namespace WallpaperEngine::Audio::Drivers::Recorders {
+-void pa_stream_notify_cb (pa_stream* stream, void* /*userdata*/) {
+-    switch (pa_stream_get_state (stream)) {
+-	case PA_STREAM_FAILED:
+-	    sLog.error ("Cannot open stream for capture. Audio processing is disabled");
+-	    break;
+-	case PA_STREAM_READY:
+-	    sLog.debug ("Capture stream ready");
+-	    break;
+-	default:
+-	    break;
+-    }
++void streamRead (pa_stream* stream, size_t, void* userdata) {
++    auto& capture = *static_cast<PulseAudioPlaybackRecorder::PulseAudioData*> (userdata);
++    const void* data = nullptr;
++    size_t bytes = 0;
++    if (pa_stream_peek (stream, &data, &bytes) != 0 || bytes == 0) return;
++    size_t offset = 0;
++    // Retain partial frames and consume ALL bytes, including PulseAudio holes.
++    while (offset < bytes) {
++        const size_t count = std::min (bytes - offset, captureBytes - capture.currentWritePointer);
++        auto* destination = capture.audioBufferTmp + capture.currentWritePointer;
++        if (data) std::memcpy (destination, static_cast<const uint8_t*> (data) + offset, count);
++        else std::memset (destination, 0, count);
++        capture.currentWritePointer += count;
++        offset += count;
++        if (capture.currentWritePointer == captureBytes) {
++            std::swap (capture.audioBuffer, capture.audioBufferTmp);
++            capture.currentWritePointer = 0;
++            capture.fullFrameReady = true;
++        }
++    }
++    pa_stream_drop (stream);
+ }
+ 
+-void pa_stream_read_cb (pa_stream* stream, const size_t /*nbytes*/, void* userdata) {
+-    auto* recorder = static_cast<PulseAudioPlaybackRecorder::PulseAudioData*> (userdata);
+-
+-    // Careful when to pa_stream_peek() and pa_stream_drop()!
+-    // c.f. https://www.freedesktop.org/software/pulseaudio/doxygen/stream_8h.html#ac2838c449cde56e169224d7fe3d00824
+-    const uint8_t* data = nullptr;
+-    size_t currentSize;
+-    if (pa_stream_peek (stream, reinterpret_cast<const void**> (&data), &currentSize) != 0) {
+-	sLog.error ("Failed to peek at stream data...");
+-	return;
+-    }
+-
+-    if (data == nullptr && currentSize == 0) {
+-	// No data in the buffer, ignore.
+-	return;
+-    }
+-
+-    if (data == nullptr && currentSize > 0) {
+-	// Hole in the buffer. We must drop it.
+-	if (pa_stream_drop (stream) != 0) {
+-	    sLog.error ("Failed to drop a hole while capturing!");
+-	    return;
+-	}
+-    } else if (currentSize > 0 && data) {
+-	const size_t dataToCopy = std::min (currentSize, WAVE_BUFFER_SIZE - recorder->currentWritePointer);
+-
+-	// depending on the amount of data available, we might want to read one or multiple frames
+-	const size_t end = recorder->currentWritePointer + dataToCopy;
+-
+-	// this packet will fill the buffer, perform some extra checks for extra full buffers and get the latest one
+-	if (end == WAVE_BUFFER_SIZE) {
+-	    if (const size_t numberOfFullBuffers = (currentSize - dataToCopy) / WAVE_BUFFER_SIZE;
+-		numberOfFullBuffers > 0) {
+-		// calculate the start of the last block (we need the end of the previous block, hence the - 1)
+-		const size_t startOfLastBuffer = std::max (
+-		    dataToCopy + (numberOfFullBuffers - 1) * WAVE_BUFFER_SIZE, currentSize - WAVE_BUFFER_SIZE
+-		);
+-		// copy directly into the final buffer
+-		memcpy (recorder->audioBuffer, &data[startOfLastBuffer], WAVE_BUFFER_SIZE * sizeof (uint8_t));
+-		// copy whatever is left to the read/write buffer
+-		recorder->currentWritePointer = currentSize - startOfLastBuffer - WAVE_BUFFER_SIZE;
+-		memcpy (
+-		    recorder->audioBufferTmp, &data[startOfLastBuffer + WAVE_BUFFER_SIZE],
+-		    recorder->currentWritePointer * sizeof (uint8_t)
+-		);
+-	    } else {
+-		// okay, no full extra packets available, copy the rest of the data and flip the buffers
+-		memcpy (&recorder->audioBufferTmp[recorder->currentWritePointer], data, dataToCopy * sizeof (uint8_t));
+-		uint8_t* tmp = recorder->audioBuffer;
+-		recorder->audioBuffer = recorder->audioBufferTmp;
+-		recorder->audioBufferTmp = tmp;
+-		// reset write pointer
+-		recorder->currentWritePointer = 0;
+-	    }
+-
+-	    // signal a new frame is ready
+-	    recorder->fullFrameReady = true;
+-	} else {
+-	    // copy over available data to the tmp buffer and everything should be set
+-	    memcpy (&recorder->audioBufferTmp[recorder->currentWritePointer], data, dataToCopy * sizeof (uint8_t));
+-	    recorder->currentWritePointer += dataToCopy;
+-	}
+-    }
+-
+-    if (pa_stream_drop (stream) != 0) {
+-	sLog.error ("Failed to drop data after peeking");
+-    }
++void serverInfo (pa_context* context, const pa_server_info* info, void* userdata) {
++    if (!info || !info->default_sink_name) return;
++    auto& capture = *static_cast<PulseAudioPlaybackRecorder::PulseAudioData*> (userdata);
++    const char* overrideMonitor = std::getenv ("WALLPAPER_LAB_AUDIO_MONITOR");
++    const std::string monitor = overrideMonitor && *overrideMonitor ? overrideMonitor :
++        std::string (info->default_sink_name) + ".monitor";
++    if (capture.captureStream && capture.monitor == monitor &&
++        PA_STREAM_IS_GOOD (pa_stream_get_state (capture.captureStream))) return;
++    if (capture.captureStream) {
++        pa_stream_disconnect (capture.captureStream);
++        pa_stream_unref (capture.captureStream);
++    }
++    capture.monitor = monitor;
++    capture.currentWritePointer = 0;
++    capture.fullFrameReady = false;
++    const pa_sample_spec spec { PA_SAMPLE_FLOAT32NE, 44100, 2 };
++    capture.captureStream = pa_stream_new (context, "Wallpaper Lab output monitor", &spec, nullptr);
++    if (!capture.captureStream) { sLog.error ("Cannot create output monitor"); return; }
++    pa_stream_set_state_callback (capture.captureStream, streamState, userdata);
++    pa_stream_set_read_callback (capture.captureStream, streamRead, userdata);
++    pa_buffer_attr attributes {};
++    attributes.maxlength = pa_usec_to_bytes (200000, &spec);
++    attributes.fragsize = pa_usec_to_bytes (10000, &spec);
++    if (pa_stream_connect_record (capture.captureStream, monitor.c_str (), &attributes, PA_STREAM_ADJUST_LATENCY) < 0)
++        sLog.error ("Cannot capture output monitor: ", monitor);
++    else sLog.out ("Audio reactive source: ", monitor);
+ }
+ 
+-void pa_server_info_cb (pa_context* ctx, const pa_server_info* info, void* userdata) {
+-    if (info == nullptr) {
+-	return;
+-    }
+-
+-    auto* recorder = static_cast<PulseAudioPlaybackRecorder::PulseAudioData*> (userdata);
+-
+-    pa_sample_spec spec;
+-    spec.format = PA_SAMPLE_U8;
+-    spec.rate = 44100;
+-    spec.channels = 1;
+-
+-    if (recorder->captureStream) {
+-	pa_stream_unref (recorder->captureStream);
+-    }
+-
+-    recorder->captureStream = pa_stream_new (ctx, "output monitor", &spec, nullptr);
+-
+-    pa_stream_set_state_callback (recorder->captureStream, &pa_stream_notify_cb, userdata);
+-    pa_stream_set_read_callback (recorder->captureStream, &pa_stream_read_cb, userdata);
+-
+-    std::string monitor_name (info->default_sink_name);
+-    monitor_name += ".monitor";
+-
+-    // setup latency
+-    pa_buffer_attr attr {};
+-
+-    // 10 = latency msecs, 750 = max msecs to store
+-    size_t bytesPerSec = pa_bytes_per_second (&spec);
+-    attr.fragsize = bytesPerSec * 10 / 100;
+-    attr.maxlength = attr.fragsize + bytesPerSec * 750 / 100;
+-
+-    if (pa_stream_connect_record (recorder->captureStream, monitor_name.c_str (), &attr, PA_STREAM_ADJUST_LATENCY)
+-	!= 0) {
+-	sLog.error ("Failed to connect to input for recording");
+-    }
++void subscription (pa_context* context, pa_subscription_event_type_t, uint32_t, void* userdata) {
++    if (auto* operation = pa_context_get_server_info (context, serverInfo, userdata)) pa_operation_unref (operation);
+ }
+ 
+-void pa_context_subscribe_cb (pa_context* ctx, pa_subscription_event_type_t t, uint32_t idx, void* userdata) {
+-    // sink changes mean re-take the stream
+-    pa_operation* o = pa_context_get_server_info (ctx, &pa_server_info_cb, userdata);
+-    if (o) {
+-	pa_operation_unref (o);
++void contextState (pa_context* context, void* userdata) {
++    if (pa_context_get_state (context) == PA_CONTEXT_READY) {
++        pa_context_set_subscribe_callback (context, subscription, userdata);
++        // Server events include default-output changes (e.g. switching headphones).
++        if (auto* operation = pa_context_subscribe (context,
++            static_cast<pa_subscription_mask_t> (PA_SUBSCRIPTION_MASK_SERVER | PA_SUBSCRIPTION_MASK_SINK), nullptr, nullptr))
++            pa_operation_unref (operation);
++        subscription (context, PA_SUBSCRIPTION_EVENT_SERVER, 0, userdata);
++    } else if (pa_context_get_state (context) == PA_CONTEXT_FAILED) {
++        sLog.error ("PulseAudio connection failed. Audio processing is unavailable");
+     }
+ }
+ 
+-void pa_context_notify_cb (pa_context* ctx, void* userdata) {
+-    switch (pa_context_get_state (ctx)) {
+-	case PA_CONTEXT_READY:
+-	    {
+-		// set callback
+-		pa_context_set_subscribe_callback (ctx, pa_context_subscribe_cb, userdata);
+-		// set events mask and enable event callback.
+-		pa_operation* o = pa_context_subscribe (
+-		    ctx, static_cast<pa_subscription_mask_t> (PA_SUBSCRIPTION_MASK_SINK | PA_SUBSCRIPTION_MASK_SOURCE),
+-		    nullptr, nullptr
+-		);
+-
+-		if (o) {
+-		    pa_operation_unref (o);
+-		}
+-
+-		// context being ready means to fetch the sink too
+-		pa_operation* o2 = pa_context_get_server_info (ctx, &pa_server_info_cb, userdata);
+-
+-		if (o2) {
+-		    pa_operation_unref (o2);
+-		}
+-
+-		break;
+-	    }
+-	case PA_CONTEXT_FAILED:
+-	    sLog.error ("PulseAudio context initialization failed. Audio processing is disabled");
+-	    break;
+-	default:
+-	    break;
+-    }
++void smooth (float* output, const float* target, int count, float step) {
++    for (int i = 0; i < count; ++i)
++        output[i] += std::clamp (target[i] - output[i], -step, step);
++}
+ }
+ 
+ PulseAudioPlaybackRecorder::PulseAudioPlaybackRecorder () :
+-    m_captureData (
+-	{ .kisscfg = kiss_fftr_alloc (WAVE_BUFFER_SIZE, 0, nullptr, nullptr),
+-	  .audioBuffer = new uint8_t[WAVE_BUFFER_SIZE],
+-	  .audioBufferTmp = new uint8_t[WAVE_BUFFER_SIZE] }
+-    ) {
+-    this->m_mainloop = pa_mainloop_new ();
+-    this->m_mainloopApi = pa_mainloop_get_api (this->m_mainloop);
+-    this->m_context = pa_context_new (this->m_mainloopApi, "wallpaperengine-audioprocessing");
+-
+-    pa_context_set_state_callback (this->m_context, &pa_context_notify_cb, &this->m_captureData);
+-
+-    if (pa_context_connect (this->m_context, nullptr, PA_CONTEXT_NOFLAGS, nullptr) < 0) {
+-	sLog.error ("PulseAudio connection failed! Audio processing is disabled");
+-	return;
+-    }
+-
+-    // wait until the context is ready
+-    while (pa_context_get_state (this->m_context) != PA_CONTEXT_READY) {
+-	pa_mainloop_iterate (this->m_mainloop, 1, nullptr);
++    m_captureData { .kisscfg = kiss_fftr_alloc (WAVE_BUFFER_SIZE, 0, nullptr, nullptr),
++                   .audioBuffer = new uint8_t[captureBytes] {}, .audioBufferTmp = new uint8_t[captureBytes] {},
++                   .currentWritePointer = 0, .fullFrameReady = false, .captureStream = nullptr, .monitor = {} } {
++    m_mainloop = pa_mainloop_new ();
++    m_mainloopApi = pa_mainloop_get_api (m_mainloop);
++    m_context = pa_context_new (m_mainloopApi, "wallpaper-lab-audioprocessing");
++    pa_context_set_state_callback (m_context, contextState, &m_captureData);
++    if (pa_context_connect (m_context, nullptr, PA_CONTEXT_NOFLAGS, nullptr) < 0) {
++        sLog.error ("PulseAudio connection failed. Audio processing is unavailable");
++        return;
++    }
++    const auto deadline = std::chrono::steady_clock::now () + std::chrono::seconds (2);
++    while (PA_CONTEXT_IS_GOOD (pa_context_get_state (m_context)) &&
++           pa_context_get_state (m_context) != PA_CONTEXT_READY && std::chrono::steady_clock::now () < deadline) {
++        pa_mainloop_iterate (m_mainloop, 0, nullptr);
++        std::this_thread::sleep_for (std::chrono::milliseconds (2));
+     }
+ }
+ 
+ PulseAudioPlaybackRecorder::~PulseAudioPlaybackRecorder () {
+     if (m_captureData.captureStream) {
+-	pa_stream_unref (m_captureData.captureStream);
+-    }
+-
+-    delete[] this->m_captureData.audioBufferTmp;
+-    delete[] this->m_captureData.audioBuffer;
+-    free (this->m_captureData.kisscfg);
+-
+-    pa_context_disconnect (this->m_context);
+-    pa_context_unref (this->m_context);
+-    pa_mainloop_free (this->m_mainloop);
++        pa_stream_disconnect (m_captureData.captureStream);
++        pa_stream_unref (m_captureData.captureStream);
++    }
++    delete[] m_captureData.audioBufferTmp;
++    delete[] m_captureData.audioBuffer;
++    free (m_captureData.kisscfg);
++    pa_context_disconnect (m_context);
++    pa_context_unref (m_context);
++    pa_mainloop_free (m_mainloop);
+ }
+ 
+ void PulseAudioPlaybackRecorder::update () {
+-    pa_mainloop_iterate (this->m_mainloop, 0, nullptr);
+-
+-    // interpolate current values to the destination
+-    for (int i = 0; i < 64; i++) {
+-	this->audio64[i] = movetowards (this->audio64[i], this->m_FFTdestination64[i], 0.3f);
+-	if (i >= 32) {
+-	    continue;
+-	}
+-	this->audio32[i] = movetowards (this->audio32[i], this->m_FFTdestination32[i], 0.3f);
+-	if (i >= 16) {
+-	    continue;
+-	}
+-	this->audio16[i] = movetowards (this->audio16[i], this->m_FFTdestination16[i], 0.3f);
+-    }
+-
+-    if (!this->m_captureData.fullFrameReady) {
+-	return;
+-    }
+-
+-    this->m_captureData.fullFrameReady = false;
+-
+-    // convert audio data to deltas so the fft library can properly handle it
+-    for (int i = 0; i < WAVE_BUFFER_SIZE; i++) {
+-	this->m_audioFFTbuffer[i] = (this->m_captureData.audioBuffer[i] - 128) / 128.0f;
+-    }
+-
+-    // perform full fft pass
+-    kiss_fftr (this->m_captureData.kisscfg, this->m_audioFFTbuffer, this->m_FFTinfo);
+-
+-    // now reduce to the different bands
+-    // use just one for loop to produce all 3
+-    for (int band = 0; band < 64; band++) {
+-	int index = band * 2;
+-	float f1 = this->m_FFTinfo[index].r;
+-	float f2 = this->m_FFTinfo[index].i;
+-	f2 = f1 * f1 + f2 * f2; // magnitude
+-	f1 = 0.0f;
+-
+-	if (f2 > 0.0f) {
+-	    f1 = 0.35f * log10 (f2);
+-	}
+-
+-	this->m_FFTdestination64[band]
+-	    = fmin (1.0f, f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 63.0f) * 1.0f - 0.5f)));
+-	this->m_FFTdestination32[band >> 1]
+-	    = fmin (1.0f, f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 31.0f) * 1.0f - 0.5f)));
+-	this->m_FFTdestination16[band >> 2]
+-	    = fmin (1.0f, f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 15.0f) * 1.0f - 0.5f)));
+-    }
++    // Drain pending packets; one iteration per video frame accumulates seconds
++    // of latency when capture produces more fragments than the render FPS.
++    const auto drainDeadline = std::chrono::steady_clock::now () + std::chrono::milliseconds (2);
++    for (int i = 0; i < 64 && pa_mainloop_iterate (m_mainloop, 0, nullptr) > 0; ++i)
++        if (std::chrono::steady_clock::now () >= drainDeadline) break;
++    const auto now = std::chrono::steady_clock::now ();
++    if (m_captureData.fullFrameReady) {
++        m_lastFrame = now;
++        m_captureData.fullFrameReady = false;
++        for (int channel = 0; channel < 2; ++channel) {
++            auto* target64 = channel ? m_FFTdestination64Right : m_FFTdestination64;
++            auto* target32 = channel ? m_FFTdestination32Right : m_FFTdestination32;
++            auto* target16 = channel ? m_FFTdestination16Right : m_FFTdestination16;
++            std::fill_n (target32, 32, 0.0f);
++            std::fill_n (target16, 16, 0.0f);
++            for (int i = 0; i < WAVE_BUFFER_SIZE; ++i) {
++                float sample;
++                std::memcpy (&sample, m_captureData.audioBuffer + (i * 2 + channel) * sizeof (float), sizeof (float));
++                m_audioFFTbuffer[i] = std::isfinite (sample) ? sample : 0.0f;
++            }
++            kiss_fftr (m_captureData.kisscfg, m_audioFFTbuffer, m_FFTinfo);
++            for (int band = 0; band < 64; ++band) {
++                const auto value = m_FFTinfo[band * 2];
++                const float power = value.r * value.r + value.i * value.i;
++                const float level = power > 0 ? 0.35f * std::log10 (power) : 0;
++                target64[band] = std::clamp (level * (2.0f - std::exp (0.5f - band / 63.0f)), 0.0f, 1.0f);
++                target32[band / 2] = std::max (target32[band / 2], target64[band]);
++                target16[band / 4] = std::max (target16[band / 4], target64[band]);
++            }
++        }
++    } else if (now - m_lastFrame > std::chrono::milliseconds (250)) {
++        // Suspended/disconnected outputs must decay to silence instead of freezing.
++        std::fill_n (m_FFTdestination64, 64, 0.0f); std::fill_n (m_FFTdestination64Right, 64, 0.0f);
++        std::fill_n (m_FFTdestination32, 32, 0.0f); std::fill_n (m_FFTdestination32Right, 32, 0.0f);
++        std::fill_n (m_FFTdestination16, 16, 0.0f); std::fill_n (m_FFTdestination16Right, 16, 0.0f);
++    }
++    const float step = std::min (1.0f, std::chrono::duration<float> (now - m_lastUpdate).count () * 18.0f);
++    m_lastUpdate = now;
++    smooth (audio64, m_FFTdestination64, 64, step); smooth (audio64Right, m_FFTdestination64Right, 64, step);
++    smooth (audio32, m_FFTdestination32, 32, step); smooth (audio32Right, m_FFTdestination32Right, 32, step);
++    smooth (audio16, m_FFTdestination16, 16, step); smooth (audio16Right, m_FFTdestination16Right, 16, step);
++}
+ }
+-
+-} // namespace WallpaperEngine::Audio::Drivers::Recorders
+\ No newline at end of file
+diff --git a/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.h b/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.h
+index ac6c034..9d64d3d 100644
+--- a/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.h
++++ b/src/WallpaperEngine/Audio/Drivers/Recorders/PulseAudioPlaybackRecorder.h
+@@ -3,6 +3,8 @@
+ #include "PlaybackRecorder.h"
+ #include "kiss_fftr.h"
+ #include <pulse/pulseaudio.h>
++#include <chrono>
++#include <string>
+ 
+ #define WAVE_BUFFER_SIZE 1024
+ 
+@@ -21,6 +23,7 @@ public:
+ 	size_t currentWritePointer;
+ 	bool fullFrameReady;
+ 	pa_stream* captureStream;
++    std::string monitor;
+     };
+ 
+     PulseAudioPlaybackRecorder ();
+@@ -36,6 +39,12 @@ private:
+ 
+     float m_audioFFTbuffer[WAVE_BUFFER_SIZE] = { 0.0f };
+     kiss_fft_cpx m_FFTinfo[WAVE_BUFFER_SIZE / 2 + 1] = { { .r = 0.0f, .i = 0.0f } };
++    float m_FFTdestination64Right[64] = { 0 };
++    float m_FFTdestination32Right[32] = { 0 };
++    float m_FFTdestination16Right[16] = { 0 };
++    std::chrono::steady_clock::time_point m_lastFrame = std::chrono::steady_clock::now ();
++    std::chrono::steady_clock::time_point m_lastUpdate = m_lastFrame;
++
+     float m_FFTdestination64[64] = { 0 };
+     float m_FFTdestination32[32] = { 0 };
+     float m_FFTdestination16[16] = { 0 };
+diff --git a/src/WallpaperEngine/Render/AlbumTexture.cpp b/src/WallpaperEngine/Render/AlbumTexture.cpp
+index 2769c0b..a8f665e 100644
+--- a/src/WallpaperEngine/Render/AlbumTexture.cpp
++++ b/src/WallpaperEngine/Render/AlbumTexture.cpp
+@@ -75,7 +75,9 @@ void AlbumTexture::copyContents (const TextureProvider& other) const noexcept {
+ 
+     // Read the source texture
+     glBindTexture (GL_TEXTURE_2D, other.getTextureID (0));
+-    glGetnTexImage (GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, bufferSize, buffer);
++    // glGetnTexImage requires GL 4.5/robustness; the renderer requests GL 3.3.
++    // Dimensions above allocate the complete RGBA8 image, so use the core API.
++    glGetTexImage (GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+ 
+     // Upload into another texture
+     glBindTexture (GL_TEXTURE_2D, this->m_textureID);
+@@ -133,4 +135,4 @@ void AlbumTexture::load () const {
+ bool AlbumTexture::isReady () const {
+     // these are only ready to be rendered if their content's are present
+     return this->m_width > 0 && this->m_height > 0;
+-}
+\ No newline at end of file
++}
+diff --git a/src/WallpaperEngine/Render/CWallpaper.h b/src/WallpaperEngine/Render/CWallpaper.h
+index 87b2b07..cd547d9 100644
+--- a/src/WallpaperEngine/Render/CWallpaper.h
++++ b/src/WallpaperEngine/Render/CWallpaper.h
+@@ -45,6 +45,7 @@ public:
+     };
+ 
+     virtual ~CWallpaper () override;
++    virtual bool isReady () const { return true; }
+ 
+     /**
+      * Performs a render pass of the wallpaper
+diff --git a/src/WallpaperEngine/Render/Objects/Effects/CPass.cpp b/src/WallpaperEngine/Render/Objects/Effects/CPass.cpp
+index e93c293..22f1f1b 100644
+--- a/src/WallpaperEngine/Render/Objects/Effects/CPass.cpp
++++ b/src/WallpaperEngine/Render/Objects/Effects/CPass.cpp
+@@ -883,11 +883,11 @@ void CPass::setupUniforms () {
+     this->addUniform ("g_TexelSize", glm::vec2 (1.0 / scene.getWidth (), 1.0 / scene.getHeight ()));
+     this->addUniform ("g_TexelSizeHalf", glm::vec2 (0.5 / scene.getWidth (), 0.5 / scene.getHeight ()));
+     this->addUniform ("g_AudioSpectrum16Left", recorder.audio16, 16);
+-    this->addUniform ("g_AudioSpectrum16Right", recorder.audio16, 16);
++    this->addUniform ("g_AudioSpectrum16Right", recorder.audio16Right, 16);
+     this->addUniform ("g_AudioSpectrum32Left", recorder.audio32, 32);
+-    this->addUniform ("g_AudioSpectrum32Right", recorder.audio32, 32);
++    this->addUniform ("g_AudioSpectrum32Right", recorder.audio32Right, 32);
+     this->addUniform ("g_AudioSpectrum64Left", recorder.audio64, 64);
+-    this->addUniform ("g_AudioSpectrum64Right", recorder.audio64, 64);
++    this->addUniform ("g_AudioSpectrum64Right", recorder.audio64Right, 64);
+ }
+ 
+ void CPass::addAttribute (const std::string& name, GLint type, GLint elements, const GLuint* value) {
+diff --git a/src/WallpaperEngine/Render/Wallpapers/CWeb.cpp b/src/WallpaperEngine/Render/Wallpapers/CWeb.cpp
+index d174953..c9abff7 100644
+--- a/src/WallpaperEngine/Render/Wallpapers/CWeb.cpp
++++ b/src/WallpaperEngine/Render/Wallpapers/CWeb.cpp
+@@ -2,6 +2,10 @@
+ // https://github.com/if1live/cef-gl-example
+ // https://github.com/andmcgregor/cefgui
+ #include "CWeb.h"
++#include <chrono>
++#include <thread>
++#include <stdexcept>
++#include <nlohmann/json.hpp>
+ #include "WallpaperEngine/WebBrowser/CEF/WPSchemeHandlerFactory.h"
+ 
+ #include "WallpaperEngine/Data/Model/Project.h"
+@@ -27,14 +31,19 @@ CWeb::CWeb (
+ 
+     CefBrowserSettings browserSettings;
+     // documentaion says that 60 fps is maximum value
+-    browserSettings.windowless_frame_rate = std::max (60, context.getApp ().getContext ().settings.render.maximumFPS);
++    browserSettings.windowless_frame_rate = std::clamp (context.getApp ().getContext ().settings.render.maximumFPS, 1, 60);
+ 
+-    this->m_client = new WebBrowser::CEF::BrowserClient (m_renderHandler);
++    auto projectFile = this->getWeb ().project.assetLocator->read ("project.json");
++    auto project = nlohmann::json::parse (*projectFile);
++    auto properties = project.value ("general", nlohmann::json::object ()).value ("properties", nlohmann::json::object ());
++    this->m_client = new WebBrowser::CEF::BrowserClient (m_renderHandler, properties.dump (), browserSettings.windowless_frame_rate);
+     // use the custom scheme for the wallpaper's files
+     const std::string htmlURL = WPSchemeHandlerFactory::generateSchemeName (this->getWeb ().project.workshopId)
+ 	+ "://root/" + this->getWeb ().filename;
+     this->m_browser
+ 	= CefBrowserHost::CreateBrowserSync (window_info, this->m_client, htmlURL, browserSettings, nullptr, nullptr);
++    if (!this->m_browser) throw std::runtime_error ("Cannot create web wallpaper browser");
++    this->m_browser->GetHost ()->SetAudioMuted (context.getApp ().getContext ().state.audio.volume == 0);
+ }
+ 
+ void CWeb::setSize (const int width, const int height) {
+@@ -62,6 +71,18 @@ void CWeb::renderFrame (const glm::ivec4& viewport) {
+ 	this->setSize (viewport.z, viewport.w);
+     }
+ 
++    if (!this->m_client->error.empty ()) throw std::runtime_error (this->m_client->error);
++    const auto now = std::chrono::steady_clock::now ();
++    if (this->m_client->loaded && this->getWeb ().project.supportsAudioProcessing
++        && now - m_lastAudio >= std::chrono::milliseconds (33)) {
++        m_lastAudio = now;
++        auto message = CefProcessMessage::Create ("wallpaper-lab-audio");
++        auto values = message->GetArgumentList ();
++        auto& recorder = this->getAudioContext ().getRecorder ();
++        for (int i = 0; i < 128; ++i) values->SetDouble (i, std::clamp (double ((i < 64 ? recorder.audio64[i] : recorder.audio64Right[i - 64])), 0.0, 1.0));
++        this->m_browser->GetMainFrame ()->SendProcessMessage (PID_RENDERER, message);
++    }
++
+     // ensure the virtual mouse position is up to date
+     this->updateMouse (viewport);
+     // use the scene's framebuffer by default
+@@ -115,9 +136,15 @@ void CWeb::updateMouse (const glm::ivec4& viewport) {
+     this->m_rightClick = rightClick;
+ }
+ 
++bool CWeb::isReady () const { return m_client->loaded && m_renderHandler->painted; }
++
+ CWeb::~CWeb () {
+-    CefDoMessageLoopWork ();
++    // CEF owns the ref-counted handler. Never delete it while callbacks can run.
++    this->m_renderHandler->detach ();
+     this->m_browser->GetHost ()->CloseBrowser (true);
+-
+-    delete this->m_renderHandler;
++    const auto deadline = std::chrono::steady_clock::now () + std::chrono::seconds (2);
++    while (!m_client->closed && std::chrono::steady_clock::now () < deadline) {
++        CefDoMessageLoopWork ();
++        std::this_thread::sleep_for (std::chrono::milliseconds (5));
++    }
+ }
+diff --git a/src/WallpaperEngine/Render/Wallpapers/CWeb.h b/src/WallpaperEngine/Render/Wallpapers/CWeb.h
+index f27fd50..2dc2776 100644
+--- a/src/WallpaperEngine/Render/Wallpapers/CWeb.h
++++ b/src/WallpaperEngine/Render/Wallpapers/CWeb.h
+@@ -5,6 +5,7 @@
+ #include <glm/glm.hpp>
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <memory>
+ #include <string>
+ #include <utility>
+@@ -34,6 +35,7 @@ public:
+ 
+     [[nodiscard]] int getHeight () const override { return this->m_height; }
+ 
++    bool isReady () const override;
+     void setSize (int width, int height);
+ 
+ protected:
+@@ -49,6 +51,7 @@ private:
+     CefRefPtr<WallpaperEngine::WebBrowser::CEF::BrowserClient> m_client = nullptr;
+     WallpaperEngine::WebBrowser::CEF::RenderHandler* m_renderHandler = nullptr;
+ 
++    std::chrono::steady_clock::time_point m_lastAudio {};
+     int m_width = 16;
+     int m_height = 17;
+ 
+diff --git a/src/WallpaperEngine/Scripting/EngineObject.cpp b/src/WallpaperEngine/Scripting/EngineObject.cpp
+index b8399fa..a07fabc 100644
+--- a/src/WallpaperEngine/Scripting/EngineObject.cpp
++++ b/src/WallpaperEngine/Scripting/EngineObject.cpp
+@@ -1,5 +1,6 @@
+ #include "EngineObject.h"
+ #include "ScriptEngine.h"
++#include "WallpaperEngine/Render/Wallpapers/CScene.h"
+ #include "WallpaperEngine/Logging/Log.h"
+ 
+ #include <ranges>
+@@ -135,6 +136,14 @@ JSValue engine_set_timeout (JSContext* ctx, JSValueConst this_val, int argc, JSV
+     return JS_NewCFunctionData (ctx, engine_stop_timeout, 2, magic, 1, args);
+ }
+ 
++static JSValue engine_register_audio (JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int magic) {
++    int resolution = 0;
++    if (argc != 1 || JS_ToInt32 (ctx, &resolution, argv[0]) < 0) return JS_ThrowTypeError (ctx, "Expected audio resolution");
++    auto found = engineInstances.find (magic);
++    if (found == engineInstances.end ()) return JS_ThrowInternalError (ctx, "Audio engine unavailable");
++    return found->second.registerAudioBuffers (resolution);
++}
++
+ EngineObject::EngineObject (ScriptEngine& engine, Render::Wallpapers::CScene& scene) :
+     m_scene (scene), m_engine (engine), m_instanceId (++EngineInstanceId), m_classId (0) {
+     this->m_definition = { .class_name = "IEngine" };
+@@ -192,6 +201,10 @@ EngineObject::EngineObject (ScriptEngine& engine, Render::Wallpapers::CScene& sc
+ 	JS_NewCFunction (this->m_engine.getContext (), engine_open_user_shortcut, "openUserShortcut", 0),
+ 	JS_PROP_ENUMERABLE
+     );
++    engineInstances.emplace (m_instanceId, *this);
++    JS_DefinePropertyValueStr (m_engine.getContext (), m_instance, "registerAudioBuffers",
++        JS_NewCFunctionMagic (m_engine.getContext (), engine_register_audio, "registerAudioBuffers", 1,
++                              JS_CFUNC_generic_magic, m_instanceId), JS_PROP_ENUMERABLE);
+     // TODO: ADD THE REST OF THE DEFINITION!
+ }
+ 
+@@ -204,6 +217,7 @@ EngineObject::~EngineObject () {
+ 	JS_FreeValue (this->m_engine.getContext (), interval.callback);
+     }
+ 
++    for (const auto& [resolution, buffer] : m_audioBuffers) JS_FreeValue (m_engine.getContext (), buffer);
+     engineInstances.erase (this->m_instanceId);
+     this->m_intervals.clear ();
+     this->m_timeouts.clear ();
+@@ -256,7 +270,41 @@ void EngineObject::clearTimeout (uint32_t id) {
+     this->m_timeouts.erase (id);
+ }
+ 
++JSValue EngineObject::registerAudioBuffers (int resolution) {
++    auto* context = m_engine.getContext ();
++    if (resolution != 16 && resolution != 32 && resolution != 64)
++        return JS_ThrowRangeError (context, "Audio resolution must be 16, 32 or 64");
++    if (!m_audioBuffers.contains (resolution)) {
++        auto buffer = JS_NewObject (context);
++        auto global = JS_GetGlobalObject (context);
++        auto constructor = JS_GetPropertyStr (context, global, "Float32Array");
++        JSValue size = JS_NewInt32 (context, resolution);
++        for (const auto* name : { "left", "right", "average" })
++            JS_SetPropertyStr (context, buffer, name, JS_CallConstructor (context, constructor, 1, &size));
++        JS_FreeValue (context, constructor);
++        JS_FreeValue (context, global);
++        m_audioBuffers.emplace (resolution, buffer);
++    }
++    return JS_DupValue (context, m_audioBuffers.at (resolution));
++}
++
+ void EngineObject::tick () {
++    auto* context = m_engine.getContext ();
++    const auto& recorder = m_scene.getAudioContext ().getRecorder ();
++    for (const auto& [resolution, buffer] : m_audioBuffers) {
++        auto left = JS_GetPropertyStr (context, buffer, "left");
++        auto right = JS_GetPropertyStr (context, buffer, "right");
++        auto average = JS_GetPropertyStr (context, buffer, "average");
++        const float* l = resolution == 16 ? recorder.audio16 : resolution == 32 ? recorder.audio32 : recorder.audio64;
++        const float* r = resolution == 16 ? recorder.audio16Right : resolution == 32 ? recorder.audio32Right : recorder.audio64Right;
++        for (int i = 0; i < resolution; ++i) {
++            JS_SetPropertyUint32 (context, left, i, JS_NewFloat64 (context, l[i]));
++            JS_SetPropertyUint32 (context, right, i, JS_NewFloat64 (context, r[i]));
++            JS_SetPropertyUint32 (context, average, i, JS_NewFloat64 (context, (l[i] + r[i]) * 0.5));
++        }
++        JS_FreeValue (context, left); JS_FreeValue (context, right); JS_FreeValue (context, average);
++    }
++
+     const auto now = std::chrono::steady_clock::now ();
+ 
+     // check any interval and run them if needed
+diff --git a/src/WallpaperEngine/Scripting/EngineObject.h b/src/WallpaperEngine/Scripting/EngineObject.h
+index 521a2ff..e212df0 100644
+--- a/src/WallpaperEngine/Scripting/EngineObject.h
++++ b/src/WallpaperEngine/Scripting/EngineObject.h
+@@ -23,6 +23,7 @@ public:
+     void clearTimeout (uint32_t id);
+     void clearInterval (uint32_t id);
+ 
++    JSValue registerAudioBuffers (int resolution);
+     void tick ();
+ 
+ protected:
+@@ -32,6 +33,7 @@ protected:
+ 	std::chrono::steady_clock::time_point next;
+     };
+ 
++    std::map<int, JSValue> m_audioBuffers;
+     uint32_t m_nextTimeoutId = 0;
+     uint32_t m_nextIntervalId = 0;
+     std::map<uint32_t, Timeout> m_intervals;
+diff --git a/src/WallpaperEngine/Scripting/ScriptEngine.cpp b/src/WallpaperEngine/Scripting/ScriptEngine.cpp
+index e690b92..61edc92 100644
+--- a/src/WallpaperEngine/Scripting/ScriptEngine.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptEngine.cpp
+@@ -384,7 +384,7 @@ ScriptLayerHandle ScriptEngine::createLayerScript (
+ 	// (media events, audio buffer, user input); we provide just enough for
+ 	// the common built-in text scripts to run without ReferenceError.
+ 	// `frametime` is the per-frame delta in seconds (what InsertFPS reads).
+-	<< "  var engine = {\n"
++	<< "  var engine = { __proto__: globalThis.engine,\n"
+ 	<< "    get frametime() { var c = globalThis.__sceneCtx; return c ? c.dt : 0; },\n"
+ 	<< "    get time()      { var c = globalThis.__sceneCtx; return c ? c.time : 0; },\n"
+ 	<< "  };\n"
+diff --git a/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.cpp b/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.cpp
+index 14618ce..56357c2 100644
+--- a/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.cpp
++++ b/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.cpp
+@@ -1,7 +1,22 @@
+ #include "BrowserClient.h"
+-
+ using namespace WallpaperEngine::WebBrowser::CEF;
+ 
+-BrowserClient::BrowserClient (CefRefPtr<CefRenderHandler> ptr) : m_renderHandler (std::move (ptr)) { }
++BrowserClient::BrowserClient (CefRefPtr<CefRenderHandler> ptr, std::string properties, int fps) :
++    m_renderHandler (std::move (ptr)), m_properties (std::move (properties)), m_fps (fps) { }
++
++void BrowserClient::OnLoadEnd (CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, int status) {
++    if (!frame->IsMain ()) return;
++    if (status >= 400) { error = "Web wallpaper HTTP error " + std::to_string (status); return; }
++    frame->ExecuteJavaScript (
++        "if (window.wallpaperPropertyListener) {"
++        "if (wallpaperPropertyListener.applyUserProperties) wallpaperPropertyListener.applyUserProperties("
++        + m_properties + ");"
++        "if (wallpaperPropertyListener.applyGeneralProperties) wallpaperPropertyListener.applyGeneralProperties({fps:"
++        + std::to_string (m_fps) + "});}", frame->GetURL (), 1);
++    loaded = true;
++}
+ 
+-CefRefPtr<CefRenderHandler> BrowserClient::GetRenderHandler () { return m_renderHandler; }
+\ No newline at end of file
++void BrowserClient::OnLoadError (CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, ErrorCode code,
++                               const CefString& text, const CefString&) {
++    if (frame->IsMain () && code != ERR_ABORTED) error = "Web wallpaper: " + text.ToString ();
++}
+diff --git a/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.h b/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.h
+index 499bb73..5407cf5 100644
+--- a/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.h
++++ b/src/WallpaperEngine/WebBrowser/CEF/BrowserClient.h
+@@ -1,20 +1,26 @@
+ #pragma once
+-
+ #include "include/cef_client.h"
++#include "include/cef_load_handler.h"
++#include "include/cef_life_span_handler.h"
+ 
+ namespace WallpaperEngine::WebBrowser::CEF {
+-// *************************************************************************
+-//! \brief Provide access to browser-instance-specific callbacks. A single
+-//! CefClient instance can be shared among any number of browsers.
+-// *************************************************************************
+-class BrowserClient : public CefClient {
++class BrowserClient : public CefClient, public CefLoadHandler, public CefLifeSpanHandler {
+ public:
+-    explicit BrowserClient (CefRefPtr<CefRenderHandler> ptr);
+-
+-    [[nodiscard]] CefRefPtr<CefRenderHandler> GetRenderHandler () override;
+-
+-    CefRefPtr<CefRenderHandler> m_renderHandler = nullptr;
+-
++    explicit BrowserClient (CefRefPtr<CefRenderHandler> ptr, std::string properties, int fps);
++    CefRefPtr<CefRenderHandler> GetRenderHandler () override { return m_renderHandler; }
++    CefRefPtr<CefLoadHandler> GetLoadHandler () override { return this; }
++    CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler () override { return this; }
++    void OnLoadEnd (CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int status) override;
++    void OnLoadError (CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, ErrorCode code,
++                      const CefString& text, const CefString& url) override;
++    void OnBeforeClose (CefRefPtr<CefBrowser>) override { closed = true; }
++    bool loaded = false;
++    bool closed = false;
++    std::string error;
++private:
++    CefRefPtr<CefRenderHandler> m_renderHandler;
++    std::string m_properties;
++    int m_fps;
+     IMPLEMENT_REFCOUNTING (BrowserClient);
+ };
+-} // namespace WallpaperEngine::WebBrowser::CEF
+\ No newline at end of file
++}
+diff --git a/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.cpp b/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.cpp
+index fc31baa..a7505fa 100644
+--- a/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.cpp
++++ b/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.cpp
+@@ -6,6 +6,7 @@ RenderHandler::RenderHandler (WallpaperEngine::Render::Wallpapers::CWeb* webdata
+ 
+ // Required by CEF
+ void RenderHandler::GetViewRect (CefRefPtr<CefBrowser> browser, CefRect& rect) {
++    if (!m_webdata) { rect = CefRect (0, 0, 1, 1); return; }
+     rect = CefRect (0, 0, this->m_webdata->getWidth (), this->m_webdata->getHeight ());
+ }
+ 
+@@ -14,6 +15,8 @@ void RenderHandler::OnPaint (
+     CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList& dirtyRects, const void* buffer,
+     const int width, const int height
+ ) {
++    if (!m_webdata) return;
++    painted = true;
+     glActiveTexture (GL_TEXTURE0);
+     glBindTexture (GL_TEXTURE_2D, this->texture ());
+     glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, buffer);
+@@ -24,4 +27,4 @@ int RenderHandler::getWidth () const { return this->m_webdata->getWidth (); }
+ 
+ int RenderHandler::getHeight () const { return this->m_webdata->getHeight (); }
+ 
+-GLuint RenderHandler::texture () const { return this->m_webdata->getWallpaperFramebuffer (); }
+\ No newline at end of file
++GLuint RenderHandler::texture () const { return this->m_webdata->getWallpaperTexture (); }
+\ No newline at end of file
+diff --git a/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.h b/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.h
+index a9315ba..fe7a48a 100644
+--- a/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.h
++++ b/src/WallpaperEngine/WebBrowser/CEF/RenderHandler.h
+@@ -28,6 +28,9 @@ public:
+ 	int height
+     ) override;
+ 
++    bool painted = false;
++    void detach () { m_webdata = nullptr; }
++
+     //! \brief CefBase interface
+     IMPLEMENT_REFCOUNTING (RenderHandler);
+ 
+diff --git a/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.cpp b/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.cpp
+index 7b10769..aa0882e 100644
+--- a/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.cpp
++++ b/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.cpp
+@@ -27,4 +27,39 @@ const WallpaperEngine::Application::WallpaperApplication& SubprocessApp::getAppl
+ 
+ const std::map<std::string, WPSchemeHandlerFactory*>& SubprocessApp::getHandlerFactories () const {
+     return this->m_handlerFactories;
+-}
+\ No newline at end of file
++}
++
++void SubprocessApp::OnContextCreated (CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame,
++                                      CefRefPtr<CefV8Context> context) {
++    if (!frame->IsMain ()) return;
++    // Install before any wallpaper script runs, including inline scripts.
++    CefRefPtr<CefV8Value> result;
++    CefRefPtr<CefV8Exception> error;
++    context->Eval (R"JS((() => {
++        let listener = null;
++        window.wallpaperRegisterAudioListener = callback => {
++            if (typeof callback !== 'function') throw new TypeError('Expected an audio callback');
++            listener = callback;
++        };
++        Object.defineProperty(window, '__wallpaperLabAudio', {
++            value: data => { if (listener) listener(data); }
++        });
++    })())JS", frame->GetURL (), 1, result, error);
++}
++
++bool SubprocessApp::OnProcessMessageReceived (CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame,
++                                              CefProcessId source, CefRefPtr<CefProcessMessage> message) {
++    if (source != PID_BROWSER || message->GetName () != "wallpaper-lab-audio") return false;
++    auto context = frame->GetV8Context ();
++    if (!context || !context->Enter ()) return true;
++    auto global = context->GetGlobal ();
++    auto callback = global->GetValue ("__wallpaperLabAudio");
++    auto values = message->GetArgumentList ();
++    if (callback && callback->IsFunction () && values->GetSize () == 128) {
++        auto data = CefV8Value::CreateArray (128);
++        for (int i = 0; i < 128; ++i) data->SetValue (i, CefV8Value::CreateDouble (values->GetDouble (i)));
++        callback->ExecuteFunction (global, { data });
++    }
++    context->Exit ();
++    return true;
++}
+diff --git a/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.h b/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.h
+index 532f1f4..1345d78 100644
+--- a/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.h
++++ b/src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.h
+@@ -9,10 +9,16 @@ class WallpaperApplication;
+ }
+ 
+ namespace WallpaperEngine::WebBrowser::CEF {
+-class SubprocessApp : public CefApp {
++class SubprocessApp : public CefApp, public CefRenderProcessHandler {
+ public:
+     explicit SubprocessApp (WallpaperEngine::Application::WallpaperApplication& application);
+ 
++    CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler () override { return this; }
++    void OnContextCreated (CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
++                           CefRefPtr<CefV8Context> context) override;
++    bool OnProcessMessageReceived (CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
++                                   CefProcessId source, CefRefPtr<CefProcessMessage> message) override;
++
+     void OnRegisterCustomSchemes (CefRawPtr<CefSchemeRegistrar> registrar) override;
+ 
+ protected:

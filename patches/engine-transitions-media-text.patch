@@ -1,0 +1,245 @@
+--- a/src/WallpaperEngine/Scripting/ScriptEngine.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptEngine.cpp
+@@ -247,6 +247,11 @@
+     JS_DefinePropertyValueStr (
+ 	this->m_context, this->m_globalThis, "console", this->m_consoleObject->getInstance (), JS_PROP_C_W_E
+     );
++    JSValue playback = JS_NewObject(this->m_context);
++    JS_SetPropertyStr(this->m_context,playback,"PLAYBACK_PLAYING",JS_NewInt32(this->m_context,1));
++    JS_SetPropertyStr(this->m_context,playback,"PLAYBACK_PAUSED",JS_NewInt32(this->m_context,2));
++    JS_SetPropertyStr(this->m_context,playback,"PLAYBACK_STOPPED",JS_NewInt32(this->m_context,3));
++    JS_SetPropertyStr(this->m_context,this->m_globalThis,"MediaPlaybackEvent",playback);
+     JS_DefinePropertyValueStr (
+ 	this->m_context, this->m_globalThis, "shared", JS_NewObject (this->m_context), JS_PROP_ENUMERABLE
+     );
+@@ -415,6 +420,10 @@
+ 	<< "  globalThis.__textLayers[__id] = {\n"
+ 	<< "    thisLayer: thisLayer,\n"
+ 	<< "    thisScene: thisScene,\n"
++	<< "    _mediaProperties: typeof mediaPropertiesChanged === 'function' ? mediaPropertiesChanged : null,\n"
++        << "    _mediaPlayback: typeof mediaPlaybackChanged === 'function' ? mediaPlaybackChanged : null,\n"
++        << "    _mediaTimeline: typeof mediaTimelineChanged === 'function' ? mediaTimelineChanged : null,\n"
++        << "    _mediaThumbnail: typeof mediaThumbnailChanged === 'function' ? mediaThumbnailChanged : null,\n"
+ 	<< "    _init:    (typeof init    === 'function') ? init    : null,\n"
+ 	<< "    _destroy: (typeof destroy === 'function') ? destroy : null,\n"
+ 	<< "    _tick:    (typeof update  === 'function')\n"
+@@ -485,6 +494,7 @@
+     if (it != this->m_layerInitialized.end () && !it->second) {
+ 	callHook ("_init", "layer.init");
+ 	it->second = true;
++        this->notifyMediaUpdate(this->m_mediaSource.getMediaInfo());
+     }
+     callHook ("_tick", "layer.update");
+ 
+@@ -590,6 +600,7 @@
+ }
+ 
+ void ScriptEngine::tick () {
++    bool initializedMedia=false;
+     this->m_engineObject->tick ();
+     const auto cursor = *this->m_scene.getMousePositionNormalized ();
+     const bool moved = !this->m_lastCursor || *this->m_lastCursor != cursor;
+@@ -614,7 +625,7 @@
+         JS_SetPropertyStr (this->m_context, this->m_globalThis, "thisLayer",
+             this->m_adapters.object->instantiate (*module.object));
+         if (!module.initialized) {
+-            module.initialized = true;
++            module.initialized = true;initializedMedia=true;
+             const auto& source = *module.value.getScriptSource ();
+             JSValue compiled = JS_Eval (this->m_context, source.c_str (), source.size (), key.c_str (),
+                 JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+@@ -687,6 +698,7 @@
+         JS_FreeValue (this->m_context, result);
+         JS_FreeValue (this->m_context, initial);
+     }
++    if(initializedMedia)this->notifyMediaUpdate(this->m_mediaSource.getMediaInfo());
+     this->m_cursorDown = down;
+     this->m_runningModule = nullptr;
+ }
+@@ -714,12 +726,12 @@
+ 
+     JSValue playbackEvent = JS_NewObject (ctx);
+ 
+-    JS_SetPropertyStr (ctx, playbackEvent, "state", JS_NewInt32 (ctx, media.playbackState));
++    JS_SetPropertyStr (ctx, playbackEvent, "state", JS_NewInt32 (ctx, media.playbackState==Media::MediaSource::Stopped?3:media.playbackState));
+ 
+     JSValue mediaTimelineEvent = JS_NewObject (ctx);
+ 
+-    JS_SetPropertyStr (ctx, mediaTimelineEvent, "position", JS_NewFloat64 (ctx, media.position));
+-    JS_SetPropertyStr (ctx, mediaTimelineEvent, "duration", JS_NewFloat64 (ctx, media.duration));
++    JS_SetPropertyStr (ctx, mediaTimelineEvent, "position", JS_NewFloat64 (ctx, media.position/1000000.0));
++    JS_SetPropertyStr (ctx, mediaTimelineEvent, "duration", JS_NewFloat64 (ctx, media.duration/1000000.0));
+ 
+     JSValue mediaThumbnailEvent = JS_NewObject (ctx);
+ 
+@@ -735,10 +747,12 @@
+     JSValue mediaThumbnailArgs[] = { mediaThumbnailEvent };
+ 
+     for (auto& module : this->m_scriptModules | std::views::values) {
+-	// call all methods
++	// Context belongs to the receiving layer, also for asynchronous metadata.
++        if(JS_IsUndefined(module.module))continue;
++        this->m_runningModule=&module;JS_SetPropertyStr(ctx,this->m_globalThis,"thisLayer",this->m_adapters.object->instantiate(*module.object));
+ 	JSValue result1 = this->call (module.module, 1, propertiesArgs, "mediaPropertiesChanged");
+ 	JSValue result2 = this->call (module.module, 1, playbackArgs, "mediaPlaybackChanged");
+-	JSValue result3 = this->call (module.module, 1, mediaTimelineArgs, "mediaTimelineChanged");
++	JSValue result3 = media.duration>0?this->call (module.module, 1, mediaTimelineArgs, "mediaTimelineChanged"):JS_UNDEFINED;
+ 	JSValue result4 = this->call (module.module, 1, mediaThumbnailArgs, "mediaThumbnailChanged");
+ 
+ 	JS_FreeValue (ctx, result1);
+@@ -747,9 +761,17 @@
+ 	JS_FreeValue (ctx, result4);
+     }
+ 
++    if(this->m_layerRegistryReady){
++      JSValue layers=JS_GetPropertyStr(ctx,this->m_globalThis,"__textLayers");
++      for(auto& [id,initialized]:this->m_layerInitialized)if(initialized){JSValue layer=JS_GetPropertyUint32(ctx,layers,id);
++       auto dispatch=[&](const char* key,JSValue event){JSValue fn=JS_GetPropertyStr(ctx,layer,key);if(JS_IsFunction(ctx,fn)){JSValue result=JS_Call(ctx,fn,layer,1,&event);if(JS_IsException(result))logJSException(ctx,key);JS_FreeValue(ctx,result);}JS_FreeValue(ctx,fn);};
++       dispatch("_mediaProperties",propertiesEvent);dispatch("_mediaPlayback",playbackEvent);if(media.duration>0)dispatch("_mediaTimeline",mediaTimelineEvent);dispatch("_mediaThumbnail",mediaThumbnailEvent);JS_FreeValue(ctx,layer);
++      }JS_FreeValue(ctx,layers);
++    }
+     // free all created objects as we don't keep a ref to them anymore
+     JS_FreeValue (ctx, propertiesEvent);
+     JS_FreeValue (ctx, playbackEvent);
+     JS_FreeValue (ctx, mediaTimelineEvent);
+     JS_FreeValue (ctx, mediaThumbnailEvent);
++    this->m_runningModule=nullptr;
+ }
+\ No newline at end of file
+--- a/src/WallpaperEngine/Render/RenderContext.cpp
++++ b/src/WallpaperEngine/Render/RenderContext.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "CWallpaper.h"
+ #include "Helpers/LiveFeed.h"
++#include "Helpers/Transition.h"
+ #include "RenderContext.h"
+ 
+ #include "WallpaperEngine/Data/Model/Project.h"
+@@ -71,6 +72,7 @@
+             }
+         }
+     }
++    Helpers::transitionFrame(viewport->name,viewport->viewport);
+     Helpers::publishLiveFrame(viewport->name,viewport->viewport);
+     viewport->swapOutput ();
+ }
+--- a/src/WallpaperEngine/Render/Helpers/LiveFeed.h
++++ b/src/WallpaperEngine/Render/Helpers/LiveFeed.h
+@@ -59,7 +59,7 @@
+ 	if (w < 1 || h < 1) {
+ 	    return;
+ 	}
+-	float scale = std::min (640.f / w, 360.f / h);
++	float scale = j.value("transition",false)?1.f:std::min (640.f / w, 360.f / h);
+ 	int width = std::max (1, int (w * scale)), height = std::max (1, int (h * scale));
+ 	GLint oldRead, oldDraw, oldTexture, sourceSamples;
+ 	glGetIntegerv (GL_READ_FRAMEBUFFER_BINDING, &oldRead);
+--- a/src/WallpaperEngine/Render/Objects/CText.cpp
++++ b/src/WallpaperEngine/Render/Objects/CText.cpp
+@@ -1,6 +1,8 @@
+ #include "CText.h"
++#include <pango/pangocairo.h>
+ 
+ #include <filesystem>
++#include <fstream>
+ #include <vector>
+ 
+ #include <ft2build.h>
+@@ -236,6 +238,12 @@
+     // Safe to call repeatedly: GL handles (texture, VAO, VBO) are reused when
+     // already allocated, so dynamic/scripted text can regenerate the glyph
+     // bitmap every time the rendered string changes without leaking.
++    int width=1,height=1;std::vector<uint8_t> pixels;
++    bool unicode=false;for(unsigned char c:text)if(c>=128)unicode=true;
++    if(unicode){
++      auto surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,1,1);auto cr=cairo_create(surface);auto layout=pango_cairo_create_layout(cr);auto font=pango_font_description_new();pango_font_description_set_family(font,m_ftFace->family_name?m_ftFace->family_name:"Sans");pango_font_description_set_absolute_size(font,m_lastPixelSize*PANGO_SCALE);pango_layout_set_font_description(layout,font);pango_layout_set_text(layout,text.c_str(),text.size());pango_layout_get_pixel_size(layout,&width,&height);width=std::clamp(width,1,16384);height=std::clamp(height,1,4096);cairo_destroy(cr);cairo_surface_destroy(surface);
++      surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,width,height);cr=cairo_create(surface);cairo_set_source_rgba(cr,1,1,1,1);pango_cairo_update_layout(cr,layout);pango_cairo_show_layout(cr,layout);cairo_surface_flush(surface);auto bytes=cairo_image_surface_get_data(surface);int stride=cairo_image_surface_get_stride(surface);pixels.resize(size_t(width)*height);for(int y=0;y<height;y++)for(int x=0;x<width;x++)pixels[y*width+x]=bytes[y*stride+x*4+3];g_object_unref(layout);pango_font_description_free(font);cairo_destroy(cr);cairo_surface_destroy(surface);
++    }else{
+     FT_GlyphSlot slot = m_ftFace->glyph;
+ 
+     int penX = 0;
+@@ -251,9 +259,9 @@
+ 	maxDescent = std::max (maxDescent, static_cast<int> (slot->bitmap.rows) - slot->bitmap_top);
+     }
+ 
+-    const int width = std::max (1, penX);
+-    const int height = std::max (1, maxAscent + maxDescent);
+-    std::vector<uint8_t> pixels (static_cast<size_t> (width) * height, 0);
++    width = std::max (1, penX);
++    height = std::max (1, maxAscent + maxDescent);
++    pixels.assign(static_cast<size_t>(width)*height,0);
+ 
+     penX = 0;
+     for (unsigned char c : text) {
+@@ -279,6 +287,7 @@
+ 	penX += slot->advance.x >> 6;
+     }
+ 
++    }
+     const bool firstUpload = (m_texture == 0);
+     if (firstUpload) {
+ 	glGenTextures (1, &m_texture);
+@@ -296,6 +305,7 @@
+     m_textureSize = { width, height };
+     m_quadSize = { static_cast<float> (width), static_cast<float> (height) };
+     m_lastRenderedText = text;
++    if(const char* trace=std::getenv("WALLPAPER_LAB_TEXT_TRACE"))std::ofstream(trace,std::ios::app)<<m_text.name<<": "<<text<<"\n";
+ 
+     uploadQuadVertices ();
+ }
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -576,7 +576,8 @@
+     ${X11_SOURCES}
+     ${DEMOMODE_SOURCES})
+ 
+-target_link_libraries (linux-wallpaperengine-lib PUBLIC
++pkg_check_modules(PANGO REQUIRED IMPORTED_TARGET pangocairo)
++target_link_libraries (linux-wallpaperengine-lib PUBLIC PkgConfig::PANGO
+     ${OPENGL_LIBRARIES}
+     GLEW::GLEW
+     ${GLUT_LIBRARIES}
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/Transition.h
+@@ -0,0 +1,25 @@
++#pragma once
++#include "TransitionShader.h"
++#include <fstream>
++#include <map>
++#include <chrono>
++#include <cstdlib>
++#include <nlohmann/json.hpp>
++namespace WallpaperEngine::Render::Helpers {
++inline void transitionFrame(const std::string& output,const glm::ivec4& viewport){
++ const char* config=std::getenv("WALLPAPER_LAB_TRANSITION");if(!config)return;
++ struct State{bool loaded=false,done=false;GLuint program=0,vao=0,old=0,current=0,fb=0;std::chrono::steady_clock::time_point start;int effect=0;float x=.5,y=.5;};
++ static std::map<std::string,State> states;auto& s=states[output];if(s.done)return;
++ GLint program,vao,active,texture0,texture1,read,draw;glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&texture0);glActiveTexture(GL_TEXTURE1);glGetIntegerv(GL_TEXTURE_BINDING_2D,&texture1);glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);
++ auto restore=[&]{glUseProgram(program);glBindVertexArray(vao);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,texture0);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,texture1);glActiveTexture(active);glBindFramebuffer(GL_READ_FRAMEBUFFER,read);};
++ if(!s.loaded){s.loaded=true;s.start=std::chrono::steady_clock::now();try{auto j=nlohmann::json::parse(config);auto entry=j.at(output);s.effect=entry.at("effect");s.x=entry.value("x",.5);s.y=1-entry.value("y",.5);std::ifstream file(entry.at("file").get<std::string>(),std::ios::binary);uint32_t h[5]={};file.read((char*)h,sizeof(h));if(h[0]!=0x574c4631||h[2]<1||h[3]<1||uint64_t(h[2])*h[3]>40000000)throw std::runtime_error("frame");std::vector<unsigned char> bytes(size_t(h[2])*h[3]*3);file.read((char*)bytes.data(),bytes.size());if(!file)throw std::runtime_error("frame");
++ glGenTextures(1,&s.old);glBindTexture(GL_TEXTURE_2D,s.old);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,h[2],h[3],0,GL_RGB,GL_UNSIGNED_BYTE,bytes.data());glPixelStorei(GL_UNPACK_ALIGNMENT,4);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
++ glGenTextures(1,&s.current);glBindTexture(GL_TEXTURE_2D,s.current);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,viewport.z,viewport.w,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);glGenFramebuffers(1,&s.fb);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,s.current,0);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
++ auto shader=[](GLenum type,const char* text){GLuint id=glCreateShader(type);glShaderSource(id,1,&text,nullptr);glCompileShader(id);return id;};const char* vertex="#version 330 core\nout vec2 uv;void main(){uv=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(uv*2.-1.,0,1);}";auto v=shader(GL_VERTEX_SHADER,vertex),f=shader(GL_FRAGMENT_SHADER,LAB_TRANSITION_FRAGMENT);s.program=glCreateProgram();glAttachShader(s.program,v);glAttachShader(s.program,f);glLinkProgram(s.program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(s.program,GL_LINK_STATUS,&ok);if(!ok)throw std::runtime_error("shader");glGenVertexArrays(1,&s.vao);if(const char* trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";
++ }catch(...){s.done=true;restore();return;}}
++ float t=std::chrono::duration<float>(std::chrono::steady_clock::now()-s.start).count()/.7f;
++ if(t>=1){if(const char* trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" completed\n";glDeleteFramebuffers(1,&s.fb);glDeleteTextures(1,&s.old);glDeleteTextures(1,&s.current);glDeleteProgram(s.program);glDeleteVertexArrays(1,&s.vao);s.done=true;restore();return;}
++ glBindFramebuffer(GL_READ_FRAMEBUFFER,draw);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glBlitFramebuffer(viewport.x,viewport.y,viewport.x+viewport.z,viewport.y+viewport.w,0,0,viewport.z,viewport.w,GL_COLOR_BUFFER_BIT,GL_NEAREST);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);
++ bool scissor=glIsEnabled(GL_SCISSOR_TEST),blend=glIsEnabled(GL_BLEND),depth=glIsEnabled(GL_DEPTH_TEST);glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glUseProgram(s.program);glUniform1i(glGetUniformLocation(s.program,"previousImage"),0);glUniform1i(glGetUniformLocation(s.program,"currentImage"),1);glUniform1f(glGetUniformLocation(s.program,"progress"),t);glUniform1i(glGetUniformLocation(s.program,"effect"),s.effect);glUniform2f(glGetUniformLocation(s.program,"origin"),s.x,s.y);glUniform2f(glGetUniformLocation(s.program,"aspect"),float(viewport.z)/std::min(viewport.z,viewport.w),float(viewport.w)/std::min(viewport.z,viewport.w));glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s.old);glBindVertexArray(s.vao);glDrawArrays(GL_TRIANGLES,0,3);if(scissor)glEnable(GL_SCISSOR_TEST);if(blend)glEnable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);restore();
++}
++}
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/TransitionShader.h
+@@ -0,0 +1,12 @@
++#pragma once
++#define LAB_TRANSITION_FRAGMENT "#version 330 core\n" \
++"in vec2 uv;out vec4 color;uniform sampler2D previousImage,currentImage;uniform float progress;uniform int effect;uniform vec2 origin,aspect;\n" \
++"void main(){float t=smoothstep(0.,1.,progress);vec4 a=texture(previousImage,vec2(uv.x,1.-uv.y)),b=texture(currentImage,uv);color=mix(a,b,t);" \
++"if(effect==2)color=t<.5?a*(1.-t*2.):b*(t*2.-1.);" \
++"if(effect==3)color=mix(a,texture(currentImage,(uv-.5)/(.6+.4*t)+.5),t);" \
++"if(effect==4)color=mix(texture(previousImage,vec2(((uv-.5)/(1.-.35*t)+.5).x,1.-((uv-.5)/(1.-.35*t)+.5).y)),b,t);" \
++"if(effect==5){vec2 q=uv-vec2(1.-t,0);color=q.x>=0.?texture(currentImage,q):a;}" \
++"if(effect==6)color=uv.x<t?b:a;" \
++"float r=length((uv-origin)*aspect),radius=length(aspect);" \
++"if(effect==7)color=r<t*radius?b:a;" \
++"if(effect==8)color=t<.5?(r<(1.-t*2.)*radius?a:vec4(0,0,0,1)):(r<(t*2.-1.)*radius?b:vec4(0,0,0,1));color.a=1.;}"

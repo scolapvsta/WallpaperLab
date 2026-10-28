@@ -32,8 +32,12 @@ for item in previews:
         assert Path(f"/proc/{process['pid']}").exists()
         results['native_previews'].append('passed')
     finally:
-        try:os.killpg(process['pid'],signal.SIGTERM)
-        except ProcessLookupError:pass
+        try:
+            proc=Path(f"/proc/{process['pid']}")
+            start=proc.joinpath('stat').read_text().rsplit(')',1)[1].split()[19]
+            if start==process['start'] and proc.joinpath('exe').resolve().name=='wallpaper-lab':
+                os.killpg(process['pid'],signal.SIGTERM)
+        except (ProcessLookupError, FileNotFoundError):pass
 with tempfile.TemporaryDirectory(prefix='wallpaper-lab-process-test-') as tmp:
     env=os.environ.copy();env['XDG_STATE_HOME']=tmp
     state=Path(tmp)/'wallpaper-lab';state.mkdir()

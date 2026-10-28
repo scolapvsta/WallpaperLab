@@ -1,0 +1,83 @@
+--- a/src/WallpaperEngine/Render/CWallpaper.cpp
++++ b/src/WallpaperEngine/Render/CWallpaper.cpp
+@@ -1,3 +1,4 @@
++#include "WallpaperEngine/Render/Helpers/WallpaperPlacement.h"
+ #include "CWallpaper.h"
+ #include "WallpaperEngine/Logging/Log.h"
+ #include "WallpaperEngine/Render/Wallpapers/CScene.h"
+@@ -110,10 +111,11 @@
+     sourcePointer = "#version 330\n"
+ 		    "precision highp float;\n"
+ 		    "uniform sampler2D g_Texture0;\n"
++		    "uniform bool g_PanPadding;\n"
+ 		    "in vec2 v_TexCoord;\n"
+ 		    "out vec4 out_FragColor;\n"
+ 		    "void main () {\n"
+-		    "out_FragColor = texture (g_Texture0, v_TexCoord);\n"
++		    "out_FragColor = (g_PanPadding && (any(lessThan(v_TexCoord, vec2(0.0))) || any(greaterThan(v_TexCoord, vec2(1.0))))) ? vec4(0.0,0.0,0.0,1.0) : texture (g_Texture0, v_TexCoord);\n"
+ 		    "}";
+ 
+     glShaderSource (fragmentShaderID, 1, &sourcePointer, nullptr);
+@@ -218,7 +220,7 @@
+     glPushDebugGroup (GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Rendering scene to output");
+ #endif /* !NDEBUG */
+ 
+-    float ustart, uend, vstart, vend;
++    float ustart, uend, vstart, vend, panRangeU, panRangeV;
+ 
+     if (this->m_spanInfo.has_value ()) {
+ 	// Span mode: treat bounding box as virtual viewport, scale wallpaper using
+@@ -243,6 +245,7 @@
+ 	// Interpolate within the base UVs to get this viewport's slice
+ 	const float baseURange = baseUend - baseUstart;
+ 	const float baseVRange = baseVend - baseVstart;
++        panRangeU = baseURange;panRangeV = baseVRange;
+ 
+ 	ustart = baseUstart + relLeft * baseURange;
+ 	uend = baseUstart + relRight * baseURange;
+@@ -267,8 +270,13 @@
+ 	uend = uvs.uend;
+ 	vstart = uvs.vstart;
+ 	vend = uvs.vend;
+-    }
+-
++        panRangeU = uend-ustart;panRangeV = vend-vstart;
++    }
++
++    const auto& position = Helpers::WallpaperPlacement::configured();
++    const float shiftU = Helpers::WallpaperPlacement::shift(panRangeU, position.x);
++    const float shiftV = Helpers::WallpaperPlacement::shift(panRangeV, position.y);
++    ustart += shiftU;uend += shiftU;vstart += shiftV;vend += shiftV;
+     const GLfloat texCoords[] = {
+ 	ustart, vstart, uend, vstart, ustart, vend, ustart, vend, uend, vstart, uend, vend,
+     };
+@@ -284,6 +292,7 @@
+     glDisable (GL_CULL_FACE);
+     // do not use any shader
+     glUseProgram (this->m_shader);
++    glUniform1i(glGetUniformLocation(this->m_shader, "g_PanPadding"), position.x != 0 || position.y != 0);
+     // activate scene texture
+     glActiveTexture (GL_TEXTURE0);
+     glBindTexture (GL_TEXTURE_2D, this->getWallpaperTexture ());
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
+@@ -0,0 +1,19 @@
++#pragma once
++#include <nlohmann/json.hpp>
++#include <cstdlib>
++#include <cmath>
++#include <stdexcept>
++namespace WallpaperEngine::Render::Helpers::WallpaperPlacement {
++struct Position {float x=0,y=0;};
++inline Position parse(const std::string& raw){
++    auto j=nlohmann::json::parse(raw);
++    if(!j.is_object()||!j.contains("x")||!j.contains("y")||!j["x"].is_number()||!j["y"].is_number())throw std::runtime_error("Invalid wallpaper position");
++    double x=j["x"],y=j["y"];
++    if(!std::isfinite(x)||!std::isfinite(y)||std::abs(x)>1||std::abs(y)>1)throw std::runtime_error("Wallpaper position outside [-1, 1]");
++    return {static_cast<float>(x),static_cast<float>(y)};
++}
++inline const Position& configured(){static const Position value=[](){auto raw=std::getenv("WALLPAPER_LAB_POSITION");return raw&&*raw?parse(raw):Position{};}();return value;}
++// Positive means move the image right/down, sampling an earlier source area.
++// Use the complete canvas UV range, never the individual monitor slice range.
++inline float shift(float range,float offset){return -range*offset*0.5f;}
++}

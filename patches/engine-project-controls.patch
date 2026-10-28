@@ -1,0 +1,122 @@
+--- a/src/WallpaperEngine/Input/Drivers/WaylandMouseInput.cpp
++++ b/src/WallpaperEngine/Input/Drivers/WaylandMouseInput.cpp
+@@ -39,8 +39,8 @@
+ 	    continue;
+ 	}
+ 
+-	const double localX = globalCursor->x - viewport->position.x;
+-	const double localY = globalCursor->y - viewport->position.y;
++	const double localX = globalCursor->x - viewport->globalPosition.x;
++	const double localY = globalCursor->y - viewport->globalPosition.y;
+ 	if (localX < 0.0 || localY < 0.0 || localX > viewport->size.x || localY > viewport->size.y) {
+ 	    continue;
+ 	}
+@@ -65,8 +65,8 @@
+ 
+     if (this->m_globalCursor) {
+         const auto cursor = *this->m_globalCursor;
+-        return { (cursor.x - viewport->position.x) * viewport->scale,
+-                 (viewport->size.y - (cursor.y - viewport->position.y)) * viewport->scale };
++        return { (cursor.x - viewport->globalPosition.x) * viewport->scale,
++                 (viewport->size.y - (cursor.y - viewport->globalPosition.y)) * viewport->scale };
+     }
+ 
+     if (viewport == m_waylandDriver.viewportInFocus) {
+--- a/src/WallpaperEngine/Render/CWallpaper.cpp
++++ b/src/WallpaperEngine/Render/CWallpaper.cpp
+@@ -220,6 +220,7 @@
+     glPushDebugGroup (GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Rendering scene to output");
+ #endif /* !NDEBUG */
+ 
++    const auto& position = Helpers::WallpaperPlacement::configured();
+     float ustart, uend, vstart, vend, panRangeU, panRangeV;
+ 
+     if (this->m_spanInfo.has_value ()) {
+@@ -234,6 +235,8 @@
+ 	// Compute base UVs for the wallpaper scaled to the bounding box
+ 	this->updateUVs (span.totalBounds, vflip);
+ 	auto [baseUstart, baseUend, baseVstart, baseVend] = this->m_state.getTextureUVs ();
++        Helpers::WallpaperPlacement::zoomRange(baseUstart,baseUend,position.zoom);
++        Helpers::WallpaperPlacement::zoomRange(baseVstart,baseVend,position.zoom);
+ 
+ 	// This viewport's relative position within the bounding box [0..1]
+ 	// Use logicalSize (same coordinate space as globalPosition and totalBounds)
+@@ -270,12 +273,13 @@
+ 	uend = uvs.uend;
+ 	vstart = uvs.vstart;
+ 	vend = uvs.vend;
++        Helpers::WallpaperPlacement::zoomRange(ustart,uend,position.zoom);
++        Helpers::WallpaperPlacement::zoomRange(vstart,vend,position.zoom);
+         panRangeU = uend-ustart;panRangeV = vend-vstart;
+     }
+ 
+-    const auto& position = Helpers::WallpaperPlacement::configured();
+-    const float shiftU = Helpers::WallpaperPlacement::shift(panRangeU, position.x);
+-    const float shiftV = Helpers::WallpaperPlacement::shift(panRangeV, position.y);
++    const float shiftU = Helpers::WallpaperPlacement::cropShift(panRangeU, position.x);
++    const float shiftV = Helpers::WallpaperPlacement::cropShift(panRangeV, position.y);
+     ustart += shiftU;uend += shiftU;vstart += shiftV;vend += shiftV;
+     const GLfloat texCoords[] = {
+ 	ustart, vstart, uend, vstart, ustart, vend, ustart, vend, uend, vstart, uend, vend,
+--- a/src/WallpaperEngine/Render/Wallpapers/CScene.cpp
++++ b/src/WallpaperEngine/Render/Wallpapers/CScene.cpp
+@@ -14,6 +14,7 @@
+ #include <ranges>
+ #include "WallpaperEngine/Render/Drivers/Output/OutputViewport.h"
+ #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
++#include "WallpaperEngine/Render/Helpers/WallpaperPlacement.h"
+ 
+ extern float g_Time;
+ extern float g_TimeLast;
+@@ -395,7 +396,13 @@
+ 
+     // Account for UV cropping when using fill/fit scaling modes
+     // The scene may be rendered larger than viewport and cropped via UVs
+-    const auto uvs = this->getState ().getTextureUVs ();
++    auto uvs = this->getState ().getTextureUVs ();
++    const auto& placement=Helpers::WallpaperPlacement::configured();
++    Helpers::WallpaperPlacement::zoomRange(uvs.ustart,uvs.uend,placement.zoom);
++    Helpers::WallpaperPlacement::zoomRange(uvs.vstart,uvs.vend,placement.zoom);
++    float sx=Helpers::WallpaperPlacement::cropShift(uvs.uend-uvs.ustart,placement.x);
++    float sy=Helpers::WallpaperPlacement::cropShift(uvs.vend-uvs.vstart,placement.y);
++    uvs.ustart+=sx;uvs.uend+=sx;uvs.vstart+=sy;uvs.vend+=sy;
+ 
+     // Map mouse position from viewport space to scene UV space
+     // UVs define what portion of the scene texture is visible
+--- a/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
++++ b/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ #include <chrono>
++#include <algorithm>
+ #include <cmath>
+ #include <cstdlib>
+ #include <filesystem>
+@@ -8,7 +9,7 @@
+ #include <stdexcept>
+ namespace WallpaperEngine::Render::Helpers::WallpaperPlacement {
+ struct Position {
+-    float x = 0, y = 0;
++    float x = 0, y = 0, zoom = 1;
+ };
+ inline Position parse (const std::string& raw) {
+     auto j = nlohmann::json::parse (raw);
+@@ -19,7 +20,9 @@
+     if (!std::isfinite (x) || !std::isfinite (y) || std::abs (x) > 1 || std::abs (y) > 1) {
+ 	throw std::runtime_error ("Wallpaper position outside [-1, 1]");
+     }
+-    return { static_cast<float> (x), static_cast<float> (y) };
++    double zoom=j.value("zoom",1.0);
++    if(!std::isfinite(zoom)||zoom<1||zoom>3)throw std::runtime_error("Invalid wallpaper zoom");
++    return { static_cast<float> (x), static_cast<float> (y), static_cast<float>(zoom) };
+ }
+ inline const Position& configured () {
+     static Position value = [] () {
+@@ -62,5 +65,7 @@
+ }
+ // Positive means move the image right/down, sampling an earlier source area.
+ // Use the complete canvas UV range, never the individual monitor slice range.
++inline void zoomRange(float& start,float& end,float zoom){float center=(start+end)*.5f,half=(end-start)*.5f/zoom;start=center-half;end=center+half;}
++inline float cropShift(float range,float offset){return -std::copysign(std::max(0.f,1.f-std::abs(range)),range)*offset*.5f;}
+ inline float shift (float range, float offset) { return -range * offset * 0.5f; }
+ }

@@ -1,0 +1,820 @@
+--- a/src/WallpaperEngine/Data/JSON.h
++++ b/src/WallpaperEngine/Data/JSON.h
+@@ -68,7 +68,7 @@
+ 
+ 	return (*it);
+     }
+-    [[nodiscard]] std::optional<base_type> optional (const std::string& key) const noexcept {
++    [[nodiscard]] std::optional<base_type> optional (const std::string& key) const {
+ 	auto base = this->base ();
+ 	const auto it = base.find (key);
+ 	auto result = std::optional<base_type> {};
+@@ -79,7 +79,7 @@
+ 
+ 	return result;
+     }
+-    template <typename T> [[nodiscard]] std::optional<T> optional (const std::string& key) const noexcept {
++    template <typename T> [[nodiscard]] std::optional<T> optional (const std::string& key) const {
+ 	auto base = this->base ();
+ 	const auto it = base.find (key);
+ 
+@@ -89,7 +89,7 @@
+ 
+ 	return *it;
+     }
+-    template <typename T> [[nodiscard]] T optional (const std::string& key, T defaultValue) const noexcept {
++    template <typename T> [[nodiscard]] T optional (const std::string& key, T defaultValue) const {
+ 	auto base = this->base ();
+ 	const auto it = base.find (key);
+ 
+--- a/src/WallpaperEngine/Data/Model/Object.h
++++ b/src/WallpaperEngine/Data/Model/Object.h
+@@ -611,7 +611,7 @@
+     /** Vertical alignment: "top", "center", "bottom" */
+     std::string verticalalign;
+     /** Padding inside the bounding box */
+-    int padding;
++    glm::vec2 padding;
+     // TODO: PARSE LIMITS TOO!
+ };
+ 
+--- a/src/WallpaperEngine/Data/Parsers/ObjectParser.cpp
++++ b/src/WallpaperEngine/Data/Parsers/ObjectParser.cpp
+@@ -123,6 +123,12 @@
+ }
+ 
+ TextUniquePtr ObjectParser::parseText (const JSON& it, const Project& project, ObjectData base) {
++    // Current scene files store horizontal/vertical padding as a vector string.
++    // Retain support for the older uniform numeric representation.
++    const auto padding = it.optional ("padding");
++    const glm::vec2 textPadding = !padding ? glm::vec2 (0.0f)
++        : padding->is_number () ? glm::vec2 (padding->get<float> ())
++                               : static_cast<glm::vec2> (*padding);
+     return std::make_unique<Text> (
+ 	std::move (base),
+ 	TextData {
+@@ -136,7 +142,7 @@
+ 	    .visible = it.user ("visible", project.properties, true),
+ 	    .alignment = it.optional ("horizontalalign", it.optional ("alignment", std::string ("center"))),
+ 	    .verticalalign = it.optional ("verticalalign", std::string ("center")),
+-	    .padding = it.optional ("padding", 0),
++	    .padding = textPadding,
+ 	}
+     );
+ }
+--- a/src/WallpaperEngine/Input/MouseInput.h
++++ b/src/WallpaperEngine/Input/MouseInput.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <glm/vec2.hpp>
++#include <optional>
+ 
+ namespace WallpaperEngine::Input {
+ enum MouseClickStatus : int { Released = 0, Clicked = 1 };
+@@ -29,6 +30,7 @@
+      * The virtual pointer's position
+      */
+     [[nodiscard]] virtual glm::dvec2 position () const = 0;
++    [[nodiscard]] virtual std::optional<glm::dvec2> globalPosition () const { return std::nullopt; }
+ 
+     /**
+      * @return The status of the mouse's left click
+--- a/src/WallpaperEngine/Input/Drivers/WaylandMouseInput.cpp
++++ b/src/WallpaperEngine/Input/Drivers/WaylandMouseInput.cpp
+@@ -22,18 +22,13 @@
+ 	return;
+     }
+ 
+-    if (m_waylandDriver.viewportInFocus && m_waylandDriver.viewportInFocus->rendering) {
+-	this->m_pos = m_waylandDriver.viewportInFocus->mousePos;
+-	return;
+-    }
+-
+     const auto now = std::chrono::steady_clock::now ();
+     if (now - this->m_lastHyprlandQuery < std::chrono::milliseconds (16)) {
+ 	return;
+     }
+     this->m_lastHyprlandQuery = now;
+ 
+-    const auto globalCursor = this->queryHyprlandCursorPosition ();
++    const auto globalCursor = this->m_globalCursor = this->queryHyprlandCursorPosition ();
+     if (!globalCursor.has_value ()) {
+ 	this->m_pos = { 0, 0 };
+ 	return;
+@@ -66,6 +61,12 @@
+ 
+     if (!viewport) {
+ 	return { 0, 0 };
++    }
++
++    if (this->m_globalCursor) {
++        const auto cursor = *this->m_globalCursor;
++        return { (cursor.x - viewport->position.x) * viewport->scale,
++                 (viewport->size.y - (cursor.y - viewport->position.y)) * viewport->scale };
+     }
+ 
+     if (viewport == m_waylandDriver.viewportInFocus) {
+--- a/src/WallpaperEngine/Input/Drivers/WaylandMouseInput.h
++++ b/src/WallpaperEngine/Input/Drivers/WaylandMouseInput.h
+@@ -32,6 +32,7 @@
+      * The virtual pointer's position
+      */
+     [[nodiscard]] glm::dvec2 position () const override;
++    [[nodiscard]] std::optional<glm::dvec2> globalPosition () const override { return m_globalCursor; }
+ 
+     /**
+      * @return The status of the mouse's left click
+@@ -53,6 +54,7 @@
+     const WallpaperEngine::Render::Drivers::WaylandOpenGLDriver& m_waylandDriver;
+ 
+     glm::dvec2 m_pos = {};
++    std::optional<glm::dvec2> m_globalCursor;
+     std::chrono::steady_clock::time_point m_lastHyprlandQuery = {};
+ };
+ } // namespace WallpaperEngine::Input::Drivers
+--- a/src/WallpaperEngine/Render/Objects/CImage.cpp
++++ b/src/WallpaperEngine/Render/Objects/CImage.cpp
+@@ -174,6 +174,12 @@
+     m_modelViewProjectionPass (glm::mat4 (1.0)), m_modelViewProjectionCopy (), m_modelViewProjectionScreenInverse (),
+     m_modelViewProjectionPassInverse (glm::inverse (m_modelViewProjectionPass)), m_modelViewProjectionCopyInverse (),
+     m_modelMatrix (), m_viewProjectionMatrix (), m_image (image), m_pos (), m_initialized (false) {
++    for (const auto& object : scene.getScene ().objects) {
++        if (std::find (object->dependencies.begin (), object->dependencies.end (), image.id) != object->dependencies.end ()) {
++            this->m_dependencyTexture = true;
++            break;
++        }
++    }
+     // register any properties in use on this object
+     this->registerProperty ("origin", *image.origin->value);
+     this->registerProperty ("scale", *image.scale->value);
+@@ -599,10 +605,13 @@
+ 	return;
+     }
+ 
++    this->m_effectVisibility.clear ();
++    for (const auto& effect : this->m_image.effects) this->m_effectVisibility.push_back (effect->visible->value->getBool ());
++
+     // TODO: CHECK ORDER OF THINGS, 2419444134'S ID 27 DEPENDS ON 104'S COMPOSITE_A WHEN OUR LAST RENDER IS ON
+     // COMPOSITE_B
+     // TODO: SUPPORT PASSTHROUGH (IT'S A SHADER)
+-    if (this->m_image.model->passthrough) {
++    if (this->m_image.model->passthrough && !this->m_dependencyTexture) {
+ 	// passthrough images without effects are bad, do not draw them
+ 	if (this->m_image.effects.empty ()) {
+ 	    return;
+@@ -779,6 +788,9 @@
+ 
+     this->setupPasses ();
+     this->m_initialized = true;
++    this->m_lastVisible = this->m_image.visible->value->getBool ();
++    this->m_effectVisibility.clear ();
++    for (const auto& effect : this->m_image.effects) this->m_effectVisibility.push_back (effect->visible->value->getBool ());
+ }
+ 
+ void CImage::setupPasses () {
+@@ -907,14 +919,30 @@
+ }
+ 
+ void CImage::render () {
+-    // do not try to render something that did not initialize successfully
+-    if (!this->m_initialized) {
+-	return;
+-    }
+-
+-    if (!this->getImage ().visible->value->getBool ()) {
+-	return;
+-    }
++    std::vector<bool> visibility;
++    for (const auto& effect : this->m_image.effects) visibility.push_back (effect->visible->value->getBool ());
++    const bool visible = this->m_image.visible->value->getBool ();
++    if (this->m_initialized && visibility != this->m_effectVisibility) {
++        for (auto* pass : this->m_passes) delete pass;
++        this->m_passes.clear ();
++        this->m_virtualPassess.clear ();
++        this->m_materials.compatibilityMaterials.clear ();
++        this->m_materials.compatibilityOverrides.clear ();
++        this->m_currentMainFBO = this->m_mainFBO;
++        this->m_currentSubFBO = this->m_subFBO;
++        this->m_initialized = false;
++        this->setup ();
++    }
++    if (!this->m_initialized && visibility != this->m_effectVisibility) this->setup ();
++    if (!this->m_initialized) return;
++    if (visible != this->m_lastVisible) {
++        this->m_currentMainFBO = this->m_mainFBO;
++        this->m_currentSubFBO = this->m_subFBO;
++        this->setupPasses ();
++        this->m_lastVisible = visible;
++    }
++    // Hidden compose layers can still be sampled by dependent effects.
++    if (!visible && !this->m_dependencyTexture) return;
+ 
+     glColorMask (true, true, true, true);
+ 
+@@ -937,7 +965,7 @@
+     auto cur = this->m_passes.begin ();
+ 
+     for (const auto end = this->m_passes.end (); cur != end; ++cur) {
+-	if (std::next (cur) == end) {
++	if (std::next (cur) == end && visible) {
+ 	    glColorMask (true, true, true, false);
+ 	}
+ 
+@@ -1146,3 +1174,12 @@
+ GLuint CImage::getTexCoordCopy () const { return this->m_texcoordCopy; }
+ 
+ GLuint CImage::getTexCoordPass () const { return this->m_texcoordPass; }
++
++bool CImage::containsCursor (const glm::vec2& world) const {
++    if (!this->m_image.visible->value->getBool ()) return false;
++    auto transform = this->resolveTransform (this->m_image);
++    const auto size = this->resolveGeometrySize (this->getScene ().getWidth (), this->getScene ().getHeight (), transform.origin);
++    const auto delta = rotateVec2 (world - glm::vec2 (transform.origin), -transform.angle);
++    return std::abs (delta.x) <= std::abs (size.x * transform.scale.x) * 0.5f
++        && std::abs (delta.y) <= std::abs (size.y * transform.scale.y) * 0.5f;
++}
+--- a/src/WallpaperEngine/Render/Objects/CImage.h
++++ b/src/WallpaperEngine/Render/Objects/CImage.h
+@@ -34,6 +34,7 @@
+ 
+     [[nodiscard]] const Image& getImage () const;
+     [[nodiscard]] glm::vec2 getSize () const;
++    [[nodiscard]] bool containsCursor (const glm::vec2& world) const;
+ 
+     [[nodiscard]] GLuint getSceneSpacePosition () const;
+     [[nodiscard]] GLuint getCopySpacePosition () const;
+@@ -129,6 +130,9 @@
+     glm::vec2 m_size = {};
+ 
+     bool m_initialized = false;
++    std::vector<bool> m_effectVisibility;
++    bool m_lastVisible = false;
++    bool m_dependencyTexture = false;
+ 
+     struct {
+ 	struct {
+--- a/src/WallpaperEngine/Render/Wallpapers/CScene.cpp
++++ b/src/WallpaperEngine/Render/Wallpapers/CScene.cpp
+@@ -12,6 +12,8 @@
+ #include "WallpaperEngine/Data/Parsers/ObjectParser.h"
+ 
+ #include <ranges>
++#include "WallpaperEngine/Render/Drivers/Output/OutputViewport.h"
++#include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
+ 
+ extern float g_Time;
+ extern float g_TimeLast;
+@@ -374,6 +376,23 @@
+     // Particle code expects this convention: 0=bottom results in negative Y (down), 1=top results in positive Y (up)
+     double normalizedMouseY = glm::clamp ((position.y - viewport.y) / viewport.w, 0.0, 1.0);
+ 
++    // A panorama renders once for all outputs. Map the global cursor through
++    // the same per-output calibration used to compose its slices.
++    const auto global = this->getContext ().getInputContext ().getMouseInput ().globalPosition ();
++    if (global && this->getSpanInfo ()) {
++        const auto bounds = this->getSpanInfo ()->totalBounds;
++        for (const auto& [name, output] : this->getContext ().getOutput ().getViewports ()) {
++            const auto p = output->globalPosition, size = output->logicalSize;
++            if (size.x <= 0 || size.y <= 0) continue;
++            const auto local = (*global - glm::dvec2 (p)) / glm::dvec2 (size);
++            if (local.x < 0 || local.y < 0 || local.x >= 1 || local.y >= 1) continue;
++            const auto calibrated = Helpers::SpanGeometry::rect (name, p, size);
++            mouseX = (calibrated.x + local.x * calibrated.z - bounds.x) / bounds.z;
++            normalizedMouseY = 1.0 - (calibrated.y + local.y * calibrated.w - bounds.y) / bounds.w;
++            break;
++        }
++    }
++
+     // Account for UV cropping when using fill/fit scaling modes
+     // The scene may be rendered larger than viewport and cropped via UVs
+     const auto uvs = this->getState ().getTextureUVs ();
+--- a/src/WallpaperEngine/Render/Shaders/ShaderUnit.cpp
++++ b/src/WallpaperEngine/Render/Shaders/ShaderUnit.cpp
+@@ -1,4 +1,5 @@
+ #include "ShaderUnit.h"
++#include "TexCoordCompatibility.h"
+ 
+ #include "WallpaperEngine/Logging/Log.h"
+ #include <exception>
+@@ -419,23 +420,11 @@
+ 	return source;
+     }
+ 
+-    const std::regex texCoordBeforeCast2 (R"(\bv_TexCoord\b(\s*[-+*/]\s*CAST2\s*\())");
+-    const std::regex cast2BeforeTexCoord (R"((CAST2\s*\([^)]+\)\s*[-+*/]\s*)\bv_TexCoord\b)");
+-
+-    const std::regex wideTexCoordDecl (R"(\bvarying\s+vec[34]\s+v_TexCoord\s*;)");
+-    if (!std::regex_search (source, wideTexCoordDecl)
+-	|| (!std::regex_search (source, texCoordBeforeCast2) && !std::regex_search (source, cast2BeforeTexCoord))) {
+-	return source;
+-    }
+-
+     const std::string original = source;
+-    source = std::regex_replace (source, texCoordBeforeCast2, "v_TexCoord.xy$1");
+-    source = std::regex_replace (source, cast2BeforeTexCoord, "$1v_TexCoord.xy");
+-
++    source = narrowTexCoordExpressions (std::move (source));
+     if (source != original) {
+-	sLog.out ("Applied fragment TexCoord vec2 compatibility in ", this->m_file);
+-    }
+-
++        sLog.out ("Applied fragment TexCoord vec2 compatibility in ", this->m_file);
++    }
+     return source;
+ }
+ 
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Shaders/TexCoordCompatibility.h
+@@ -0,0 +1,53 @@
++#pragma once
++#include <regex>
++#include <string>
++#include <vector>
++
++namespace WallpaperEngine::Render::Shaders {
++inline std::string narrowTexCoordExpressions (std::string source) {
++    const std::regex texCoordBeforeCast2 (R"(\bv_TexCoord\b(\s*[-+*/]\s*CAST2\s*\())");
++    const std::regex cast2BeforeTexCoord (R"((CAST2\s*\([^)]+\)\s*[-+*/]\s*)\bv_TexCoord\b)");
++
++    const std::regex wideTexCoordDecl (R"(\bvarying\s+vec[34]\s+v_TexCoord\s*;)");
++    if (!std::regex_search (source, wideTexCoordDecl)) {
++        return source;
++    }
++
++    source = std::regex_replace (source, texCoordBeforeCast2, "v_TexCoord.xy$1");
++    source = std::regex_replace (source, cast2BeforeTexCoord, "$1v_TexCoord.xy");
++
++    // Workshop clipping masks compute vec2 UVs from a wide varying. HLSL
++    // truncates that expression; GLSL requires the narrowing before arithmetic.
++    // Restrict this to vec2 initializers containing a declared vec2 operand,
++    // preserving wide coordinates and explicit swizzles in all other code.
++    const std::regex vec2Declaration (R"(\b(?:uniform\s+)?vec2\s+([A-Za-z_][A-Za-z0-9_]*)\s*[;=])");
++    std::vector<std::string> vec2Names;
++    for (auto it = std::sregex_iterator (source.begin (), source.end (), vec2Declaration);
++         it != std::sregex_iterator (); ++it) {
++        vec2Names.push_back ((*it)[1].str ());
++    }
++    const std::regex initializer (R"((\bvec2\s+[A-Za-z_][A-Za-z0-9_]*\s*=)([^;]+);)");
++    const std::regex bareTexCoord (R"(\bv_TexCoord\b(?!\s*\.))");
++    std::string rewritten;
++    size_t offset = 0;
++    for (auto it = std::sregex_iterator (source.begin (), source.end (), initializer);
++         it != std::sregex_iterator (); ++it) {
++        const auto& match = *it;
++        std::string expression = match[2].str ();
++        bool vec2Operand = false;
++        for (const auto& name : vec2Names) {
++            if (std::regex_search (expression, std::regex ("\\b" + name + "\\b"))) {
++                vec2Operand = true;
++                break;
++            }
++        }
++        rewritten += source.substr (offset, match.position () - offset);
++        rewritten += match[1].str () + (vec2Operand ? std::regex_replace (expression, bareTexCoord, "v_TexCoord.xy") : expression) + ";";
++        offset = match.position () + match.length ();
++    }
++    rewritten += source.substr (offset);
++    source = std::move (rewritten);
++
++    return source;
++}
++}
+--- a/src/WallpaperEngine/Scripting/Adapters/ScriptableObjectAdapter.cpp
++++ b/src/WallpaperEngine/Scripting/Adapters/ScriptableObjectAdapter.cpp
+@@ -1,6 +1,8 @@
+ #include "ScriptableObjectAdapter.h"
+ 
+ #include <utility>
++#include "WallpaperEngine/Render/Objects/CImage.h"
++#include "WallpaperEngine/Data/Model/UserSetting.h"
+ 
+ #include "WallpaperEngine/Data/Utils/ScopeGuard.h"
+ #include "WallpaperEngine/Scripting/ScriptEngine.h"
+@@ -17,6 +19,47 @@
+     ScriptableObjectAdapter& adapter;
+     WallpaperEngine::Scripting::ScriptableObject& object;
+ };
++
++static JSValue effect_visible (JSContext* ctx, JSValueConst self, int argc, JSValueConst* argv, int magic, JSValue* data) {
++    JSClassID classId = 0;
++    auto* container = static_cast<OpaqueScriptableObjectAdapter*> (JS_GetAnyOpaque (data[0], &classId));
++    auto* image = container && container->magic == SCRIPTABLE_OPAQUE_MAGIC ? dynamic_cast<WallpaperEngine::Render::Objects::CImage*> (&container->object) : nullptr;
++    int index = -1;
++    JS_ToInt32 (ctx, &index, data[1]);
++    if (!image || index < 0 || size_t(index) >= image->getImage ().effects.size ()) return JS_UNDEFINED;
++    auto& value = *image->getImage ().effects[index]->visible->value;
++    if (magic == 0) return JS_NewBool (ctx, value.getBool ());
++    if (argc) value.update (JS_ToBool (ctx, argv[0]) != 0, DynamicValue::UpdateSource::Script);
++    return JS_UNDEFINED;
++}
++
++static JSValue get_effect (JSContext* ctx, JSValueConst self, int argc, JSValueConst* argv) {
++    JSClassID classId = 0;
++    auto* container = static_cast<OpaqueScriptableObjectAdapter*> (JS_GetAnyOpaque (self, &classId));
++    auto* image = container && container->magic == SCRIPTABLE_OPAQUE_MAGIC ? dynamic_cast<WallpaperEngine::Render::Objects::CImage*> (&container->object) : nullptr;
++    if (!image || !argc) return JS_UNDEFINED;
++    const char* name = JS_ToCString (ctx, argv[0]);
++    if (!name) return JS_EXCEPTION;
++    int index = -1;
++    for (size_t i = 0; i < image->getImage ().effects.size (); ++i) {
++        if (image->getImage ().effects[i]->name == name) { index = int(i); break; }
++    }
++    JS_FreeCString (ctx, name);
++    if (index < 0) return JS_UNDEFINED;
++    JSValue result = JS_NewObject (ctx);
++    JSValue data[] = {self, JS_NewInt32 (ctx, index)};
++    JSAtom visible = JS_NewAtom (ctx, "visible");
++    JS_DefinePropertyGetSet (ctx, result, visible,
++        JS_NewCFunctionData (ctx, effect_visible, 0, 0, 2, data),
++        JS_NewCFunctionData (ctx, effect_visible, 1, 1, 2, data), JS_PROP_ENUMERABLE);
++    JS_FreeAtom (ctx, visible);
++    return result;
++}
++
++static void scriptableobject_finalizer (JSRuntime* runtime, JSValue value) {
++    JSClassID id = 0;
++    delete static_cast<OpaqueScriptableObjectAdapter*> (JS_GetAnyOpaque (value, &id));
++}
+ 
+ JSValue scriptableobject_property_get (JSContext* ctx, JSValueConst obj_val, JSAtom atom, JSValueConst receiver) {
+     JSClassID classId = 0;
+@@ -35,11 +78,17 @@
+ 
+     ScopeGuard guard ([=] { JS_FreeCString (ctx, name); });
+ 
++    if (std::string (name) == "getEffect") return JS_NewCFunction (ctx, get_effect, "getEffect", 1);
++
+     try {
+ 	// find the property inside, otherwise return undefined
+ 	auto& property = container->object.getProperty (name);
+ 
+-	return container->adapter.getEngine ().dynamicToJs (property);
++	if (std::string (name) == "angles") {
++            DynamicValue degrees (glm::degrees (property.getVec3 ()));
++            return container->adapter.getEngine ().getAdapters ().vec3->instantiate (degrees, true);
++        }
++        return container->adapter.getEngine ().dynamicToJs (property);
+     } catch (const std::exception& e) {
+ 	return JS_UNDEFINED;
+     }
+@@ -62,14 +111,26 @@
+ 	return -1;
+     }
+ 
+-    return 0;
++    ScopeGuard guard ([=] { JS_FreeCString (ctx, name); });
++    try {
++        auto& property = container->object.getProperty (name);
++        if (std::string (name) == "angles") {
++            DynamicValue degrees (glm::vec3 (0.0f));
++            ScriptEngine::jsToValue (ctx, val, degrees);
++            property.update (glm::radians (degrees.getVec3 ()), DynamicValue::UpdateSource::Script);
++        } else ScriptEngine::jsToValue (ctx, val, property);
++        return 1;
++    } catch (const std::exception& e) {
++        return JS_ThrowTypeError (ctx, "%s", e.what ()), -1;
++    }
+ }
+ 
+ ScriptableObjectAdapter::ScriptableObjectAdapter (ScriptEngine& engine, std::string name) :
+-    ObjectAdapter (engine), m_exoticMethods (), m_name (std::move (name)) {
++    ObjectAdapter (engine), m_exoticMethods { .get_property = scriptableobject_property_get, .set_property = scriptableobject_property_set }, m_name (std::move (name)) {
+     this->registerType (
+ 	{
+ 	    .class_name = m_name.c_str (),
++            .finalizer = scriptableobject_finalizer,
+ 	    .exotic = &m_exoticMethods,
+ 	}
+     );
+--- a/src/WallpaperEngine/Scripting/ConsoleObject.cpp
++++ b/src/WallpaperEngine/Scripting/ConsoleObject.cpp
+@@ -58,11 +58,11 @@
+     JS_SetOpaque (this->m_instance, this);
+     JS_DefinePropertyValueStr (
+ 	this->m_engine.getContext (), this->m_instance, "log",
+-	JS_NewCFunction (this->m_engine.getContext (), console_log, "log", 1), JS_PROP_ENUMERABLE
++	JS_NewCFunction (this->m_engine.getContext (), console_log, "log", 1), JS_PROP_C_W_E
+     );
+     JS_DefinePropertyValueStr (
+ 	this->m_engine.getContext (), this->m_instance, "error",
+-	JS_NewCFunction (this->m_engine.getContext (), console_error, "error", 1), JS_PROP_ENUMERABLE
++	JS_NewCFunction (this->m_engine.getContext (), console_error, "error", 1), JS_PROP_C_W_E
+     );
+ }
+ 
+--- a/src/WallpaperEngine/Scripting/InputObject.cpp
++++ b/src/WallpaperEngine/Scripting/InputObject.cpp
+@@ -10,8 +10,10 @@
+     JSClassID classId;
+     auto* input = static_cast<InputObject*> (JS_GetAnyOpaque (this_val, &classId));
+ 
+-    // TODO: PROPERLY IMPLEMENT THIS
+-    return input->getScene ().getScriptEngine ().getAdapters ().vec3->instantiate ();
++    const auto& scene = input->getScene ();
++    const auto position = *scene.getMousePositionNormalized ();
++    DynamicValue world (glm::vec3 (position.x * scene.getWidth (), position.y * scene.getHeight (), 0.0f));
++    return scene.getScriptEngine ().getAdapters ().vec3->instantiate (world, true);
+ }
+ 
+ JSValue get_cursor_screen_position (JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+@@ -28,8 +30,11 @@
+ }
+ 
+ JSValue get_cursor_left_down (JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+-    // TODO: IMPLEMENT THIS
+-    return JS_NewBool (ctx, false);
++    JSClassID classId;
++    auto* input = static_cast<InputObject*> (JS_GetAnyOpaque (this_val, &classId));
++    const auto& context = input->getScene ().getContext ();
++    return JS_NewBool (ctx, context.getApp ().getContext ().settings.mouse.enabled
++        && context.getInputContext ().getMouseInput ().leftClick () == WallpaperEngine::Input::Clicked);
+ }
+ 
+ JSValue input_set_value (JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) { return JS_EXCEPTION; }
+--- a/src/WallpaperEngine/Scripting/ScriptEngine.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptEngine.cpp
+@@ -12,6 +12,8 @@
+ #include "WallpaperEngine/Logging/Log.h"
+ #include "WallpaperEngine/Render/CObject.h"
+ #include "WallpaperEngine/Render/Objects/CSound.h"
++#include "WallpaperEngine/Render/Objects/CImage.h"
++#include "WallpaperEngine/Data/Model/Property.h"
+ #include "WallpaperEngine/Render/Wallpapers/CScene.h"
+ #include "WallpaperEngine/Scripting/Builtins.generated.h"
+ #include "quickjs.h"
+@@ -106,7 +108,7 @@
+     }
+ }
+ 
+-static void jsToDynamicValue (JSContext* ctx, JSValue val, DynamicValue& source) {
++void ScriptEngine::jsToValue (JSContext* ctx, JSValue val, DynamicValue& source) {
+     if (JS_IsException (val)) {
+ 	return;
+     }
+@@ -153,7 +155,7 @@
+ 	    JS_FreeValue (ctx, w);
+ 	});
+ 
+-	if (!JS_IsNumber (x) || JS_IsNumber (y)) {
++	if (!JS_IsNumber (x) || !JS_IsNumber (y)) {
+ 	    sLog.exception ("Vector's x and y components must be numbers");
+ 	}
+ 
+@@ -167,11 +169,13 @@
+ 	    return;
+ 	}
+ 
++        JS_ToFloat64 (ctx, &zVal, z);
+ 	if (!JS_IsNumber (w)) {
+ 	    source.update (glm::vec3 (xVal, yVal, zVal), DynamicValue::UpdateSource::Script);
+ 	    return;
+ 	}
+ 
++        JS_ToFloat64 (ctx, &wVal, w);
+ 	source.update (glm::vec4 (xVal, yVal, zVal, wVal), DynamicValue::UpdateSource::Script);
+     }
+ }
+@@ -241,7 +245,7 @@
+ 	this->m_context, this->m_globalThis, "thisScene", this->m_sceneObject->getInstance (), JS_PROP_ENUMERABLE
+     );
+     JS_DefinePropertyValueStr (
+-	this->m_context, this->m_globalThis, "console", this->m_consoleObject->getInstance (), JS_PROP_ENUMERABLE
++	this->m_context, this->m_globalThis, "console", this->m_consoleObject->getInstance (), JS_PROP_C_W_E
+     );
+     JS_DefinePropertyValueStr (
+ 	this->m_context, this->m_globalThis, "shared", JS_NewObject (this->m_context), JS_PROP_ENUMERABLE
+@@ -574,68 +578,116 @@
+     auto it = this->m_scriptModules.find (key);
+ 
+     if (it != this->m_scriptModules.end ()) {
+-	return;
+-    }
+-
+-    // load the script and store it
+-    JSValue module = JS_Eval (this->m_context, source->c_str (), source->size (), key.c_str (), JS_EVAL_TYPE_MODULE);
+-
+-    auto inserted = this->m_scriptModules.emplace (
+-	key,
+-	LoadedModule {
+-	    .value = currentValue,
+-	    .module = module,
+-	}
+-    );
+-
+-    if (!inserted.second) {
+-	return;
+-    }
+-
+-    JS_SetPropertyStr (this->m_context, this->m_globalThis, "thisLayer", this->m_adapters.object->instantiate (object));
+-
+-    // script properties do not need update as they're connected directly to the source data
+-    this->m_runningModule = &inserted.first->second;
+-
+-    // check if there's an update method and run it
+-    JSValue args[] = { this->dynamicToJs (currentValue) };
+-    JSValue result = this->call (module, 1, args, "update");
+-
+-    ScopeGuard guard2 ([this, args, result] () {
+-	JS_FreeValue (this->m_context, result);
+-	JS_FreeValue (this->m_context, args[0]);
++        if (it->second.initialized) return;
++        this->m_scriptModules.erase (it);
++    }
++
++    // Defer evaluation until every layer exists and can be looked up by init().
++    this->m_scriptModules.emplace (key, LoadedModule {
++        .value = currentValue, .module = JS_UNDEFINED, .object = &object,
+     });
+-
+-    if (JS_IsException (result)) {
+-	return;
+-    }
+-
+-    jsToDynamicValue (this->m_context, result, currentValue);
+ }
+ 
+ void ScriptEngine::tick () {
+-    // run intervals
+     this->m_engineObject->tick ();
+-
+-    // run any pending notifications
+-
+-    // run all update methods
+-    for (auto& module : this->m_scriptModules | std::views::values) {
+-	this->m_runningModule = &module;
+-
+-	JSValue args[] = { this->dynamicToJs (module.value) };
+-	JSValue result = this->call (module.module, 1, args, "update");
+-	ScopeGuard guard ([result, args, this] () {
+-	    JS_FreeValue (this->m_context, result);
+-	    JS_FreeValue (this->m_context, args[0]);
+-	});
+-
+-	if (JS_IsException (result)) {
+-	    continue;
+-	}
+-
+-	jsToDynamicValue (this->m_context, result, module.value);
+-    }
++    const auto cursor = *this->m_scene.getMousePositionNormalized ();
++    const bool moved = !this->m_lastCursor || *this->m_lastCursor != cursor;
++    this->m_lastCursor = cursor;
++    const bool mouseEnabled = this->m_scene.getContext ().getApp ().getContext ().settings.mouse.enabled;
++    const bool down = mouseEnabled && this->m_scene.getContext ().getInputContext ().getMouseInput ().leftClick () == Input::Clicked;
++    const glm::vec2 world (cursor.x * this->m_scene.getWidth (), cursor.y * this->m_scene.getHeight ());
++    for (auto& [key, module] : this->m_scriptModules) {
++        this->m_runningModule = &module;
++        const bool angles = key.starts_with ("angles_");
++        auto scriptValue = [&] () {
++            if (!angles) return this->dynamicToJs (module.value);
++            DynamicValue degrees (glm::degrees (module.value.getVec3 ()));
++            return this->m_adapters.vec3->instantiate (degrees, true);
++        };
++        auto applyValue = [&] (JSValue result) {
++            if (!angles) { jsToValue (this->m_context, result, module.value); return; }
++            DynamicValue degrees (glm::vec3 (0.0f));
++            jsToValue (this->m_context, result, degrees);
++            module.value.update (glm::radians (degrees.getVec3 ()), DynamicValue::UpdateSource::Script);
++        };
++        JS_SetPropertyStr (this->m_context, this->m_globalThis, "thisLayer",
++            this->m_adapters.object->instantiate (*module.object));
++        if (!module.initialized) {
++            module.initialized = true;
++            const auto& source = *module.value.getScriptSource ();
++            JSValue compiled = JS_Eval (this->m_context, source.c_str (), source.size (), key.c_str (),
++                JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
++            if (JS_IsException (compiled)) {
++                logJSException (this->m_context, "compile");
++                continue;
++            }
++            auto* definition = static_cast<JSModuleDef*> (JS_VALUE_GET_PTR (compiled));
++            JSValue evaluated = JS_EvalFunction (this->m_context, compiled);
++            if (JS_IsException (evaluated)) {
++                logJSException (this->m_context, "evaluate");
++                JS_FreeValue (this->m_context, evaluated);
++                continue;
++            }
++            JSContext* jobContext = nullptr;
++            while (JS_ExecutePendingJob (this->m_runtime, &jobContext) > 0) { }
++            if (JS_PromiseState (this->m_context, evaluated) == JS_PROMISE_REJECTED) {
++                JSValue reason = JS_PromiseResult (this->m_context, evaluated);
++                const char* error = JS_ToCString (this->m_context, reason);
++                sLog.error ("ScriptEngine [module ", key, "]: ", error ? error : "evaluation rejected");
++                JS_FreeCString (this->m_context, error);
++                JS_FreeValue (this->m_context, reason);
++                JS_FreeValue (this->m_context, evaluated);
++                continue;
++            }
++            JS_FreeValue (this->m_context, evaluated);
++            module.module = JS_GetModuleNamespace (this->m_context, definition);
++            JSValue properties = JS_NewObject (this->m_context);
++            for (const auto& [name, property] : this->m_scene.getScene ().project.properties) {
++                JS_SetPropertyStr (this->m_context, properties, name.c_str (), this->dynamicToJs (*property));
++            }
++            JSValue applied = this->call (module.module, 1, &properties, "applyUserProperties");
++            if (JS_IsException (applied)) logJSException (this->m_context, "applyUserProperties");
++            JS_FreeValue (this->m_context, applied);
++            JS_FreeValue (this->m_context, properties);
++            JSValue initial = scriptValue ();
++            JSValue result = this->call (module.module, 1, &initial, "init");
++            if (JS_IsException (result)) logJSException (this->m_context, "init");
++            else if (!JS_IsUndefined (result)) applyValue (result);
++            JS_FreeValue (this->m_context, result);
++            JS_FreeValue (this->m_context, initial);
++        }
++        if (JS_IsUndefined (module.module)) continue;
++        const auto* image = dynamic_cast<const Render::Objects::CImage*> (module.object);
++        const bool hovered = mouseEnabled && image && image->containsCursor (world);
++        auto dispatch = [&] (const char* name) {
++            JSValue event = JS_NewObject (this->m_context);
++            JSValue result = this->call (module.module, 1, &event, name);
++            if (JS_IsException (result)) logJSException (this->m_context, name);
++            JS_FreeValue (this->m_context, result);
++            JS_FreeValue (this->m_context, event);
++        };
++        if (hovered && !module.hovered) dispatch ("cursorEnter");
++        if (!hovered && module.hovered) dispatch ("cursorLeave");
++        if (hovered && moved) dispatch ("cursorMove");
++        if (hovered && down && !this->m_cursorDown) {
++            module.pressed = true;
++            dispatch ("cursorDown");
++        }
++        if (!down && this->m_cursorDown) {
++            if (hovered) dispatch ("cursorUp");
++            if (hovered && module.pressed) dispatch ("cursorClick");
++            module.pressed = false;
++        }
++        module.hovered = hovered;
++        JSValue initial = scriptValue ();
++        JSValue result = this->call (module.module, 1, &initial, "update");
++        if (JS_IsException (result)) logJSException (this->m_context, "update");
++        else if (!JS_IsUndefined (result)) applyValue (result);
++        JS_FreeValue (this->m_context, result);
++        JS_FreeValue (this->m_context, initial);
++    }
++    this->m_cursorDown = down;
++    this->m_runningModule = nullptr;
+ }
+ 
+ void ScriptEngine::notifyMediaUpdate (const Media::MediaSource::MediaInfo& media) {
+--- a/src/WallpaperEngine/Scripting/ScriptEngine.h
++++ b/src/WallpaperEngine/Scripting/ScriptEngine.h
+@@ -47,6 +47,10 @@
+     struct LoadedModule {
+ 	DynamicValue& value;
+ 	JSValue module;
++        ScriptableObject* object;
++        bool initialized = false;
++        bool hovered = false;
++        bool pressed = false;
+     };
+     struct JSObjectAdapters {
+ 	std::unique_ptr<Adapters::VectorAdapter<4>> vec4;
+@@ -65,6 +69,7 @@
+     JSValue getGlobalThis () const { return m_globalThis; }
+     LoadedModule* getRunningModule () const { return m_runningModule; }
+     JSValue dynamicToJs (DynamicValue& value) const;
++    static void jsToValue (JSContext* ctx, JSValue value, DynamicValue& target);
+ 
+     /**
+      * Evaluate a WallpaperEngine script's update() function.
+@@ -167,6 +172,8 @@
+     bool m_layerRegistryReady = false;
+     std::map<ScriptLayerHandle, bool> m_layerInitialized;
+     bool m_builtinsInstalled = false;
++    std::optional<glm::vec2> m_lastCursor;
++    bool m_cursorDown = false;
+     Media::MediaSource& m_mediaSource;
+     std::function<void ()> m_unregisterMediaUpdateCallback;
+     std::function<void ()> m_unregisterAlbumArtUpdateCallback;
+--- a/src/WallpaperEngine/Scripting/ScriptPropertiesObject.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptPropertiesObject.cpp
+@@ -58,7 +58,7 @@
+     // no need to do anything, any add call should just return itself
+     // we'll set them either way as what comes in the DynamicValue
+     // TODO: PROPERLY IMPLEMENT THIS CHAIN AT SOME POINT
+-    return this_val;
++    return JS_DupValue (ctx, this_val);
+ }
+ 
+ JSValue scriptpropertiescreator_finish (JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+@@ -169,7 +169,7 @@
+     JS_DefinePropertyValueStr (
+ 	this->m_engine.getContext (), this->m_engine.getGlobalThis (), "createScriptProperties",
+ 	JS_NewCFunctionMagic (
+-	    this->m_engine.getContext (), scriptpropertiescreator_create, "createScriptProperties", 0, JS_CFUNC_generic,
++	    this->m_engine.getContext (), scriptpropertiescreator_create, "createScriptProperties", 0, JS_CFUNC_generic_magic,
+ 	    m_instanceId
+ 	),
+ 	JS_PROP_ENUMERABLE
+--- a/src/WallpaperEngine/Scripting/ScriptableObject.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptableObject.cpp
+@@ -31,6 +31,7 @@
+ }
+ 
+ void ScriptableObject::registerProperty (const std::string& name, DynamicValue& value) {
++    this->m_properties.erase (name);
+     auto inserted = this->m_properties.emplace (
+ 	name, PropertyEntry { .key = name + "_" + std::to_string (this->getId ()), .value = value }
+     );

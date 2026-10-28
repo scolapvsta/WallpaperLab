@@ -2,6 +2,8 @@
 // Modified 2026-10-26: integrated Steam catalog, renderer control, UI and safe preview lifecycle.
 #include "lab.h"
 #include "gif.h"
+#include "popup_layout.h"
+#include "popup_animation.h"
 // this was vibe coded xd,
 // don't take this seriosly,
 // but feel free to use this.
@@ -167,9 +169,13 @@ static Particle particles[MAX_POSSIBLE_PARTICLES];
 
 static int wallpaper_count = 0;
 static bool applying = false;
+static bool popupView = false;
+static int sceneTop=154, sceneBottom=166;
 static int smokeStage = -1;
 static double smokeStart;
-static LabGif previewGif = {0};
+static bool smokeApplyStarted=false, smokeApplySucceeded=false;
+static int smokeFramesAfterApply=0;
+
 
 static atomic_int next_load_index = 0;
 static atomic_bool loader_running = true;
@@ -177,12 +183,12 @@ static atomic_bool loader_running = true;
 static Image pendingImages[MAX_POSSIBLE_WALLPAPERS];
 static atomic_bool imagePending[MAX_POSSIBLE_WALLPAPERS];
 
-static int preview_index = -1;
-static float previewAnim = 0.0f;
-static int closing_preview_index = -1;
 
-static Texture2D fullPreviewTexture;
-static atomic_bool isFullTextureReady = false;
+
+
+
+
+
 
 static bool isExiting = false;
 static float masterScale = 1.0f;
@@ -212,7 +218,8 @@ static float g_smoothScrollY = 0.0f;
 static float g_smoothScrollX = 0.0f;
 
 static int g_hoveredIndex = -1;
-static Rectangle g_previewStartRect;
+static int selected_index = -1;
+
 
 int g_win_width;
 int g_win_height;
@@ -306,15 +313,14 @@ static Image LoadThumbnailImage(const char *fp)
     if (!i.data) i = GenImageColor(150,150,(Color){34,44,48,255});
     if (i.data)
     {
-        int cs = (i.width < i.height) ? i.width : i.height;
-        Rectangle cr = {
-            (float)(i.width - cs) / 2,
-            (float)(i.height - cs) / 2,
-            (float)cs,
-            (float)cs
-        };
-        ImageCrop(&i, cr);
-        ImageResize(&i, g_base_thumb_size, g_base_thumb_size);
+        if(popupView){
+            int cs=i.width<i.height?i.width:i.height;
+            ImageCrop(&i,(Rectangle){(i.width-cs)/2.f,(i.height-cs)/2.f,cs,cs});
+            ImageResize(&i,g_base_thumb_size,g_base_thumb_size);
+        }else{
+            float scale=fminf(1,g_base_thumb_size/(float)(i.width>i.height?i.width:i.height));
+            ImageResize(&i,fmaxf(1,i.width*scale),fmaxf(1,i.height*scale));
+        }
     }
     else
     {
@@ -330,9 +336,11 @@ void *LoaderThread(void* a)
         int i = atomic_fetch_add(&next_load_index, 1);
         if (i >= wallpaper_count)
         {
+            if(popupView)break;
             usleep(100000);
             continue;
         }
+        if(popupView && !lab_favorite(i))continue;
         if (!atomic_load(&imagePending[i]) && !atomic_load(&wallpapers[i].loaded))
         {
             Image img = LoadThumbnailImage(wallpapers[i].path);
@@ -473,6 +481,11 @@ void ParseConfigFile()
     fclose(file);
 }
 
+static void UiText(const char*,int,int,int,Color);
+static int UiMeasure(const char*,int);
+#define DrawText UiText
+#define MeasureText UiMeasure
+
 void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bool isPreviewing, bool isSearching)
 {
     int sw = GetScreenWidth();
@@ -497,15 +510,15 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
             case MODE_GRID:
             {
                 float ts = g_base_thumb_size * masterScale, p = g_base_padding * masterScale;
-                int c = sw / (ts + p);
+                int c = (sw-p) / (ts + p);
                 if (c < 1) c = 1;
-                targetPos2D = (Vector2){(j % c) * (ts + p) + p, (j / c) * (ts + p + 25) + p + 106 - g_smoothScrollY};
+                targetPos2D = (Vector2){(j % c) * (ts + p) + p, (j / c) * (ts + p + 38) + p + sceneTop - g_smoothScrollY};
                 targetSize2D = (Vector2){ts, ts};
                 break;
             }
             case MODE_RIVER_H:
             {
-                float x = j * (g_base_thumb_size * 0.7f * masterScale) - g_smoothScrollX;
+                float x = j * (g_base_thumb_size * 0.7f * masterScale) - g_smoothScrollX + sw / 2.f - g_base_thumb_size * masterScale / 2.f;
                 float d = fabs(x - (sw / 2.f - g_base_thumb_size / 2.f));
                 float s = Remap(d, 0, sw / 2.f, 1.5f, 0.5f);
                 s = Clamp(s, 0.5, 1.5) * masterScale;
@@ -515,7 +528,7 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
             }
             case MODE_RIVER_V:
             {
-                float y = j * (g_base_thumb_size * 0.7f * masterScale) - g_smoothScrollY;
+                float y = j * (g_base_thumb_size * 0.7f * masterScale) - g_smoothScrollY + sh / 2.f - g_base_thumb_size * masterScale / 2.f;
                 float d = fabs(y - (sh / 2.f - g_base_thumb_size / 2.f));
                 float s = Remap(d, 0, sh / 2.f, 1.5f, 0.5f);
                 s = Clamp(s, 0.5, 1.5) * masterScale;
@@ -525,7 +538,7 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
             }
             case MODE_WAVE:
             {
-                float x = j * (g_base_thumb_size * 0.8f * masterScale) - g_smoothScrollX;
+                float x = j * (g_base_thumb_size * 0.8f * masterScale) - g_smoothScrollX + sw / 2.f - g_base_thumb_size * masterScale / 2.f;
                 float yOff = sinf(j * 0.2f + GetTime() * 2.f) * 80.f * masterScale;
                 targetPos2D = (Vector2){x, sh / 2.f + yOff - g_base_thumb_size / 2.f};
                 targetSize2D = (Vector2){g_base_thumb_size * masterScale, g_base_thumb_size * masterScale};
@@ -536,14 +549,14 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
         wallpapers[i].animSize = Vector2Lerp(wallpapers[i].animSize, targetSize2D, delta * g_anim_speed);
     }
 
-    if (Vector2LengthSqr(GetMouseDelta()) > 0.1f)
+    if (true)
     {
         g_hoveredIndex = -1;
         for (int j = filteredCount - 1; j >= 0; j--)
         {
             int i = filteredIndices[j];
             Rectangle rect = {wallpapers[i].animPos.x, wallpapers[i].animPos.y, wallpapers[i].animSize.x, wallpapers[i].animSize.y};
-            if (mouse.y>105 && mouse.y<sh-100 && CheckCollisionPointRec(mouse, rect) && !isPreviewing && !isSearching)
+            if (mouse.y>sceneTop && mouse.y<sh-sceneBottom && CheckCollisionPointRec(mouse, rect) && !isPreviewing && !isSearching)
             {
                 g_hoveredIndex = i;
                 break;
@@ -551,12 +564,13 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
         }
     }
 
+    int focus = !popupView && g_hoveredIndex >= 0 ? g_hoveredIndex : selected_index;
     int highlighted_j = -1;
     for (int j = 0; j < filteredCount; j++)
     {
         int i = filteredIndices[j];
-        wallpapers[i].hoverAnim = Lerp(wallpapers[i].hoverAnim, (g_hoveredIndex == i) ? 1.f : 0.f, delta * g_anim_speed * 2.0f);
-        if (g_hoveredIndex == i)
+        wallpapers[i].hoverAnim = Lerp(wallpapers[i].hoverAnim, (focus == i) ? 1.f : 0.f, delta * g_anim_speed * 2.0f);
+        if (focus == i)
         {
             highlighted_j = j;
         }
@@ -569,8 +583,8 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
         Rectangle rect = {wallpapers[i].animPos.x, wallpapers[i].animPos.y, wallpapers[i].animSize.x, wallpapers[i].animSize.y};
         DrawRectangleRounded(rect, 0.1f, 8, ColorLerp(AppTheme.idle, AppTheme.hover, wallpapers[i].hoverAnim));
         if(g_targetMode==MODE_GRID) {
-            DrawText(TextFormat("%.24s",wallpapers[i].filename),rect.x,rect.y+rect.height+4,13,AppTheme.text);
-            DrawText(lab_type(i),rect.x,rect.y+rect.height+19,10,Fade(AppTheme.border,0.7f));
+            DrawText(TextFormat("%.22s",wallpapers[i].filename),rect.x,rect.y+rect.height+4,15,AppTheme.text);
+            DrawText(lab_type(i),rect.x,rect.y+rect.height+23,12,Fade(AppTheme.border,0.7f));
         }
         if (atomic_load(&wallpapers[i].loaded))
         {
@@ -589,8 +603,8 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
         if (!isPreviewing)
             DrawRectangleRounded(rect, 0.1f, 8, ColorLerp(AppTheme.idle, AppTheme.hover, wallpapers[i].hoverAnim));
         if(g_targetMode==MODE_GRID) {
-            DrawText(TextFormat("%.24s",wallpapers[i].filename),rect.x,rect.y+rect.height+4,13,AppTheme.text);
-            DrawText(lab_type(i),rect.x,rect.y+rect.height+19,10,Fade(AppTheme.border,0.7f));
+            DrawText(TextFormat("%.22s",wallpapers[i].filename),rect.x,rect.y+rect.height+4,15,AppTheme.text);
+            DrawText(lab_type(i),rect.x,rect.y+rect.height+23,12,Fade(AppTheme.border,0.7f));
         }
         if (atomic_load(&wallpapers[i].loaded))
         {
@@ -606,499 +620,220 @@ void UpdateAndDrawScene(int filteredCount, int* filteredIndices, float delta, bo
         if(g_targetMode!=MODE_GRID)DrawText(text, fmaxf(24,rect.x + (rect.width - textWidth) / 2), rect.y + rect.height + 5, fontSize, AppTheme.text);
     }
 
-    if (previewAnim > 0.001f)
-    {
-        DrawRectangle(0, 0, sw, sh, Fade(AppTheme.overlay, previewAnim * 0.9f));
+}
 
-        int current_preview_idx = (preview_index != -1) ? preview_index : closing_preview_index;
-        if (current_preview_idx == -1)
-        {
+#include "library_ui.h"
+
+// A shared rounded texture mask keeps borders crisp at any animated size.
+static Shader popupImageShader;
+static int popupSizeLoc,popupRadiusLoc,popupBorderLoc,popupCoverLoc,popupCapsLoc;
+static const char* popupImageFs=
+    "#version 330 core\n"
+    "in vec2 fragTexCoord; in vec4 fragColor; out vec4 finalColor;\n"
+    "uniform sampler2D texture0; uniform vec4 colDiffuse;\n"
+    "uniform vec2 cardSize; uniform vec2 cover; uniform float radius; uniform float border; uniform float edgeCaps;\n"
+    "void main(){\n"
+    " vec2 uv=fragTexCoord; vec2 q=abs((uv-0.5)*cardSize)-(cardSize*0.5-vec2(radius));\n"
+    " float d=length(max(q,vec2(0)))+min(max(q.x,q.y),0.0)-radius;\n"
+    " float aa=max(fwidth(d),0.65); float mask=1.0-smoothstep(-aa,0.0,d);\n"
+    " vec4 pixel=texture(texture0,(uv-0.5)*cover+0.5);\n"
+    " float line=border>0.0?smoothstep(-border-aa,-border,d):0.0;\n"
+    " float originalAlpha=pixel.a;\n"
+    " if(edgeCaps>0.5){float edge=min(uv.x,1.0-uv.x)*cardSize.x;line=1.0-smoothstep(border-aa,border+aa,edge); }\n"
+    " pixel=mix(pixel,vec4(0.97,0.98,1.0,1.0),line); if(edgeCaps>0.5)pixel.a=originalAlpha;\n"
+    " finalColor=pixel*colDiffuse*fragColor; finalColor.a*=mask;\n"
+    "}\n";
+static void PopupTexture(Texture2D texture, Rectangle source, Rectangle rect, float radius, float border, bool crop, Color tint) {
+    Vector2 size={rect.width,rect.height},cover={1,1};
+    if(crop){
+        float aspect=rect.width/rect.height;
+        if(aspect>1)cover.y=1/aspect;else cover.x=aspect;
+    }
+    float caps=!crop&&g_targetMode==MODE_WAVE?1:0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(popupImageShader,popupCapsLoc,&caps,SHADER_UNIFORM_FLOAT);
+    SetShaderValue(popupImageShader,popupSizeLoc,&size,SHADER_UNIFORM_VEC2);
+    SetShaderValue(popupImageShader,popupCoverLoc,&cover,SHADER_UNIFORM_VEC2);
+    SetShaderValue(popupImageShader,popupRadiusLoc,&radius,SHADER_UNIFORM_FLOAT);
+    SetShaderValue(popupImageShader,popupBorderLoc,&border,SHADER_UNIFORM_FLOAT);
+    BeginShaderMode(popupImageShader);
+    DrawTexturePro(texture,source,rect,(Vector2){0,0},0,tint);
+    EndShaderMode();
+}
+static void PopupCard(int index, Rectangle rect, float radius, Vector2 origin) {
+    rect.x+=origin.x;rect.y+=origin.y;
+    if(atomic_load(&wallpapers[index].loaded)) {
+        Texture2D texture=wallpapers[index].texture;
+        PopupTexture(texture,(Rectangle){0,0,texture.width,texture.height},rect,radius,2.6f,true,WHITE);
+    } else {
+        DrawRectangleRounded(rect,2*radius/fminf(rect.width,rect.height),12,AppTheme.idle);
+        DrawRectangleRoundedLinesEx(rect,2*radius/fminf(rect.width,rect.height),12,2.6f,WHITE);
+    }
+}
+static void PopupImages(PopupLayout layout, int count, int* indices, int position, float phase, bool enlarged, Vector2 origin) {
+    if(g_targetMode==MODE_GRID) {
+        int capacity=layout.columns*layout.rows,start=position/capacity*capacity;
+        if(!enlarged){
+            for(int n=0;n<capacity;n++){
+                Rectangle cell={(n%layout.columns)*layout.tile+3,(n/layout.columns)*layout.tile+3,layout.tile-6,layout.tile-6};
+                if(start+n<count)PopupCard(indices[start+n],cell,10,origin);
+                else{
+                    cell.x+=origin.x;cell.y+=origin.y;DrawRectangleRounded(cell,0.13f,12,AppTheme.idle);
+                    DrawRectangleRoundedLinesEx(cell,0.13f,12,1.2f,Fade(WHITE,0.25f));
+                    StarIcon((Vector2){cell.x+cell.width/2,cell.y+cell.height/2-12},14,Fade(WHITE,0.4f),false);
+                    const char* label=lab_tr("Spazio libero");UiText(label,cell.x+(cell.width-UiMeasure(label,14))/2,cell.y+cell.height/2+14,14,Fade(WHITE,0.55f));
+                }
+            }
             return;
         }
-
-        Texture2D* tex = atomic_load(&isFullTextureReady) ? &fullPreviewTexture : &wallpapers[current_preview_idx].texture;
-        Rectangle texRect = {0, 0, (float)tex->width, (float)tex->height};
-        if(texRect.width<=0 || texRect.height<=0)return;
-        float aspect = (float)texRect.width / (float)texRect.height;
-        float tH = (sh-230) * 0.95f, tW = tH * aspect;
-        if (tW > sw * 0.9f)
-        {
-            tW = sw * 0.9f;
-            tH = tW / aspect;
+        for(int pass=0;pass<2;pass++)for(int n=0;n<capacity&&start+n<count;n++) {
+            int index=indices[start+n];float zoom=wallpapers[index].hoverAnim;
+            if(zoom<0.002f||(start+n==position)!=(pass==1))continue;
+            float size=(layout.tile-6)*(1+0.28f*zoom);
+            float x=(n%layout.columns+0.5f)*layout.tile-size/2;
+            float y=(n/layout.columns+0.5f)*layout.tile-size/2;
+            PopupCard(index,(Rectangle){x,y,size,size},10,origin);
         }
-
-        Rectangle endRect = {(sw - tW) / 2, 106+(sh-206-tH)/2, tW, tH};
-        Rectangle startRect = g_previewStartRect;
-
-        if (preview_index == -1)
-        {
-            startRect = (Rectangle){wallpapers[closing_preview_index].animPos.x, wallpapers[closing_preview_index].animPos.y, wallpapers[closing_preview_index].animSize.x, wallpapers[closing_preview_index].animSize.y};
+        return;
+    }
+    // A single spatial focus travels above the fixed, clipped strip;
+    // repeated key events cannot leave multiple independently growing outlines.
+    bool vertical=g_targetMode==MODE_RIVER_V,wave=g_targetMode==MODE_WAVE;
+    float extent=vertical?layout.height:layout.width;
+    float stride=layout.tile*(wave?0.8f:1.f);
+    int closest=count>0?((int)floorf(phase+0.5f)%count):0;
+    for(int pass=0;pass<(enlarged?3:1);pass++)for(int j=0;j<count;j++) {
+        float d=popup_distance(j,phase,count);
+        for(int copy=count==1?0:-1;copy<=(count==1?0:1);copy++) {
+            float offset=d+copy*count;
+            float focus=popup_focus(offset);
+            if(enlarged&&(focus<=0||pass!=(j==closest?2:1)))continue;
+            float size=layout.tile*(1+(enlarged?(wave?0.28f:0.32f)*focus:0));
+            float along=extent/2+offset*stride-size/2;
+            float cross=(layout.tile-size)/2;
+            if(wave)cross=(layout.height-size)/2+sinf(offset*0.65f+(float)GetTime()*2)*fminf(24,(layout.height-layout.tile*1.28f)/2.f);
+            if(along+size < -36||along>extent+36)continue;
+            Rectangle rect=vertical?(Rectangle){cross,along,size,size}:(Rectangle){along,cross,size,size};
+            PopupCard(indices[j],rect,10,origin);
         }
-
-        Rectangle cur = {
-            Lerp(startRect.x, endRect.x, previewAnim),
-            Lerp(startRect.y, endRect.y, previewAnim),
-            Lerp(startRect.width, endRect.width, previewAnim),
-            Lerp(startRect.height, endRect.height, previewAnim)
-        };
-
-        DrawTexturePro(*tex, texRect, cur, (Vector2){0,0}, 0.f, WHITE);
     }
 }
 
-static void OpenPreview(int i)
-{
-    if (atomic_load(&isFullTextureReady)) UnloadTexture(fullPreviewTexture);
-    lab_gif_close(&previewGif);
-    atomic_store(&isFullTextureReady,false);
-    Image img={0};
-    if (lab_gif_open(&previewGif,wallpapers[i].path)) img=(Image){previewGif.pixels,previewGif.width,previewGif.height,1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
-    else if (*wallpapers[i].path) img=LoadImage(wallpapers[i].path);
-    if (img.data) {
-        fullPreviewTexture=LoadTextureFromImage(img);
-        atomic_store(&isFullTextureReady,true);
-        if (!previewGif.pixels) UnloadImage(img);
-    }
-    preview_index=closing_preview_index=i;
-    g_previewStartRect=(Rectangle){wallpapers[i].animPos.x,wallpapers[i].animPos.y,wallpapers[i].animSize.x,wallpapers[i].animSize.y};
-}
-
-int selector_main(int argc, char **argv)
-{
-    LoadDefaultConfig();
-    ParseConfigFile();
-    g_max_threads=(int)Clamp(g_max_threads,1,8);
-    g_max_fps=(int)Clamp(g_max_fps,15,144);
-    g_particle_count=(int)Clamp(g_particle_count,0,MAX_POSSIBLE_PARTICLES);
-    g_base_thumb_size=(int)Clamp(g_base_thumb_size,64,400);
-    g_base_padding=(int)Clamp(g_base_padding,8,80);
-    g_anim_speed=Clamp(g_anim_speed,1,40);
-    SetTraceLogLevel(LOG_WARNING);
+// Transient carousel: lightweight previews while held, one commit on release.
+int carousel_popup_main(void) {
+    popupView=true;
+    LoadDefaultConfig();ApplyTheme();
+    g_max_threads=3;
+    g_targetMode=g_currentMode=(LayoutMode)Clamp(lab_option("carousel_layout"),0,3);
     LoadWallpapers(NULL);
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
-    InitWindow(g_win_width, g_win_height, "Wallpaper Lab");
-    SetWindowMinSize(900,600);
-    SetExitKey(KEY_NULL);
-    SetTargetFPS(g_max_fps);
-    g_hoveredIndex=lab_current();
-    if(g_hoveredIndex<0 && wallpaper_count)g_hoveredIndex=0;
-    if(argc>1 && strcmp(argv[1],"--ui-test")==0) {smokeStage=0;smokeStart=GetTime();}
-
-    const float bloomDownscale = 4.0f;
-    Shader postShader = LoadShaderFromMemory(NULL, postProcessingFs);
-    int timeLoc = GetShaderLocation(postShader, "time");
-    int resLoc = GetShaderLocation(postShader, "resolution");
-    int glitchLoc = GetShaderLocation(postShader, "glitchIntensity");
-    int blurLoc = GetShaderLocation(postShader, "blurIntensity");
-    int pixelLoc = GetShaderLocation(postShader, "pixelSize");
-    int mirrorLoc = GetShaderLocation(postShader, "mirrorMode");
-    int shakeLoc = GetShaderLocation(postShader, "shakeIntensity");
-    int collapseLoc = GetShaderLocation(postShader, "collapseIntensity");
-    int scanlineLoc = GetShaderLocation(postShader, "scanlineIntensity");
-
-    Shader blurShader = LoadShaderFromMemory(NULL, blurFs);
-    RenderTexture2D mainTarget = LoadRenderTexture(g_win_width, g_win_height);
-    RenderTexture2D bloomMask = LoadRenderTexture(g_win_width / bloomDownscale, g_win_height / bloomDownscale);
-    RenderTexture2D blurPingPong = LoadRenderTexture(g_win_width / bloomDownscale, g_win_height / bloomDownscale);
-    RenderTexture2D bloomMaskHiRes = LoadRenderTexture(g_win_width, g_win_height);
-
-    pthread_t loader_threads[g_max_threads];
-    for (int t = 0; t < g_max_threads; t++)
-    {
-        pthread_create(&loader_threads[t], NULL, LoaderThread, NULL);
+    int indices[MAX_POSSIBLE_WALLPAPERS],count=0;
+    for(int j=0;j<lab_carousel_count();j++){
+        int i=lab_carousel_item(j);
+        if(i>=0&&i<wallpaper_count&&!*lab_reason(i))indices[count++]=i;
     }
-    TriggerEffect(g_startupEffect, 1.0f);
-
-    float keyRepeatTimer = 0.0f;
-    const float KEY_REPEAT_DELAY = 0.1f;
-
-    while (!WindowShouldClose())
-    {
-        float delta = fminf(GetFrameTime(),0.033f);
-        int completed=lab_poll();
-        if(completed) {applying=false; if(completed==1) {isExiting=true;TriggerEffect(g_exitEffect,0.7f);}}
-        if(previewGif.pixels && lab_gif_step(&previewGif,delta)) UpdateTexture(fullPreviewTexture,previewGif.pixels+(size_t)previewGif.frame*previewGif.width*previewGif.height*4);
-        if(preview_index<0 && previewAnim<0.002f && atomic_load(&isFullTextureReady)){UnloadTexture(fullPreviewTexture);atomic_store(&isFullTextureReady,false);lab_gif_close(&previewGif);}
-        int sw = GetScreenWidth();
-        int sh = GetScreenHeight();
-
-        if (isExiting && g_effectTimer <= 0)
-        {
-            break;
-        }
-
-        if (IsWindowResized())
-        {
-            UnloadRenderTexture(mainTarget);
-            UnloadRenderTexture(bloomMask);
-            UnloadRenderTexture(blurPingPong);
-            UnloadRenderTexture(bloomMaskHiRes);
-            mainTarget = LoadRenderTexture(sw, sh);
-            bloomMask = LoadRenderTexture(sw / bloomDownscale, sh / bloomDownscale);
-            blurPingPong = LoadRenderTexture(sw / bloomDownscale, sh / bloomDownscale);
-            bloomMaskHiRes = LoadRenderTexture(sw, sh);
-        }
-
-        if (g_effectTimer > 0)
-        {
-            g_effectTimer -= delta;
-            float p = 1.f - (g_effectTimer / g_effectDuration);
-            if (g_activeEffect == EFFECT_COLLAPSE || g_activeEffect == EFFECT_REVEAL)
-            {
-                g_effectIntensity = p;
-            }
-            else
-            {
-                g_effectIntensity = sinf(p * PI);
-            }
-        }
-        else
-        {
-            g_effectIntensity = 0.f;
-            g_activeEffect = EFFECT_NONE;
-        }
-
-        bool isPreviewing = (preview_index != -1);
-
-        int filteredIndices[g_max_wallpapers];
-        int filteredCount = 0;
-        for (int i = 0; i < wallpaper_count; i++)
-        {
-            if (searchBufferCount == 0 || stristr(wallpapers[i].filename, searchBuffer) != NULL)
-            {
-                filteredIndices[filteredCount++] = i;
-            }
-        }
-
-        float maxScrollY = 0, maxScrollX = 0;
-        switch(g_currentMode)
-        {
-            case MODE_GRID:
-                {
-                    float ts = g_base_thumb_size * masterScale, p = g_base_padding * masterScale;
-                    int c = sw / (ts + p); if (c < 1) c = 1;
-                    int r = (filteredCount + c - 1) / c;
-                    if (r > 0) maxScrollY = r * (ts + p + 25) - sh + p + 200;
-                    break;
+    int baseline=-1;
+    for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;
+    int steps=0,released=0;
+    if(lab_popup_poll(&steps,&released)<0)return -1;
+    int position=lab_popup_selection(count,baseline,steps);
+    if(released)return position>=0?indices[position]:-1;
+    PopupFrame frame=popup_frame(g_targetMode,count,lab_popup_max_width(),lab_popup_max_height());
+    PopupLayout layout=frame.content;
+    g_base_thumb_size=256; // Keep enlarged previews sharp; layout still uses 160px cells.
+    SetTraceLogLevel(LOG_WARNING);
+    // Decode in parallel with window creation, not after the first frame.
+    pthread_t loaders[3];for(int t=0;t<3;t++)pthread_create(&loaders[t],NULL,LoaderThread,NULL);
+    SetConfigFlags(FLAG_WINDOW_UNDECORATED|FLAG_WINDOW_TRANSPARENT|FLAG_MSAA_4X_HINT);
+    InitWindow(frame.width,frame.height,"Wallpaper Lab Carousel");InitBackdrop();SetExitKey(KEY_NULL);SetTargetFPS(120);
+    uiFont=LoadSystemFont(lab_font(),28,NULL,0);if(!uiFont.texture.id)uiFont=GetFontDefault();SetTextureFilter(uiFont.texture,TEXTURE_FILTER_BILINEAR);
+    popupImageShader=LoadShaderFromMemory(NULL,popupImageFs);
+    popupSizeLoc=GetShaderLocation(popupImageShader,"cardSize");
+    popupCoverLoc=GetShaderLocation(popupImageShader,"cover");
+    popupRadiusLoc=GetShaderLocation(popupImageShader,"radius");
+    popupBorderLoc=GetShaderLocation(popupImageShader,"border");
+    popupCapsLoc=GetShaderLocation(popupImageShader,"edgeCaps");
+    RenderTexture2D panel=LoadRenderTexture(layout.width,layout.height);
+    RenderTexture2D canvas=LoadRenderTexture(frame.width,frame.height);
+    bool confirm=false,closing=false;int lastSteps=steps;double lastEvent=GetTime();
+    float targetPhase=position,visibility=0;
+    PopupMotion scrollMotion={position,0},zoomMotion[MAX_POSSIBLE_WALLPAPERS]={0};
+    // Explicit test-only export of this app's own canvas, before the global
+    // fade. It remains usable when desktop screenshots are covered by a lock.
+    const char* captureDir=getenv("WALLPAPER_LAB_POPUP_CAPTURE");
+    int captureStep=-1,captureStage=0;double captureStart=GetTime();
+    int choice=-1;
+    while(IsRenderTextureValid(canvas)&&IsRenderTextureValid(panel)){
+        ApplyTheme();
+        // Freeze the confirmed session during fade-out. A newer session stays
+        // queued in the host instead of being swallowed by the closing window.
+        if(!closing){
+            int reset=lab_popup_poll(&steps,&released);
+            if(reset<0)closing=true;
+            else {
+                if(reset){baseline=-1;for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;lastSteps=-1;}
+                if(lastSteps!=steps){
+                    position=lab_popup_selection(count,baseline,steps);
+                    if(lastSteps>=0&&steps>=lastSteps)targetPhase+=steps-lastSteps;
+                    else {targetPhase=position;scrollMotion=(PopupMotion){position,0};}
+                    lastSteps=steps;lastEvent=GetTime();
                 }
-            case MODE_RIVER_V:
-                {
-                    maxScrollY = filteredCount * (g_base_thumb_size * 0.7f * masterScale) - sh + (g_base_thumb_size * 1.5f * masterScale);
-                    break;
-                }
-            case MODE_RIVER_H:
-            case MODE_WAVE:
-                {
-                    maxScrollX = filteredCount * (g_base_thumb_size * 0.8f * masterScale) - sw + (g_base_thumb_size * 1.5f * masterScale);
-                    break;
-                }
-        }
-        if (maxScrollY < 0) maxScrollY = 0;
-        if (maxScrollX < 0) maxScrollX = 0;
-
-
-        bool blockActions = isExiting || isPreviewing || applying;
-        if (!blockActions)
-        {
-            int key = GetKeyPressed();
-            if (key != 0 && !isSearching)
-            {
-                TriggerEffect(g_keypressEffect, 0.4f);
-            }
-            if (key >= KEY_ONE && key < KEY_ONE + NUM_MODES)
-            {
-                g_targetMode = key - KEY_ONE;
-                g_modeTransitionTimer = g_modeTransitionDuration;
+                if(WindowShouldClose()||IsKeyPressed(KEY_ESCAPE)||GetTime()-lastEvent>60)closing=true;
+                else if(released){confirm=true;closing=true;}
             }
         }
-
-        if (!isSearching && !blockActions) {
-            if(IsKeyPressed(KEY_M))lab_cycle_mode();
-            if(IsKeyPressed(KEY_TAB))lab_cycle_screen();
-            if(IsKeyPressed(KEY_F))lab_cycle_fps();
-            if(IsKeyPressed(KEY_V))lab_toggle_mute();
-            if(IsKeyPressed(KEY_SPACE)&&g_hoveredIndex>=0)applying=lab_start(g_hoveredIndex,1);
+        float dt=fminf(GetFrameTime(),0.1f);
+        visibility=lab_option("reduce_motion")?(closing?0:1):popup_visibility(visibility,closing,dt);
+        if(closing&&visibility<=0)break;
+        for(int j=0;j<count;j++){
+            int i=indices[j];
+            popup_motion(&zoomMotion[i],j==position?1:0,dt);
+            wallpapers[i].hoverAnim=Clamp(zoomMotion[i].value,0,1);
         }
-        bool ateEscKey = false;
-        if (isSearching)
-        {
-            int key = GetCharPressed();
-            while (key > 0)
-            {
-                if ((key >= 32) && (key <= 125) && (searchBufferCount < 255))
-                {
-                    searchBuffer[searchBufferCount++] = (char)key;
-                }
-                key = GetCharPressed();
-            }
-            if (IsKeyPressed(KEY_BACKSPACE)) { if (searchBufferCount > 0) searchBuffer[--searchBufferCount] = '\0'; }
-            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE)) { isSearching = false; if(IsKeyPressed(KEY_ESCAPE)) ateEscKey = true;}
+        popup_motion(&scrollMotion,targetPhase,dt);
+        if(lab_option("reduce_motion")){scrollMotion=(PopupMotion){targetPhase,0};for(int j=0;j<count;j++)wallpapers[indices[j]].hoverAnim=j==position?1:0;}
+        float phase=count>0?fmodf(scrollMotion.value+count,count):0;
+        // Upload the selected preview first, then its neighbours.
+        for(int n=0,loaded=0;n<count&&loaded<8;n++){
+            int i=indices[(position+n)%count];
+            if(atomic_load(&imagePending[i])){wallpapers[i].texture=LoadTextureFromImage(pendingImages[i]);SetTextureFilter(wallpapers[i].texture,TEXTURE_FILTER_BILINEAR);UnloadImage(pendingImages[i]);atomic_store(&wallpapers[i].loaded,true);atomic_store(&imagePending[i],false);loaded++;}
         }
-        else
-        {
-            if (!blockActions && IsKeyPressed(KEY_SLASH)) { isSearching = true; searchBufferCount = 0; searchBuffer[0] = '\0'; }
-        }
-
-
-        if (!blockActions && !isSearching && filteredCount > 0)
-        {
-            int direction = 0;
-            keyRepeatTimer -= delta;
-
-            bool navKeyPressed = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_L) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_H) ||
-                                 IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_J) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_K);
-
-            if (navKeyPressed && keyRepeatTimer <= 0.0f) {
-                keyRepeatTimer = KEY_REPEAT_DELAY;
-
-                if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_L)) direction = 1;
-                if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_H)) direction = -1;
-                if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_J))
-                {
-                    if (g_currentMode == MODE_GRID) {
-                        int cols = (GetScreenWidth() / (g_base_thumb_size * masterScale + g_base_padding * masterScale));
-                        if (cols < 1) cols = 1;
-                        direction = cols;
-                    } else direction = 1;
-                }
-                if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_K))
-                {
-                    if (g_currentMode == MODE_GRID) {
-                        int cols = (GetScreenWidth() / (g_base_thumb_size * masterScale + g_base_padding * masterScale));
-                        if (cols < 1) cols = 1;
-                        direction = -cols;
-                    } else direction = -1;
-                }
-
-                if (direction != 0)
-                {
-                    int currentFilteredIdx = -1;
-                    for (int i = 0; i < filteredCount; i++)
-                    {
-                        if (filteredIndices[i] == g_hoveredIndex)
-                        {
-                            currentFilteredIdx = i;
-                            break;
-                        }
-                    }
-
-                    int nextFilteredIdx = (currentFilteredIdx == -1) ? ((direction > 0) ? 0 : filteredCount - 1) : (currentFilteredIdx + direction);
-                    nextFilteredIdx = Clamp(nextFilteredIdx, 0, filteredCount - 1);
-                    g_hoveredIndex = filteredIndices[nextFilteredIdx];
-
-                    float ts=g_base_thumb_size*masterScale;
-                    if(g_currentMode==MODE_GRID) {
-                        int cols=(int)(sw/(ts+g_base_padding));if(cols<1)cols=1;
-                        float top=(nextFilteredIdx/cols)*(ts+g_base_padding+25)+130-g_scroll.y;
-                        if(top<110)g_scroll.y-=110-top;
-                        if(top+ts+30>sh-100)g_scroll.y+=top+ts+30-(sh-100);
-                    }else if(g_currentMode==MODE_RIVER_V)g_scroll.y=fmaxf(0,nextFilteredIdx*ts*0.7f-sh/2.f+ts/2.f);
-                    else g_scroll.x=fmaxf(0,nextFilteredIdx*ts*(g_currentMode==MODE_WAVE?0.8f:0.7f)-sw/2.f+ts/2.f);
-                }
-            }
-        }
-
-
-        float wheel = GetMouseWheelMove();
-        if (IsKeyDown(KEY_LEFT_CONTROL))
-        {
-            masterScale += wheel * 0.05f;
-            masterScale = Clamp(masterScale, 0.2f, 5.0f);
-        }
-        else if (!isPreviewing)
-        {
-            if(g_currentMode == MODE_RIVER_H || g_currentMode == MODE_WAVE) g_scroll.x -= wheel * 100.f;
-            else g_scroll.y -= wheel * 100.f;
-        }
-
-        g_scroll.y = Clamp(g_scroll.y, 0, maxScrollY);
-        g_scroll.x = Clamp(g_scroll.x, 0, maxScrollX);
-
-        if (!blockActions && !isSearching && g_hoveredIndex != -1)
-        {
-            if ((IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && GetMouseY()>106 && GetMouseY()<sh-100 && CheckCollisionPointRec(GetMousePosition(),(Rectangle){wallpapers[g_hoveredIndex].animPos.x,wallpapers[g_hoveredIndex].animPos.y,wallpapers[g_hoveredIndex].animSize.x,wallpapers[g_hoveredIndex].animSize.y})) || IsKeyPressed(KEY_ENTER))
-            {
-                applying=lab_start(g_hoveredIndex,0);
-            }
-            if ((IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && GetMouseY()>106 && GetMouseY()<sh-100) || IsKeyPressed(KEY_LEFT_SHIFT))
-            {
-                OpenPreview(g_hoveredIndex);
-            }
-        }
-
-        if (isPreviewing && (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_ESCAPE) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)))
-        {
-            if(IsKeyPressed(KEY_ESCAPE)) ateEscKey = true;
-            // Keep the full texture alive through the closing animation.
-            closing_preview_index = preview_index;
-            g_previewStartRect = (Rectangle){wallpapers[closing_preview_index].animPos.x, wallpapers[closing_preview_index].animPos.y, wallpapers[closing_preview_index].animSize.x, wallpapers[closing_preview_index].animSize.y};
-            preview_index = -1;
-        }
-
-        if (IsKeyPressed(KEY_ESCAPE) && !ateEscKey) {
-            break;
-        }
-
-        g_smoothScrollY = Lerp(g_smoothScrollY, g_scroll.y, delta * g_anim_speed);
-        g_smoothScrollX = Lerp(g_smoothScrollX, g_scroll.x, delta * g_anim_speed);
-
-        int textures_loaded_this_frame = 0;
-        for (int i = 0; i < wallpaper_count; i++)
-        {
-            if (textures_loaded_this_frame >= MAX_TEXTURES_TO_LOAD_PER_FRAME) break;
-            if (atomic_load(&imagePending[i]))
-            {
-                wallpapers[i].texture = LoadTextureFromImage(pendingImages[i]);
-                UnloadImage(pendingImages[i]);
-                atomic_store(&wallpapers[i].loaded, true);
-                atomic_store(&imagePending[i], false);
-                textures_loaded_this_frame++;
-            }
-        }
-
-        previewAnim = Lerp(previewAnim, isPreviewing ? 1.f : 0.f, delta * g_anim_speed * 0.8f);
-        if (isPreviewing) { if (kenBurnsTimer < g_ken_burns_duration) kenBurnsTimer += delta; }
-
-
-        BeginTextureMode(mainTarget);
-        {
-            ClearBackground(AppTheme.bg);
-            BeginScissorMode(0,106,sw,sh-206);
-            UpdateAndDrawScene(filteredCount, filteredIndices, delta, isPreviewing, isSearching);
-            EndScissorMode();
-            if (isSearching || searchBufferCount > 0)
-            {
-                DrawRectangle(0, 66, sw, 35, AppTheme.overlay);
-                DrawRectangleLines(0, 66, sw, 35, AppTheme.border);
-                char s[512];
-                snprintf(s, sizeof(s), "Search: %s", searchBuffer);
-                if (isSearching && fmod(GetTime(), 1.0) > 0.5) strcat(s, "|");
-                DrawText(s, 24, 73, 18, AppTheme.text);
-            }
+        BeginTextureMode(panel);ClearBackground(BLANK);
+        if(g_targetMode!=MODE_WAVE)DrawBackdrop(layout.width,layout.height);
+        if(count)PopupImages(layout,count,indices,position,phase,false,(Vector2){0,0});
+        if(count&&g_targetMode==MODE_WAVE)PopupImages(layout,count,indices,position,phase,true,(Vector2){0,0});
+        if(!count) {
+            DrawRectangleRounded((Rectangle){0,0,layout.width,layout.height},0.15f,8,AppTheme.bg);
+            UiText(lab_tr("Carousel vuoto"),16,16,20,AppTheme.text);
+            UiText(lab_tr("Aggiungi preferiti dalla Libreria"),16,45,14,AppTheme.border);
         }
         EndTextureMode();
-
-
-        BeginTextureMode(bloomMaskHiRes);
-        {
-            ClearBackground(BLANK);
-            if (g_hoveredIndex != -1 && wallpapers[g_hoveredIndex].hoverAnim > 0.01f)
-            {
-                Wallpaper w = wallpapers[g_hoveredIndex];
-                Rectangle r = {w.animPos.x, w.animPos.y, w.animSize.x, w.animSize.y};
-                if (!isPreviewing)
-                    DrawRectangleRoundedLinesEx(r, 0.1f, 8, g_border_thickness_bloom * 2.f, Fade(AppTheme.border, w.hoverAnim));
-            }
-        }
+        BeginTextureMode(canvas);ClearBackground(BLANK);
+        PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);
+        if(count&&g_targetMode!=MODE_WAVE)PopupImages(layout,count,indices,position,phase,true,(Vector2){frame.padding,frame.padding});
         EndTextureMode();
-
-        bool h = true;
-        Vector2 rs = {(float)bloomMask.texture.width, (float)bloomMask.texture.height};
-        BeginShaderMode(blurShader);
-        SetShaderValue(blurShader, GetShaderLocation(blurShader, "renderSize"), &rs, SHADER_UNIFORM_VEC2);
-        SetShaderValue(blurShader, GetShaderLocation(blurShader, "horizontal"), &h, SHADER_UNIFORM_INT);
-        BeginTextureMode(blurPingPong);
-        ClearBackground(BLANK);
-        DrawTextureRec(bloomMask.texture, (Rectangle){0, 0, rs.x, -rs.y}, (Vector2){0, 0}, WHITE);
-        EndTextureMode();
-        h = false;
-        SetShaderValue(blurShader, GetShaderLocation(blurShader, "horizontal"), &h, SHADER_UNIFORM_INT);
-        BeginTextureMode(bloomMask);
-        ClearBackground(BLANK);
-        DrawTextureRec(blurPingPong.texture, (Rectangle){0, 0, rs.x, -rs.y}, (Vector2){0, 0}, WHITE);
-        EndTextureMode();
-        EndShaderMode();
-
-        BeginDrawing();
-        {
-            ClearBackground(AppTheme.bg);
-            BeginShaderMode(postShader);
-            float tt = GetTime();
-            SetShaderValue(postShader, timeLoc, &tt, SHADER_UNIFORM_FLOAT);
-            Vector2 res = {(float)sw, (float)sh};
-            SetShaderValue(postShader, resLoc, &res, SHADER_UNIFORM_VEC2);
-            float z = 0.f, pv = 0.f; int m = 0; float sl = 0.0f;
-            SetShaderValue(postShader, glitchLoc, (g_activeEffect == EFFECT_GLITCH) ? &g_effectIntensity : &z, SHADER_UNIFORM_FLOAT);
-            SetShaderValue(postShader, blurLoc, (g_activeEffect == EFFECT_BLUR) ? &g_effectIntensity : &z, SHADER_UNIFORM_FLOAT);
-            if (g_activeEffect == EFFECT_PIXELATE) { pv = 256.f * (1.f - g_effectIntensity); if (pv < 10.f) pv = 10.f; }
-            SetShaderValue(postShader, pixelLoc, &pv, SHADER_UNIFORM_FLOAT);
-            if (g_activeEffect == EFFECT_REVEAL) m = 3;
-            SetShaderValue(postShader, mirrorLoc, &m, SHADER_UNIFORM_INT);
-            SetShaderValue(postShader, shakeLoc, (g_activeEffect == EFFECT_SHAKE) ? &g_effectIntensity : &z, SHADER_UNIFORM_FLOAT);
-            SetShaderValue(postShader, collapseLoc, (g_activeEffect == EFFECT_REVEAL || g_activeEffect == EFFECT_COLLAPSE) ? &g_effectIntensity : &z, SHADER_UNIFORM_FLOAT);
-            SetShaderValue(postShader, scanlineLoc, &sl, SHADER_UNIFORM_FLOAT);
-
-            rlActiveTextureSlot(1); rlEnableTexture(bloomMask.texture.id);
-            SetShaderValue(postShader, GetShaderLocation(postShader, "bloomTexture"), (int[]){1}, SHADER_UNIFORM_INT);
-            rlActiveTextureSlot(2); rlEnableTexture(bloomMaskHiRes.texture.id);
-            SetShaderValue(postShader, GetShaderLocation(postShader, "bloomTextureHiRes"), (int[]){2}, SHADER_UNIFORM_INT);
-
-            rlActiveTextureSlot(0);
-            DrawTextureRec(mainTarget.texture, (Rectangle){0, 0, (float)sw, (float)-sh}, (Vector2){0, 0}, WHITE);
-            EndShaderMode();
-
-            DrawRectangle(0,0,sw,66,(Color){13,18,23,255});
-            DrawText("WALLPAPER LAB",24,18,24,AppTheme.text);
-            DrawText(TextFormat("STEAM WORKSHOP  /  %d progetti",wallpaper_count),280,23,14,AppTheme.border);
-            const char* labels[]={"1  GRIGLIA","2  FIUME","3  VERTICALE","4  ONDA"};
-            for(int b=0;b<4;++b) {
-                Rectangle button={24+b*145,70,135,28};
-                bool hot=CheckCollisionPointRec(GetMousePosition(),button);
-                DrawRectangleRounded(button,0.25f,6,g_targetMode==b?AppTheme.border:(hot?AppTheme.hover:AppTheme.idle));
-                DrawText(labels[b],button.x+12,button.y+7,14,g_targetMode==b?AppTheme.bg:AppTheme.text);
-                if(hot && !applying && !isPreviewing && !isSearching && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){g_targetMode=b;g_modeTransitionTimer=g_modeTransitionDuration;}
-            }
-            if(!isSearching && !searchBufferCount)DrawText("/  Cerca nella libreria",640,77,16,Fade(AppTheme.text,0.65f));
-            DrawRectangle(0,sh-100,sw,100,(Color){13,18,23,255});
-            DrawLine(24,sh-99,sw-24,sh-99,Fade(AppTheme.border,0.25f));
-            DrawText(lab_status(),24,sh-82,18,AppTheme.border);
-            DrawText("M Modalita   TAB Monitor   F FPS   V Audio",24,sh-56,14,Fade(AppTheme.text,0.7f));
-            DrawText("INVIO Applica    SPAZIO Scena live    Tasto destro Anteprima    / Cerca    ESC Chiudi",24,sh-30,14,AppTheme.text);
-            if(applying)DrawText("Caricamento della scena...",sw-310,sh-81,18,AppTheme.border);
-            if(*lab_error())DrawText(TextFormat("%.110s",lab_error()),24,sh-120,15,(Color){255,170,150,255});
-            if(!wallpaper_count)DrawText("Nessun progetto Workshop trovato nelle librerie Steam.",40,180,22,AppTheme.text);
-            else if(!filteredCount)DrawText("Nessun wallpaper corrisponde alla ricerca.",40,180,22,AppTheme.text);
-            if(isPreviewing)DrawText("Anteprima Workshop - SPAZIO dalla libreria per la scena completa",24,sh-120,15,AppTheme.border);
-        }
+        BeginDrawing();ClearBackground(BLANK);
+        DrawTexturePro(canvas.texture,(Rectangle){0,0,frame.width,-frame.height},(Rectangle){0,0,frame.width,frame.height},(Vector2){0,0},0,Fade(WHITE,popup_ease(visibility)));
         EndDrawing();
-        if(smokeStage>=0) {
-            double elapsed=GetTime()-smokeStart;
-            if(elapsed>2.0+smokeStage*1.5) {
-                const char* output=getenv("WALLPAPER_LAB_TEST_OUTPUT");
-                if(output){Image shot=LoadImageFromScreen();ExportImage(shot,TextFormat("%s/layout-%d.png",output,smokeStage));UnloadImage(shot);}
-                smokeStage++;
-                if(smokeStage<4){g_targetMode=smokeStage;g_modeTransitionTimer=g_modeTransitionDuration;}
-                else if(smokeStage==4){for(int i=0;i<wallpaper_count;++i)if(strstr(wallpapers[i].path,".gif")){OpenPreview(i);break;}}
-                else if(smokeStage==5){preview_index=-1;}
-                else break;
+        if(captureDir&&!closing){
+            if(captureStep!=steps){captureStep=steps;captureStage=0;captureStart=GetTime();}
+            const double captureTimes[]={0.04,0.15,0.48};
+            if(captureStage<3&&GetTime()-captureStart>=captureTimes[captureStage]){
+                Image shot=LoadImageFromTexture(canvas.texture);ImageFlipVertical(&shot);
+                ExportImage(shot,TextFormat("%s/step-%d-%d.png",captureDir,captureStep,captureStage));
+                UnloadImage(shot);captureStage++;
             }
         }
     }
-
-    lab_shutdown();
-    lab_gif_close(&previewGif);
-    if(atomic_load(&isFullTextureReady))UnloadTexture(fullPreviewTexture);
-    atomic_store(&loader_running, false);
-    for (int t = 0; t < g_max_threads; t++)
-    {
-        pthread_join(loader_threads[t], NULL);
-    }
-    UnloadShader(postShader);
-    UnloadShader(blurShader);
-    UnloadRenderTexture(mainTarget);
-    UnloadRenderTexture(bloomMask);
-    UnloadRenderTexture(blurPingPong);
-    UnloadRenderTexture(bloomMaskHiRes);
-    for (int i = 0; i < wallpaper_count; i++)
-    {
-        if (atomic_load(&wallpapers[i].loaded))
-        {
-            UnloadTexture(wallpapers[i].texture);
-        }
+    SetWindowState(FLAG_WINDOW_HIDDEN);
+    if(confirm&&position>=0)choice=indices[position];
+    atomic_store(&loader_running,false);for(int t=0;t<3;t++)pthread_join(loaders[t],NULL);
+    for(int i=0;i<wallpaper_count;i++){
+        if(atomic_load(&wallpapers[i].loaded))UnloadTexture(wallpapers[i].texture);
         if(atomic_load(&imagePending[i]))UnloadImage(pendingImages[i]);
-        free(wallpapers[i].path);
-        free(wallpapers[i].filename);
+        free(wallpapers[i].path);free(wallpapers[i].filename);
     }
-    CloseWindow();
-    return 0;
+    if(IsRenderTextureValid(canvas))UnloadRenderTexture(canvas);
+    if(IsRenderTextureValid(panel))UnloadRenderTexture(panel);
+    if(backdropShader.id)UnloadShader(backdropShader);UnloadShader(popupImageShader);if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);
+    CloseWindow();return choice;
 }

@@ -1,0 +1,129 @@
+diff --git a/src/WallpaperEngine/Application/WallpaperApplication.cpp b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -1,3 +1,4 @@
++#include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
+ #include "WallpaperApplication.h"
+ 
+ #include "Steam/FileSystem/FileSystem.h"
+@@ -778,10 +779,13 @@
+ 	    }
+ 	    anyFound = true;
+ 	    const auto& vp = vpIt->second;
+-	    const int x = vp->globalPosition.x;
+-	    const int y = vp->globalPosition.y;
+-	    const int w = vp->logicalSize.x;
+-	    const int h = vp->logicalSize.y;
++	    const auto calibrated = WallpaperEngine::Render::Helpers::SpanGeometry::rect (
++                screenName, vp->globalPosition, vp->logicalSize
++            );
++            const int x = calibrated.x;
++            const int y = calibrated.y;
++            const int w = calibrated.z;
++            const int h = calibrated.w;
+ 	    sLog.debug (
+ 		"SPAN DEBUG prepareOutputs: screen '", screenName, "' globalPos=(", x, ",", y, ") logicalSize=", w, "x",
+ 		h
+diff --git a/src/WallpaperEngine/Render/RenderContext.cpp b/src/WallpaperEngine/Render/RenderContext.cpp
+--- a/src/WallpaperEngine/Render/RenderContext.cpp
++++ b/src/WallpaperEngine/Render/RenderContext.cpp
+@@ -1,4 +1,8 @@
++#include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
+ #include <iostream>
++#include <fstream>
++#include <filesystem>
++#include <set>
+ 
+ #include <GL/glew.h>
+ 
+@@ -27,15 +31,45 @@
+ 
+     // render the background
+     if (const auto ref = this->m_wallpapers.find (viewport->name); ref != this->m_wallpapers.end ()) {
+-	ref->second->render (
+-	    viewport->viewport, this->getOutput ().renderVFlip (), viewport->globalPosition, viewport->logicalSize
+-	);
++	// Calibration changes the sampled slice, never the native surface size
++        // or the compositor's monitor/window/cursor coordinates.
++        auto position = viewport->globalPosition;
++        auto size = viewport->logicalSize;
++        if (ref->second->getSpanInfo ()) {
++            const auto calibrated = Helpers::SpanGeometry::rect (viewport->name, position, size);
++            position = { calibrated.x, calibrated.y };
++            size = { calibrated.z, calibrated.w };
++        }
++        ref->second->render (viewport->viewport, this->getOutput ().renderVFlip (), position, size);
+     }
+ 
+ #if !NDEBUG
+     glPopDebugGroup ();
+ #endif /* DEBUG */
+ 
++    // Explicit opt-in framebuffer evidence, also usable behind a lock screen.
++    // Normal rendering does not create screenshots or touch this path.
++    if (const char* directory = std::getenv ("WALLPAPER_LAB_SPAN_CAPTURE")) {
++        static std::set<std::string> captured;
++        const auto wallpaper = m_wallpapers.find (viewport->name);
++        if (m_driver.getFrameCounter () >= 120 && !captured.contains (viewport->name)
++            && wallpaper != m_wallpapers.end () && wallpaper->second->isReady ()) {
++            const int width = viewport->viewport.z, height = viewport->viewport.w;
++            if (width > 0 && height > 0 && int64_t (width)*height <= 40000000) {
++                std::vector<unsigned char> pixels (size_t(width)*height*3);
++                glPixelStorei (GL_PACK_ALIGNMENT, 1);
++                glReadPixels (viewport->viewport.x, viewport->viewport.y, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data ());
++                glPixelStorei (GL_PACK_ALIGNMENT, 4);
++                std::string name = viewport->name;
++                for (char& c : name) if (!std::isalnum (static_cast<unsigned char>(c)) && c != '-' && c != '_') c = '_';
++                std::filesystem::create_directories (directory);
++                std::ofstream out (std::filesystem::path(directory)/(name + ".ppm"), std::ios::binary);
++                out << "P6\n" << width << " " << height << "\n255\n";
++                for (int row = height-1; row >= 0; --row) out.write (reinterpret_cast<const char*>(pixels.data ()+size_t(row)*width*3), width*3);
++                captured.insert (viewport->name);
++            }
++        }
++    }
+     viewport->swapOutput ();
+ }
+ 
+diff --git a/src/WallpaperEngine/Render/Helpers/SpanGeometry.h b/src/WallpaperEngine/Render/Helpers/SpanGeometry.h
+new file mode 100644
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/SpanGeometry.h
+@@ -0,0 +1,37 @@
++#pragma once
++#include <glm/vec4.hpp>
++#include <glm/vec2.hpp>
++#include <nlohmann/json.hpp>
++#include <cstdlib>
++#include <algorithm>
++#include <map>
++#include <stdexcept>
++#include <string>
++namespace WallpaperEngine::Render::Helpers::SpanGeometry {
++using Rects=std::map<std::string,glm::ivec4>;
++inline Rects parse(const std::string& text){
++    auto data=nlohmann::json::parse(text);
++    if(!data.is_object()||data.empty()||data.size()>32)throw std::runtime_error("Invalid span calibration");
++    Rects result;
++    for(auto& [name,value]:data.items()){
++        if(name.empty()||name.size()>128||!value.is_array()||value.size()!=4)throw std::runtime_error("Invalid span output rectangle");
++        glm::ivec4 r;
++        for(int i=0;i<4;i++){
++            if(!value[i].is_number_integer())throw std::runtime_error("Span calibration must use integer coordinates");
++            auto n=value[i].get<int64_t>();if(n<0||n>16384)throw std::runtime_error("Span calibration out of bounds");r[i]=static_cast<int>(n);
++        }
++        if(r.z<1||r.w<1||r.x+r.z>16384||r.y+r.w>16384)throw std::runtime_error("Invalid span calibration size");
++        result.emplace(name,r);
++    }
++    return result;
++}
++inline const Rects& configured(){
++    static const Rects value=[](){const char* raw=std::getenv("WALLPAPER_LAB_SPAN_LAYOUT");return raw&&*raw?parse(raw):Rects{};}();
++    return value;
++}
++inline glm::ivec4 rect(const std::string& name,const glm::ivec2& position,const glm::ivec2& size){
++    const auto& layout=configured();if(layout.empty())return {position.x,position.y,size.x,size.y};
++    auto found=layout.find(name);if(found==layout.end())throw std::runtime_error("Span calibration missing output: "+name);
++    return found->second;
++}
++}

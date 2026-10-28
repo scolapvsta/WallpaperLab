@@ -1,0 +1,267 @@
+--- a/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
++++ b/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
+@@ -1,19 +1,66 @@
+ #pragma once
++#include <chrono>
++#include <cmath>
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
+ #include <nlohmann/json.hpp>
+-#include <cstdlib>
+-#include <cmath>
+ #include <stdexcept>
+ namespace WallpaperEngine::Render::Helpers::WallpaperPlacement {
+-struct Position {float x=0,y=0;};
+-inline Position parse(const std::string& raw){
+-    auto j=nlohmann::json::parse(raw);
+-    if(!j.is_object()||!j.contains("x")||!j.contains("y")||!j["x"].is_number()||!j["y"].is_number())throw std::runtime_error("Invalid wallpaper position");
+-    double x=j["x"],y=j["y"];
+-    if(!std::isfinite(x)||!std::isfinite(y)||std::abs(x)>1||std::abs(y)>1)throw std::runtime_error("Wallpaper position outside [-1, 1]");
+-    return {static_cast<float>(x),static_cast<float>(y)};
++struct Position {
++    float x = 0, y = 0;
++};
++inline Position parse (const std::string& raw) {
++    auto j = nlohmann::json::parse (raw);
++    if (!j.is_object () || !j.contains ("x") || !j.contains ("y") || !j["x"].is_number () || !j["y"].is_number ()) {
++	throw std::runtime_error ("Invalid wallpaper position");
++    }
++    double x = j["x"], y = j["y"];
++    if (!std::isfinite (x) || !std::isfinite (y) || std::abs (x) > 1 || std::abs (y) > 1) {
++	throw std::runtime_error ("Wallpaper position outside [-1, 1]");
++    }
++    return { static_cast<float> (x), static_cast<float> (y) };
+ }
+-inline const Position& configured(){static const Position value=[](){auto raw=std::getenv("WALLPAPER_LAB_POSITION");return raw&&*raw?parse(raw):Position{};}();return value;}
++inline const Position& configured () {
++    static Position value = [] () {
++	auto raw = std::getenv ("WALLPAPER_LAB_POSITION");
++	return raw && *raw ? parse (raw) : Position {};
++    }();
++    static auto last = std::chrono::steady_clock::time_point {};
++    auto now = std::chrono::steady_clock::now ();
++    if (now - last < std::chrono::milliseconds (25)) {
++	return value;
++    }
++    last = now;
++    const char *file = std::getenv ("WALLPAPER_LAB_PROFILE_FILE"), *project = std::getenv ("WALLPAPER_LAB_PROJECT"),
++	       *live = std::getenv ("WALLPAPER_LAB_LIVE_FILE");
++    if (file && project) {
++	try {
++	    std::ifstream stream (file);
++	    if (stream) {
++		auto profiles = nlohmann::json::parse (stream);
++		if (profiles.is_object ()) {
++		    value = profiles.contains (project) ? parse (profiles.at (project).at ("position").dump ())
++							: Position {};
++		}
++	    }
++	} catch (...) { }
++    }
++    if (live && project) {
++	try {
++	    auto age = std::filesystem::file_time_type::clock::now () - std::filesystem::last_write_time (live);
++	    if (age < std::chrono::seconds (2)) {
++		std::ifstream stream (live);
++		auto draft = nlohmann::json::parse (stream);
++		if (draft.value ("path", std::string ()) == project) {
++		    value = parse (draft.at ("position").dump ());
++		}
++	    }
++	} catch (...) { }
++    }
++    return value;
++}
+ // Positive means move the image right/down, sampling an earlier source area.
+ // Use the complete canvas UV range, never the individual monitor slice range.
+-inline float shift(float range,float offset){return -range*offset*0.5f;}
++inline float shift (float range, float offset) { return -range * offset * 0.5f; }
+ }
+--- a/src/WallpaperEngine/Render/RenderContext.cpp
++++ b/src/WallpaperEngine/Render/RenderContext.cpp
+@@ -7,6 +7,7 @@
+ #include <GL/glew.h>
+ 
+ #include "CWallpaper.h"
++#include "Helpers/LiveFeed.h"
+ #include "RenderContext.h"
+ 
+ #include "WallpaperEngine/Data/Model/Project.h"
+@@ -70,6 +71,7 @@
+             }
+         }
+     }
++    Helpers::publishLiveFrame(viewport->name,viewport->viewport);
+     viewport->swapOutput ();
+ }
+ 
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -1,4 +1,5 @@
+ #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
++#include "WallpaperEngine/Render/Helpers/LiveFeed.h"
+ #include "WallpaperApplication.h"
+ 
+ #include "Steam/FileSystem/FileSystem.h"
+@@ -868,7 +869,7 @@
+ 
+     if (this->m_isPaused) {
+ 	usleep (FULLSCREEN_CHECK_WAIT_TIME);
+-	if (this->m_fullScreenDetector->anythingFullscreen () && this->m_context.state.general.keepRunning) {
++	if (this->m_fullScreenDetector->anythingFullscreen () && !WallpaperEngine::Render::Helpers::liveFeedRequested () && this->m_context.state.general.keepRunning) {
+ 	    return;
+ 	}
+ 	m_renderContext->setPause (false);
+@@ -938,7 +939,7 @@
+ 	}
+ #endif /* DEMOMODE */
+ 	// check for fullscreen windows and wait until there's none fullscreen
+-	if (this->m_fullScreenDetector->anythingFullscreen () && this->m_context.state.general.keepRunning) {
++	if (this->m_fullScreenDetector->anythingFullscreen () && !WallpaperEngine::Render::Helpers::liveFeedRequested () && this->m_context.state.general.keepRunning) {
+ 	    this->m_isPaused = true;
+ 	    this->m_pauseStart = std::chrono::steady_clock::now ();
+ 
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/LiveFeed.h
+@@ -0,0 +1,140 @@
++#pragma once
++#include <GL/glew.h>
++#include <chrono>
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
++#include <nlohmann/json.hpp>
++#include <unistd.h>
++#include <vector>
++namespace WallpaperEngine::Render::Helpers {
++inline bool liveFeedRequested () {
++    static auto last = std::chrono::steady_clock::time_point {};
++    static bool active = false;
++    auto now = std::chrono::steady_clock::now ();
++    if (now - last < std::chrono::milliseconds (200)) {
++	return active;
++    }
++    last = now;
++    active = false;
++    const char *directory = std::getenv ("WALLPAPER_LAB_FEED_DIR"), *project = std::getenv ("WALLPAPER_LAB_PROJECT");
++    if (!directory || !project) {
++	return false;
++    }
++    try {
++	auto request = std::filesystem::path (directory) / "request.json";
++	if (std::filesystem::file_time_type::clock::now () - std::filesystem::last_write_time (request)
++	    > std::chrono::seconds (2)) {
++	    return false;
++	}
++	std::ifstream input (request);
++	active = nlohmann::json::parse (input).value ("path", std::string ()) == project;
++    } catch (...) { }
++    return active;
++}
++// On-demand downsample of the composed monitor. No second scene/decoder.
++inline void publishLiveFrame (const std::string& output, const glm::ivec4& viewport) {
++    const char *directory = std::getenv ("WALLPAPER_LAB_FEED_DIR"), *project = std::getenv ("WALLPAPER_LAB_PROJECT");
++    if (!directory || !project) {
++	return;
++    }
++    static auto last = std::chrono::steady_clock::time_point {};
++    auto now = std::chrono::steady_clock::now ();
++    if (now - last < std::chrono::milliseconds (83)) {
++	return;
++    }
++    try {
++	std::filesystem::path root (directory), request = root / "request.json";
++	if (std::filesystem::file_time_type::clock::now () - std::filesystem::last_write_time (request)
++	    > std::chrono::seconds (2)) {
++	    return;
++	}
++	std::ifstream input (request);
++	auto j = nlohmann::json::parse (input);
++	if (j.value ("path", std::string ()) != project || j.value ("output", std::string ()) != output) {
++	    return;
++	}
++	last = now;
++	int w = viewport.z, h = viewport.w;
++	if (w < 1 || h < 1) {
++	    return;
++	}
++	float scale = std::min (640.f / w, 360.f / h);
++	int width = std::max (1, int (w * scale)), height = std::max (1, int (h * scale));
++	GLint oldRead, oldDraw, oldTexture, sourceSamples;
++	glGetIntegerv (GL_READ_FRAMEBUFFER_BINDING, &oldRead);
++	glGetIntegerv (GL_DRAW_FRAMEBUFFER_BINDING, &oldDraw);
++	glGetIntegerv (GL_TEXTURE_BINDING_2D, &oldTexture);
++	glGetIntegerv (GL_SAMPLES, &sourceSamples);
++	struct Buffer {
++	    GLuint fb = 0, tex = 0;
++	    int w = 0, h = 0;
++	    void ensure (int width, int height) {
++		if (!fb) {
++		    glGenFramebuffers (1, &fb);
++		    glGenTextures (1, &tex);
++		}
++		glBindTexture (GL_TEXTURE_2D, tex);
++		if (w != width || h != height) {
++		    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
++		    w = width;
++		    h = height;
++		}
++		glBindFramebuffer (GL_DRAW_FRAMEBUFFER, fb);
++		glFramebufferTexture2D (GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
++	    }
++	};
++	static Buffer small, resolved;
++	struct Restore {
++	    GLint read, draw, texture;
++	    GLboolean scissor;
++	    ~Restore () {
++		glBindFramebuffer (GL_READ_FRAMEBUFFER, read);
++		glBindFramebuffer (GL_DRAW_FRAMEBUFFER, draw);
++		glBindTexture (GL_TEXTURE_2D, texture);
++		if (scissor) {
++		    glEnable (GL_SCISSOR_TEST);
++		}
++	    }
++	} restore { oldRead, oldDraw, oldTexture, glIsEnabled (GL_SCISSOR_TEST) };
++	glDisable (GL_SCISSOR_TEST);
++	int sourceX = viewport.x, sourceY = viewport.y;
++	// Multisampled compositor surfaces must first be resolved at native size.
++	// OpenGL forbids resolving and resizing in a single blit.
++	if (sourceSamples > 0) {
++	    resolved.ensure (w, h);
++	    glBlitFramebuffer (sourceX, sourceY, sourceX + w, sourceY + h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
++	    glBindFramebuffer (GL_READ_FRAMEBUFFER, resolved.fb);
++	    sourceX = sourceY = 0;
++	}
++	small.ensure (width, height);
++	if (glCheckFramebufferStatus (GL_DRAW_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
++	    glBlitFramebuffer (
++		sourceX, sourceY, sourceX + w, sourceY + h, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR
++	    );
++	    glBindFramebuffer (GL_READ_FRAMEBUFFER, small.fb);
++	    GLint pack;
++	    glGetIntegerv (GL_PACK_ALIGNMENT, &pack);
++	    glPixelStorei (GL_PACK_ALIGNMENT, 1);
++	    std::vector<unsigned char> pixels (size_t (width) * height * 3);
++	    glReadPixels (0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data ());
++	    glPixelStorei (GL_PACK_ALIGNMENT, pack);
++	    static uint32_t sequence = 0;
++	    uint32_t header[] = { 0x574c4631, uint32_t (getpid ()), uint32_t (width), uint32_t (height), ++sequence };
++	    auto temp = root / ("frame.tmp." + std::to_string (getpid ()));
++	    {
++		std::ofstream stream (temp, std::ios::binary);
++		stream.write (reinterpret_cast<const char*> (header), sizeof (header));
++		for (int y = height - 1; y >= 0; y--) {
++		    stream.write (reinterpret_cast<const char*> (pixels.data () + size_t (y) * width * 3), width * 3);
++		}
++		if (!stream) {
++		    throw std::runtime_error ("live feed write failed");
++		}
++	    }
++	    std::filesystem::rename (temp, root / "frame.bin");
++	}
++
++    } catch (...) { } // A closed inspector or missing request must never stop wallpaper rendering.
++}
++}

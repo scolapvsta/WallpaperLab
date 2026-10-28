@@ -1,0 +1,926 @@
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -31,6 +31,7 @@
+ #define STB_IMAGE_WRITE_IMPLEMENTATION
+ #include <stb_image_write.h>
+ #include <thread>
++#include "include/cef_app.h"
+ 
+ #define FULLSCREEN_CHECK_WAIT_TIME 250
+ 
+@@ -864,6 +865,7 @@
+ }
+ 
+ void WallpaperApplication::render () {
++    if (m_browserContext) CefDoMessageLoopWork ();
+     static time_t seconds;
+     static struct tm* timeinfo;
+ 
+@@ -976,6 +978,9 @@
+     close_encoder ();
+ #endif /* DEMOMODE */
+ 
++    m_context.state.general.keepRunning = false;
++    m_renderContext.reset ();
++    m_audioDriver.reset ();
+     SDL_Quit ();
+ }
+ 
+--- a/src/WallpaperEngine/Application/WallpaperApplication.h
++++ b/src/WallpaperEngine/Application/WallpaperApplication.h
+@@ -45,7 +45,7 @@
+     /**
+      * Cleans up all the resources used by the application.
+      */
+-    static void cleanup ();
++    void cleanup ();
+     bool isReady () const;
+     /**
+      * Shows the application until it's closed
+--- a/src/WallpaperEngine/Audio/AudioStream.cpp
++++ b/src/WallpaperEngine/Audio/AudioStream.cpp
+@@ -32,18 +32,11 @@
+ 
+ 	ret = av_read_frame (stream->getFormatContext (), packet);
+ 
+-	if (ret == AVERROR_EOF) {
+-	    // seek to the beginning of the file again
+-	    avformat_seek_file (stream->getFormatContext (), stream->getAudioStream (), 0, 0, 0, ~AVSEEK_FLAG_FRAME);
+-	    avcodec_flush_buffers (stream->getContext ());
+-
+-	    // ensure the thread is not killed if audio has to be looped
+-	    if (stream->isRepeat ()) {
+-		ret = 0;
+-	    }
+-
+-	    continue;
+-	}
++        if (ret == AVERROR_EOF) {
++            if (stream->isRepeat () && avformat_seek_file (stream->getFormatContext (), stream->getAudioStream (), INT64_MIN, 0, INT64_MAX, 0) >= 0) { ret=0; continue; }
++            stream->endInput ();break;
++        }
++        if (ret < 0) { av_packet_unref (packet); stream->endInput (); break; }
+ 
+ 	// TODO: PROPERLY IMPLEMENT THIS
+ 	if (packet->stream_index == stream->getAudioStream ()) {
+@@ -54,6 +47,7 @@
+     }
+ 
+     // stop the audio too just in case
++    av_packet_free (&packet);
+     SDL_DestroyMutex (waitMutex);
+ 
+     return 0;
+@@ -103,14 +97,14 @@
+ 	    break;
+     }
+ 
+-    return 0;
++    return stream->getBuffer ()->tellg ();
+ }
+ 
+ AudioStream::AudioStream (AudioContext& context, const std::string& filename) : m_audioContext (context) {
+     this->loadCustomContent (filename.c_str ());
+ }
+ 
+-AudioStream::AudioStream (AudioContext& context, const ReadStreamSharedPtr& buffer) : m_audioContext (context) {
++AudioStream::AudioStream (AudioContext& context, const ReadStreamSharedPtr& buffer, bool repeat) : m_audioContext (context), m_repeat (repeat) {
+     // setup a custom context first
+     this->m_formatContext = avformat_alloc_context ();
+ 
+@@ -150,10 +144,7 @@
+ 
+     this->m_audioThread = nullptr;
+ 
+-    if (this->m_queue != nullptr) {
+-	// wait for the audio buffers to be done
+-	SDL_CondWait (this->m_queue->wait, this->m_queue->mutex);
+-    }
++    if (this->m_queue != nullptr) while (this->dequeuePacket ()) av_packet_unref (this->m_decodePacket);
+ 
+     if (this->m_swrctx != nullptr && swr_is_initialized (this->m_swrctx) == true) {
+ 	swr_close (this->m_swrctx);
+@@ -176,6 +167,7 @@
+ #endif /* FF_API_FIFO_OLD_API */
+     }
+ 
++    if (m_queue) { SDL_DestroyMutex (m_queue->mutex); SDL_DestroyCond (m_queue->wait); SDL_DestroyCond (m_queue->cond); }
+     delete this->m_queue;
+ 
+     if (this->m_formatContext != nullptr) {
+@@ -336,7 +328,7 @@
+     SDL_UnlockMutex (this->m_queue->mutex);
+ 
+     if (!gotQueued) {
+-	av_packet_free (&pkt);
++	av_packet_free (&clone);
+     }
+ }
+ 
+@@ -367,39 +359,21 @@
+     return true;
+ }
+ 
+-void AudioStream::dequeuePacket () {
++bool AudioStream::dequeuePacket () {
+     MyAVPacketList entry {};
+-
+-    SDL_LockMutex (this->m_queue->mutex);
+-
+-    while (this->m_audioContext.getApplicationContext ().state.general.keepRunning) {
++    SDL_LockMutex (m_queue->mutex);
+ #if FF_API_FIFO_OLD_API
+-	int ret = -1;
+-
+-	if (av_fifo_size (this->m_queue->packetList) >= static_cast<int> (sizeof (entry))) {
+-	    ret = av_fifo_generic_read (this->m_queue->packetList, &entry, sizeof (entry), nullptr);
+-	}
++    const bool available = av_fifo_size (m_queue->packetList) >= static_cast<int> (sizeof (entry));
++    if (available) av_fifo_generic_read (m_queue->packetList, &entry, sizeof (entry), nullptr);
+ #else
+-	const int ret = av_fifo_read (this->m_queue->packetList, &entry, 1);
++    const bool available = av_fifo_read (m_queue->packetList, &entry, 1) >= 0;
+ #endif
+-
+-	// enough data available, read it
+-	if (ret >= 0) {
+-	    this->m_queue->nb_packets--;
+-	    this->m_queue->size -= entry.packet->size + sizeof (entry);
+-	    this->m_queue->duration -= entry.packet->duration;
+-
+-	    // move the reference and free the old one
+-	    av_packet_move_ref (this->m_decodePacket, entry.packet);
+-	    av_packet_free (&entry.packet);
+-	    break;
+-	}
+-
+-	// make the thread wait if nothing was available
+-	SDL_CondWait (this->m_queue->cond, this->m_queue->mutex);
+-    }
+-
+-    SDL_UnlockMutex (this->m_queue->mutex);
++    if (available) {
++        --m_queue->nb_packets; m_queue->size -= entry.packet->size + sizeof (entry); m_queue->duration -= entry.packet->duration;
++        av_packet_unref (m_decodePacket); av_packet_move_ref (m_decodePacket, entry.packet); av_packet_free (&entry.packet);
++    }
++    SDL_UnlockMutex (m_queue->mutex); SDL_CondSignal (m_queue->wait);
++    return available;
+ }
+ 
+ AVCodecContext* AudioStream::getContext () const { return this->m_context; }
+@@ -418,9 +392,9 @@
+ 
+ SDL_cond* AudioStream::getWaitCondition () const { return this->m_queue->wait; }
+ 
+-size_t AudioStream::getQueueSize () const { return this->m_queue->size; }
+-
+-int AudioStream::getQueuePacketCount () const { return this->m_queue->nb_packets; }
++size_t AudioStream::getQueueSize () const { SDL_LockMutex (m_queue->mutex);auto value=m_queue->size;SDL_UnlockMutex (m_queue->mutex);return value; }
++
++int AudioStream::getQueuePacketCount () const { SDL_LockMutex (m_queue->mutex);auto value=m_queue->nb_packets;SDL_UnlockMutex (m_queue->mutex);return value; }
+ 
+ AVRational AudioStream::getTimeBase () const {
+     if (this->m_audioStream == NO_AUDIO_STREAM) {
+@@ -430,9 +404,9 @@
+     return this->m_formatContext->streams[this->m_audioStream]->time_base;
+ }
+ 
+-int64_t AudioStream::getQueueDuration () const { return this->m_queue->duration; }
+-
+-bool AudioStream::isQueueEmpty () const { return this->m_queue->nb_packets == 0; }
++int64_t AudioStream::getQueueDuration () const { SDL_LockMutex (m_queue->mutex);auto value=m_queue->duration;SDL_UnlockMutex (m_queue->mutex);return value; }
++
++bool AudioStream::isQueueEmpty () const { return getQueuePacketCount () == 0; }
+ 
+ SDL_mutex* AudioStream::getMutex () const { return this->m_queue->mutex; }
+ 
+@@ -489,7 +463,7 @@
+ 
+     out_nb_channels = av_get_channel_layout_nb_channels (out_channel_layout);
+ #else
+-    out_nb_channels = this->getContext ()->ch_layout.nb_channels;
++    out_nb_channels = this->m_audioContext.getChannels ();
+ #endif
+     ret = av_samples_alloc_array_and_samples (
+ 	&resampled_data, &out_linesize, out_nb_channels, out_nb_samples, this->m_audioContext.getFormat (), 0
+@@ -563,61 +537,24 @@
+ 
+     av_freep (&resampled_data);
+ 
+-    return resampled_data_size;
++    return std::min (resampled_data_size, out_size);
+ }
+ 
+ int AudioStream::decodeFrame (uint8_t* audioBuffer, const int bufferSize) {
+-    static int audio_pkt_size = 0;
+-
+-    // block until there's any data in the buffers
+-    while (this->m_audioContext.getApplicationContext ().state.general.keepRunning) {
+-	while (audio_pkt_size > 0 && this->m_audioContext.getApplicationContext ().state.general.keepRunning) {
+-	    int got_frame = 0;
+-	    int ret = avcodec_receive_frame (this->getContext (), this->m_decodeFrame);
+-
+-	    if (ret == 0) {
+-		got_frame = 1;
+-	    }
+-	    if (ret == AVERROR (EAGAIN)) {
+-		ret = 0;
+-	    }
+-	    if (ret == 0) {
+-		ret = avcodec_send_packet (this->getContext (), this->m_decodePacket);
+-	    }
+-	    if (ret < 0 && ret != AVERROR (EAGAIN)) {
+-		return -1;
+-	    }
+-
+-	    if (this->m_decodePacket->size < 0) {
+-		// if error, skip frame
+-		audio_pkt_size = 0;
+-		break;
+-	    }
+-
+-	    audio_pkt_size -= this->m_decodePacket->size;
+-	    int data_size = 0;
+-
+-	    if (got_frame) {
+-		// audio resampling
+-		data_size = this->resampleAudio (audioBuffer, bufferSize);
+-	    }
+-	    if (data_size <= 0) {
+-		// no data found, keep waiting
+-		continue;
+-	    }
+-	    // some data was found
+-	    return data_size;
+-	}
+-
+-	if (this->m_decodePacket->data) {
+-	    av_packet_unref (this->m_decodePacket);
+-	}
+-
+-	this->dequeuePacket ();
+-
+-	audio_pkt_size = this->m_decodePacket->size;
+-    }
+-
++    // SDL must never wait for disk/decoder input. Each stream owns its decoder state.
++    for (int attempts = 0; attempts < 64 && isInitialized (); ++attempts) {
++        int result = avcodec_receive_frame (m_context, m_decodeFrame);
++        if (result == 0) return resampleAudio (audioBuffer, bufferSize);
++        if (result == AVERROR_EOF) { m_finished = true; return -1; }
++        if (result != AVERROR (EAGAIN)) return -1;
++        if (dequeuePacket ()) {
++            result = avcodec_send_packet (m_context, m_decodePacket); av_packet_unref (m_decodePacket);
++            if (result < 0 && result != AVERROR (EAGAIN)) return -1;
++        } else {
++            if (m_eof && !m_sentEnd) { m_sentEnd = true; avcodec_send_packet (m_context, nullptr); continue; }
++            return 0;
++        }
++    }
+     return 0;
+ }
+ 
+--- a/src/WallpaperEngine/Audio/AudioStream.h
++++ b/src/WallpaperEngine/Audio/AudioStream.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <atomic>
+ 
+ #include <string>
+ 
+@@ -39,7 +40,7 @@
+ class AudioStream {
+ public:
+     AudioStream (AudioContext& context, const std::string& filename);
+-    AudioStream (AudioContext& context, const ReadStreamSharedPtr& buffer);
++    AudioStream (AudioContext& context, const ReadStreamSharedPtr& buffer, bool repeat = false);
+     AudioStream (AudioContext& audioContext, AVCodecContext* context);
+     ~AudioStream ();
+ 
+@@ -48,11 +49,11 @@
+     /**
+      * Gets the next packet in the queue
+      *
+-     * WARNING: BLOCKS UNTIL SOME DATA IS READ FROM IT
++     * Returns false immediately when no packet is queued.
+      *
+      * @return
+      */
+-    void dequeuePacket ();
++    bool dequeuePacket ();
+ 
+     /**
+      * @return The audio context in use for this audio stream
+@@ -162,9 +163,20 @@
+     /** The audio context this stream will be played under */
+     AudioContext& m_audioContext;
+     /** If this stream was properly initialized or not */
+-    bool m_initialized = false;
++    std::atomic<bool> m_initialized {false};
+     /** Repeat enabled? */
+-    bool m_repeat = false;
++    std::atomic<bool> m_repeat {false};
++    std::atomic<bool> m_paused {false}, m_eof {false}, m_finished {false};
++    std::atomic<float> m_gain {1.0f};
++    bool m_sentEnd = false;
++public:
++    void pause (bool paused) { m_paused = paused; }
++    bool paused () const { return m_paused; }
++    bool finished () const { return m_finished; }
++    void setGain (float gain) { m_gain = gain; }
++    float gain () const { return m_gain; }
++    void endInput () { m_eof = true; }
++private:
+     /** The codec context that contains the original audio format information */
+     AVCodecContext* m_context = nullptr;
+     /** The format context that controls how data is read off the file */
+--- a/src/WallpaperEngine/Audio/Drivers/SDLAudioDriver.cpp
++++ b/src/WallpaperEngine/Audio/Drivers/SDLAudioDriver.cpp
+@@ -1,3 +1,5 @@
++#include <cmath>
++#include <algorithm>
+ #include "SDLAudioDriver.h"
+ #include "WallpaperEngine/Logging/Log.h"
+ 
+@@ -10,7 +12,9 @@
+ void audio_callback (void* userdata, uint8_t* streamData, int length) {
+     auto* driver = static_cast<SDLAudioDriver*> (userdata);
+ 
++    static int trace=0;
+     memset (streamData, 0, length);
++    if(std::getenv("WALLPAPER_LAB_AUDIO_TRACE")&&trace++<5)sLog.out("SDL callback volume=",driver->getApplicationContext().state.audio.volume," muted=",driver->getAudioDetector().anythingPlaying());
+ 
+     // if audio is playing do not do anything here!
+     if (driver->getAudioDetector ().anythingPlaying ()) {
+@@ -25,21 +29,18 @@
+ 
+ 	// sound is not initialized or stopped and is not in loop mode
+ 	// ignore mixing it in
+-	if (!buffer->stream->isInitialized ()) {
++	if (!buffer->stream->isInitialized () || buffer->stream->paused () || buffer->stream->finished ()) {
+ 	    continue;
+ 	}
+ 
+-	// check if queue is empty and signal the read thread
+-	if (buffer->stream->isQueueEmpty ()) {
+-	    SDL_CondSignal (buffer->stream->getWaitCondition ());
+-	    continue;
+-	}
+ 
+ 	while (streamLength > 0 && driver->getApplicationContext ().state.general.keepRunning) {
+ 	    if (buffer->audio_buf_index >= buffer->audio_buf_size) {
+ 		// get more data to fill the buffer
+ 		int audio_size = buffer->stream->decodeFrame (buffer->audio_buf, sizeof (buffer->audio_buf));
+ 
++                if(std::getenv("WALLPAPER_LAB_AUDIO_TRACE")&&trace<30)sLog.out("decode ",audio_size," queue ",buffer->stream->getQueuePacketCount()," gain ",buffer->stream->gain());
++                if (audio_size <= 0) break;
+ 		if (audio_size < 0) {
+ 		    // fallback for errors, silence
+ 		    buffer->audio_buf_size = 1024;
+@@ -60,7 +61,7 @@
+ 	    // mix the audio
+ 	    SDL_MixAudioFormat (
+ 		streamDataPointer, &buffer->audio_buf[buffer->audio_buf_index], driver->getSpec ().format, len1,
+-		driver->getApplicationContext ().state.audio.volume
++		static_cast<int> (std::clamp (buffer->stream->gain (), 0.0f, 1.0f) * driver->getApplicationContext ().state.audio.volume)
+ 	    );
+ 
+ 	    streamLength -= len1;
+@@ -69,6 +70,7 @@
+ 	}
+     }
+ 
++    if(std::getenv("WALLPAPER_LAB_AUDIO_TRACE")&&trace<10){float peak=0;for(int i=0;i<length/4;i++)peak=std::max(peak,std::abs(reinterpret_cast<float*>(streamData)[i]));sLog.out("mixed peak ",peak," format ",driver->getSpec().format);}
+     // TODO: DO WE NEED TO ALSO LOCK WHILE THE AUDIO IS PLAYING? OR SOMEHOW WAIT UNTIL THE STREAM IS NOT IN USE ANYMORE?
+     SDL_UnlockMutex (driver->getStreamMutex ());
+ }
+@@ -94,7 +96,7 @@
+ 					  .userdata = this };
+ 
+     this->m_deviceID
+-	= SDL_OpenAudioDevice (nullptr, false, &requestedSpec, &this->m_audioSpec, SDL_AUDIO_ALLOW_ANY_CHANGE);
++	= SDL_OpenAudioDevice (std::getenv("WALLPAPER_LAB_AUDIO_OUTPUT"), false, &requestedSpec, &this->m_audioSpec, SDL_AUDIO_ALLOW_ANY_CHANGE);
+ 
+     if (this->m_deviceID == 0) {
+ 	sLog.error ("SDL_OpenAudioDevice: ", SDL_GetError ());
+@@ -104,6 +106,7 @@
+     SDL_PauseAudioDevice (this->m_deviceID, 0);
+ 
+     this->m_initialized = true;
++    if(std::getenv("WALLPAPER_LAB_AUDIO_TRACE"))sLog.out("SDL backend ",SDL_GetCurrentAudioDriver()," sink ",std::getenv("PULSE_SINK")?std::getenv("PULSE_SINK"):"default");
+ }
+ 
+ SDLAudioDriver::~SDLAudioDriver () {
+@@ -130,7 +133,9 @@
+ 
+     return newStreamId;
+ }
+-void SDLAudioDriver::removeStream (int streamId) { this->m_streams.erase (streamId); }
++void SDLAudioDriver::removeStream (int streamId) {
++    SDL_LockMutex (m_streamListMutex);auto it=m_streams.find(streamId);if(it!=m_streams.end()){delete it->second;m_streams.erase(it);}SDL_UnlockMutex (m_streamListMutex);
++}
+ 
+ const std::map<int, SDLAudioBuffer*>& SDLAudioDriver::getStreams () { return this->m_streams; }
+ 
+--- a/src/WallpaperEngine/Data/Model/Object.h
++++ b/src/WallpaperEngine/Data/Model/Object.h
+@@ -137,6 +137,8 @@
+     // TODO: WRITE AN ENUM FOR THIS
+     std::optional<std::string> playbackmode;
+     std::vector<std::string> sounds;
++    bool startSilent = false;
++    UserSettingUniquePtr volume;
+ };
+ 
+ class Sound : public Object, public SoundData {
+--- a/src/WallpaperEngine/Data/Parsers/ObjectParser.cpp
++++ b/src/WallpaperEngine/Data/Parsers/ObjectParser.cpp
+@@ -68,7 +68,7 @@
+     if (imageIt != it.end () && imageIt->is_string ()) {
+ 	return parseImage (it, project, std::move (basedata), *imageIt);
+     } else if (soundIt != it.end () && soundIt->is_array ()) {
+-	return parseSound (it, std::move (basedata));
++	return parseSound (it, project, std::move (basedata));
+     } else if (particleIt != it.end () && (particleIt->is_string () || particleIt->is_object ())) {
+ 	return parseParticle (it, project, std::move (basedata));
+     } else if (textIt != it.end () && !textIt->is_null ()) {
+@@ -105,7 +105,7 @@
+     return result;
+ }
+ 
+-SoundUniquePtr ObjectParser::parseSound (const JSON& it, ObjectData base) {
++SoundUniquePtr ObjectParser::parseSound (const JSON& it, const Project& project, ObjectData base) {
+     const auto soundIt = it.require ("sound", "Object must have a sound");
+     std::vector<std::string> sounds = {};
+ 
+@@ -118,6 +118,8 @@
+ 	SoundData {
+ 	    .playbackmode = it.optional<std::string> ("playbackmode"),
+ 	    .sounds = sounds,
++            .startSilent = it.optional ("startsilent", false),
++            .volume = it.user ("volume", project.properties, 1.0f),
+ 	}
+     );
+ }
+--- a/src/WallpaperEngine/Data/Parsers/ObjectParser.h
++++ b/src/WallpaperEngine/Data/Parsers/ObjectParser.h
+@@ -19,7 +19,7 @@
+ 
+ private:
+     static std::vector<int> parseDependencies (const JSON& it);
+-    static SoundUniquePtr parseSound (const JSON& it, ObjectData base);
++    static SoundUniquePtr parseSound (const JSON& it, const Project& project, ObjectData base);
+     static ImageUniquePtr
+     parseImage (const JSON& it, const Project& project, ObjectData base, const std::string& image);
+     static ParticleUniquePtr parseParticle (const JSON& it, const Project& project, ObjectData base);
+--- a/src/WallpaperEngine/Render/Drivers/Output/WaylandOutputViewport.cpp
++++ b/src/WallpaperEngine/Render/Drivers/Output/WaylandOutputViewport.cpp
+@@ -266,6 +266,9 @@
+     this->makeCurrent ();
+     frameCallback = wl_surface_frame (surface);
+     wl_callback_add_listener (frameCallback, &frameListener, this);
++    // wl_surface_frame already paces each output. EGL vsync can wait forever
++    // for a covered surface and block rendering/audio scripts on other outputs.
++    eglSwapInterval (m_driver->getEGLContext ()->display, 0);
+     eglSwapBuffers (m_driver->getEGLContext ()->display, this->eglSurface);
+     wl_surface_set_buffer_scale (surface, scale);
+     wl_surface_damage_buffer (surface, 0, 0, INT32_MAX, INT32_MAX);
+--- a/src/WallpaperEngine/Render/Drivers/WaylandOpenGLDriver.cpp
++++ b/src/WallpaperEngine/Render/Drivers/WaylandOpenGLDriver.cpp
+@@ -19,6 +19,7 @@
+ #include <algorithm>
+ #include <string.h>
+ #include <unistd.h>
++#include <poll.h>
+ 
+ using namespace WallpaperEngine::Render::Drivers;
+ 
+@@ -414,9 +415,18 @@
+     // get the start time of the frame
+     startTime = this->getRenderTime ();
+ 
+-    if (wl_display_dispatch (m_waylandContext.display) == -1) {
+-	m_requestedExit = true;
+-    }
++    // Covered outputs may stop sending frame callbacks. Keep servicing signals,
++    // Chromium and audio without waiting indefinitely for a compositor event.
++    while (wl_display_prepare_read (m_waylandContext.display) != 0) {
++        if (wl_display_dispatch_pending (m_waylandContext.display) == -1) { m_requestedExit=true; return; }
++    }
++    wl_display_flush (m_waylandContext.display);
++    pollfd event { wl_display_get_fd (m_waylandContext.display), POLLIN, 0 };
++    int pending = poll (&event, 1, 8);
++    if (pending > 0 && (event.revents & POLLIN)) {
++        if (wl_display_read_events (m_waylandContext.display) == -1) m_requestedExit=true;
++    } else wl_display_cancel_read (m_waylandContext.display);
++    if (wl_display_dispatch_pending (m_waylandContext.display) == -1) m_requestedExit=true;
+ 
+     m_frameCounter++;
+ 
+--- a/src/WallpaperEngine/Render/Objects/CRenderable.cpp
++++ b/src/WallpaperEngine/Render/Objects/CRenderable.cpp
+@@ -1,3 +1,5 @@
++#include <algorithm>
++#include <cmath>
+ #include "CRenderable.h"
+ 
+ #include "WallpaperEngine/Data/Model/Material.h"
+@@ -38,4 +40,23 @@
+ 
+ std::shared_ptr<const TextureProvider> CRenderable::getTexture () const { return this->m_texture; }
+ 
+-double CRenderable::getAnimationTime () const { return this->m_animationTime; }
+\ No newline at end of file
++double CRenderable::getAnimationTime () const { return this->m_animationTime; }
++double CRenderable::animationClock () const {
++    const double time=getContext().getDriver().getRenderTime();
++    return m_animationControlled?m_animationOffset+(m_animationPlaying?time-m_animationOrigin:0):time;
++}
++void CRenderable::animationPause () { m_animationOffset=animationClock();m_animationControlled=true;m_animationPlaying=false; }
++void CRenderable::animationPlay () { if(animationPlaying())return;m_animationOrigin=getContext().getDriver().getRenderTime();m_animationControlled=true;m_animationPlaying=true; }
++void CRenderable::animationStop () { m_animationOffset=0;m_animationControlled=true;m_animationPlaying=false; }
++void CRenderable::animationSetFrame (int frame) {
++    if(!m_texture||m_texture->getFrames().empty())return;
++    frame=std::clamp(frame,0,int(m_texture->getFrames().size())-1);m_animationOffset=0;
++    for(int i=0;i<frame;i++)m_animationOffset+=m_texture->getFrames()[i]->frametime;
++    m_animationOffset+=m_texture->getFrames()[frame]->frametime*.01;
++    m_animationOrigin=getContext().getDriver().getRenderTime();m_animationControlled=true;
++}
++int CRenderable::animationFrame () const {
++    if(!m_texture||m_animationTime<=0)return 0;
++    double time=std::fmod(animationClock(),m_animationTime);int i=0;
++    for(auto& frame:m_texture->getFrames()){if(time<frame->frametime)return i;time-=frame->frametime;++i;}return 0;
++}
+--- a/src/WallpaperEngine/Render/Objects/CRenderable.h
++++ b/src/WallpaperEngine/Render/Objects/CRenderable.h
+@@ -21,6 +21,13 @@
+     [[nodiscard]] double getAnimationTime () const;
+ 
+     void setup () override;
++    double animationClock () const;
++    void animationPlay ();
++    void animationPause ();
++    void animationStop ();
++    void animationSetFrame (int frame);
++    int animationFrame () const;
++    bool animationPlaying () const { return !m_animationControlled || m_animationPlaying; }
+ 
+     [[nodiscard]] virtual const float& getBrightness () const = 0;
+     [[nodiscard]] virtual const float& getUserAlpha () const = 0;
+@@ -33,6 +40,8 @@
+     void detectTexture ();
+ 
+     double m_animationTime = 0.0;
++    double m_animationOffset = 0.0, m_animationOrigin = 0.0;
++    bool m_animationControlled = false, m_animationPlaying = true;
+ 
+     std::shared_ptr<const TextureProvider> m_texture = nullptr;
+     const Material& m_material;
+--- a/src/WallpaperEngine/Render/Objects/CSound.cpp
++++ b/src/WallpaperEngine/Render/Objects/CSound.cpp
+@@ -1,37 +1,31 @@
+-#include <SDL.h>
+-
+ #include "CSound.h"
+-
+-#include "WallpaperEngine/FileSystem/Container.h"
+-
++#include "WallpaperEngine/Logging/Log.h"
++#include <algorithm>
++#include <random>
+ using namespace WallpaperEngine::Render::Objects;
+-
+-CSound::CSound (Wallpapers::CScene& scene, const Sound& sound) : CObject (scene, sound), m_sound (sound) {
+-    if (this->getContext ().getApp ().getContext ().settings.audio.enabled) {
+-	this->load ();
+-    }
++CSound::CSound (Wallpapers::CScene& scene, const Data::Model::Sound& sound) :
++    CObject (scene, sound), ScriptableObject (scene, sound), m_sound (sound), m_volume (*sound.volume->value) {
++    registerProperty ("volume", m_volume);
++    if (!sound.startSilent) play ();
+ }
+-
+-CSound::~CSound () {
+-    // free all the sound buffers and streams
+-    for (const auto& stream : this->m_audioStreams) {
+-	this->getScene ().getAudioContext ().removeStream (stream.first);
+-	delete stream.second;
+-    }
+-
+-    this->m_audioStreams.clear ();
++CSound::~CSound () { stop (); }
++bool CSound::isPlaying () const { return m_stream && !m_stream->paused () && !m_stream->finished (); }
++void CSound::play () {
++    if (!getContext ().getApp ().getContext ().settings.audio.enabled || m_sound.sounds.empty () || isPlaying ()) return;
++    if (m_stream && !m_stream->finished ()) { m_stream->pause (false); return; }
++    stop ();
++    // A sound array is a choice of clips, not simultaneous voices.
++    static std::mt19937 random (std::random_device {} ());
++    m_choice = std::uniform_int_distribution<size_t> (0, m_sound.sounds.size () - 1) (random);
++    const auto& file = m_sound.sounds[m_choice];
++    m_stream = std::make_unique<Audio::AudioStream> (getScene ().getAudioContext (), getAssetLocator ().read (file), m_sound.playbackmode == "loop");
++    m_stream->setGain (std::clamp (m_volume.getFloat (), 0.0f, 1.0f));
++    m_streamId = getScene ().getAudioContext ().addStream (m_stream.get ());
++    sLog.out ("Sound layer ", getId (), " playing: ", file);
+ }
+-
+-void CSound::load () {
+-    for (const auto& cur : this->m_sound.sounds) {
+-	auto stream
+-	    = new Audio::AudioStream (this->getScene ().getAudioContext (), this->getAssetLocator ().read (cur));
+-
+-	stream->setRepeat (this->m_sound.playbackmode.has_value () && this->m_sound.playbackmode == "loop");
+-
+-	// add the stream to the context so it can be played
+-	this->m_audioStreams.insert_or_assign (this->getScene ().getAudioContext ().addStream (stream), stream);
+-    }
++void CSound::pause () { if (m_stream) m_stream->pause (true); }
++void CSound::stop () {
++    if (m_streamId >= 0) { getScene ().getAudioContext ().removeStream (m_streamId); m_streamId = -1; }
++    m_stream.reset ();
+ }
+-
+-void CSound::render () { }
++void CSound::render () { if (m_stream) m_stream->setGain (std::clamp (m_volume.getFloat (), 0.0f, 1.0f)); }
+--- a/src/WallpaperEngine/Render/Objects/CSound.h
++++ b/src/WallpaperEngine/Render/Objects/CSound.h
+@@ -1,30 +1,21 @@
+ #pragma once
+-
+ #include "WallpaperEngine/Audio/AudioStream.h"
+-#include "WallpaperEngine/Render/CObject.h"
+-
+-using namespace WallpaperEngine;
+-
+-namespace WallpaperEngine::Render::Wallpapers {
+-class CScene;
++#include "WallpaperEngine/Scripting/ScriptableObject.h"
++namespace WallpaperEngine::Render::Objects {
++class CSound final : public Scripting::ScriptableObject {
++public:
++    CSound (Wallpapers::CScene& scene, const Data::Model::Sound& sound);
++    ~CSound () override;
++    void render () override;
++    void play ();
++    void pause ();
++    void stop ();
++    bool isPlaying () const;
++private:
++    const Data::Model::Sound& m_sound;
++    Data::Model::DynamicValue& m_volume;
++    std::unique_ptr<Audio::AudioStream> m_stream;
++    int m_streamId = -1;
++    size_t m_choice = 0;
++};
+ }
+-
+-namespace WallpaperEngine::Render::Objects {
+-using namespace WallpaperEngine::Data::Model;
+-
+-class CSound final : public CObject {
+-public:
+-    CSound (Wallpapers::CScene& scene, const Sound& sound);
+-    ~CSound () override;
+-
+-    void render () override;
+-
+-protected:
+-    void load ();
+-
+-private:
+-    std::map<int, Audio::AudioStream*> m_audioStreams = {};
+-
+-    const Sound& m_sound;
+-};
+-} // namespace WallpaperEngine::Render::Objects
+--- a/src/WallpaperEngine/Render/Objects/CText.cpp
++++ b/src/WallpaperEngine/Render/Objects/CText.cpp
+@@ -81,7 +81,7 @@
+     this->registerProperty ("scale", *text.scale->value);
+     this->registerProperty ("visible", *text.visible->value);
+     this->registerProperty ("pointSize", *text.pointSize->value);
+-    this->registerProperty ("text", *text.text->value);
++    this->registerProperty ("text", *text.text->value, false);
+     this->registerProperty ("pointSize", *text.pointSize->value);
+ }
+ 
+--- a/src/WallpaperEngine/Render/Objects/Effects/CPass.cpp
++++ b/src/WallpaperEngine/Render/Objects/Effects/CPass.cpp
+@@ -252,7 +252,7 @@
+     }
+ 
+     double currentRenderTime = fmod (
+-	static_cast<double> (this->getContext ().getDriver ().getRenderTime ()), this->m_renderable.getAnimationTime ()
++	this->m_renderable.animationClock (), this->m_renderable.getAnimationTime ()
+     );
+ 
+     for (const auto& frameCur : texture->getFrames ()) {
+--- a/src/WallpaperEngine/Scripting/Adapters/ScriptableObjectAdapter.cpp
++++ b/src/WallpaperEngine/Scripting/Adapters/ScriptableObjectAdapter.cpp
+@@ -1,6 +1,7 @@
+ #include "ScriptableObjectAdapter.h"
+ 
+ #include <utility>
++#include "WallpaperEngine/Render/Objects/CSound.h"
+ #include "WallpaperEngine/Render/Objects/CImage.h"
+ #include "WallpaperEngine/Data/Model/UserSetting.h"
+ 
+@@ -56,6 +57,38 @@
+     return result;
+ }
+ 
++static JSValue layer_children (JSContext* ctx, JSValueConst self, int, JSValueConst*) {
++    JSClassID id=0;auto* c=static_cast<OpaqueScriptableObjectAdapter*>(JS_GetAnyOpaque(self,&id));
++    if(!c||c->magic!=SCRIPTABLE_OPAQUE_MAGIC)return JS_UNDEFINED;
++    JSValue result=JS_NewArray(ctx);uint32_t n=0;
++    for(auto& object:c->object.getScene().getScene().objects)if(object->parent==c->object.getId()){
++        auto* child=const_cast<WallpaperEngine::Render::CObject*>(c->object.getScene().getObject(object->id));
++        if(auto* scripted=dynamic_cast<WallpaperEngine::Scripting::ScriptableObject*>(child))JS_SetPropertyUint32(ctx,result,n++,c->adapter.instantiate(*scripted));
++    }return result;
++}
++static JSValue sound_command (JSContext* ctx, JSValueConst self, int, JSValueConst*, int magic) {
++    JSClassID id=0;auto* c=static_cast<OpaqueScriptableObjectAdapter*>(JS_GetAnyOpaque(self,&id));
++    auto* sound=c&&c->magic==SCRIPTABLE_OPAQUE_MAGIC?dynamic_cast<WallpaperEngine::Render::Objects::CSound*>(&c->object):nullptr;
++    if(!sound)return JS_UNDEFINED;
++    try{if(magic==0)sound->play();else if(magic==1)sound->pause();else if(magic==2)sound->stop();else return JS_NewBool(ctx,sound->isPlaying());}
++    catch(const std::exception& e){return JS_ThrowInternalError(ctx,"%s",e.what());}return JS_UNDEFINED;
++}
++
++static JSValue animation_command(JSContext* ctx,JSValueConst,int argc,JSValueConst* argv,int magic,JSValue* data){
++    JSClassID id=0;auto* c=static_cast<OpaqueScriptableObjectAdapter*>(JS_GetAnyOpaque(data[0],&id));
++    auto* image=c&&c->magic==SCRIPTABLE_OPAQUE_MAGIC?dynamic_cast<WallpaperEngine::Render::Objects::CImage*>(&c->object):nullptr;
++    if(!image)return JS_UNDEFINED;
++    if(magic==0)image->animationPlay();else if(magic==1)image->animationPause();else if(magic==2)image->animationStop();
++    else if(magic==3){int frame=0;if(argc)JS_ToInt32(ctx,&frame,argv[0]);image->animationSetFrame(frame);}
++    else if(magic==4)return JS_NewInt32(ctx,image->animationFrame());else return JS_NewBool(ctx,image->animationPlaying());
++    return JS_UNDEFINED;
++}
++static JSValue get_animation(JSContext* ctx,JSValueConst self,int,JSValueConst*){
++    JSValue object=JS_NewObject(ctx);const char* methods[]={"play","pause","stop","setFrame","getFrame","isPlaying"};JSValue data[]={self};
++    for(int n=0;n<6;n++)JS_SetPropertyStr(ctx,object,methods[n],JS_NewCFunctionData(ctx,animation_command,n==3?1:0,n,1,data));
++    return object;
++}
++
+ static void scriptableobject_finalizer (JSRuntime* runtime, JSValue value) {
+     JSClassID id = 0;
+     delete static_cast<OpaqueScriptableObjectAdapter*> (JS_GetAnyOpaque (value, &id));
+@@ -78,6 +111,13 @@
+ 
+     ScopeGuard guard ([=] { JS_FreeCString (ctx, name); });
+ 
++    if (std::string(name)=="name")return JS_NewString(ctx,container->object.getObject().name.c_str());
++    if (std::string(name)=="id")return JS_NewInt32(ctx,container->object.getId());
++    if (std::string(name)=="getTextureAnimation")return JS_NewCFunction(ctx,get_animation,"getTextureAnimation",0);
++    if (std::string(name)=="getChildren")return JS_NewCFunction(ctx,layer_children,"getChildren",0);
++    if(dynamic_cast<WallpaperEngine::Render::Objects::CSound*>(&container->object)){
++        const char* methods[]={"play","pause","stop","isPlaying"};for(int n=0;n<4;n++)if(std::string(name)==methods[n])return JS_NewCFunctionMagic(ctx,sound_command,methods[n],0,JS_CFUNC_generic_magic,n);
++    }
+     if (std::string (name) == "getEffect") return JS_NewCFunction (ctx, get_effect, "getEffect", 1);
+ 
+     try {
+--- a/src/WallpaperEngine/Scripting/Adapters/VectorAdapter.cpp
++++ b/src/WallpaperEngine/Scripting/Adapters/VectorAdapter.cpp
+@@ -36,6 +36,7 @@
+     VectorAdapter<components>& adapter;
+     DynamicValue& value;
+     uint32_t id;
++    uint32_t adapterId;
+ };
+ 
+ template <int components> auto vector_new () -> decltype (auto) {
+@@ -190,7 +191,9 @@
+ 	}
+     }
+ 
+-    return JS_EXCEPTION;
++    JSValue prototype=JS_GetPrototype(ctx,obj_val);
++    JSValue method=JS_GetProperty(ctx,prototype,atom);JS_FreeValue(ctx,prototype);return method;
++
+ }
+ 
+ template JSValue vector_property_get<2> (JSContext* ctx, JSValueConst obj_val, JSAtom atom, JSValueConst receiver);
+@@ -370,10 +373,6 @@
+ 
+ template <int components>
+ JSValue vector_constructor (JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic) {
+-    if (argc == 0) {
+-	return JS_EXCEPTION;
+-    }
+-
+     auto it = vectorAdapterInstances<components>.find (magic);
+ 
+     if (it == vectorAdapterInstances<components>.end ()) {
+@@ -386,7 +385,10 @@
+ 
+     VEC_MAGIC_CHECK_EXCEPTION (container, components);
+ 
+-    container->value.update (vector_get<components> (ctx, argv[0]), DynamicValue::UpdateSource::Initialization);
++    auto value=vector_new<components>();
++    if(argc==1)value=vector_get<components>(ctx,argv[0]);
++    else for(int n=0;n<std::min(argc,components);n++){double v=0;if(JS_ToFloat64(ctx,&v,argv[n]))return JS_EXCEPTION;value[n]=v;}
++    container->value.update(value, DynamicValue::UpdateSource::Initialization);
+ 
+     return result;
+ }
+@@ -405,7 +407,8 @@
+ 
+     // free container and the associated DynamicValue if temporal
+     if (container->id != InvalidVectorInstanceId) {
+-	container->adapter.free (container->id);
++	auto adapter=vectorAdapterInstances<components>.find(container->adapterId);
++        if(adapter!=vectorAdapterInstances<components>.end())adapter->second.free(container->id);
+     }
+ 
+     delete container;
+@@ -623,7 +626,7 @@
+     VEC_MAGIC_CHECK_EXCEPTION (newContainer, components);
+ 
+     newContainer->value.update (
+-	glm::mix (vector_get<components> (ctx, argv[0]), vector_get<components> (container->value), amount),
++	glm::mix (vector_get<components> (container->value), vector_get<components> (ctx, argv[0]), amount),
+ 	DynamicValue::UpdateSource::Initialization
+     );
+ 
+@@ -924,7 +927,7 @@
+     );
+ 
+     JS_SetClassProto (this->m_engine.getContext (), this->m_classId, m_prototype);
+-    JS_FreeValue (this->m_engine.getContext (), ctor);
++    JS_SetPropertyStr (this->m_engine.getContext (), this->m_engine.getGlobalThis (), m_name.c_str (), ctor);
+ }
+ 
+ template <int components> VectorAdapter<components>::~VectorAdapter () {
+@@ -946,6 +949,7 @@
+ 	    .adapter = *this,
+ 	    .value = value,
+ 	    .id = InvalidVectorInstanceId,
++            .adapterId = m_instanceId,
+ 	}
+     );
+ 
+@@ -963,6 +967,7 @@
+ 	    .adapter = *this,
+ 	    .value = *value,
+ 	    .id = id,
++            .adapterId = m_instanceId,
+ 	}
+     );
+ 
+@@ -982,6 +987,7 @@
+ 	    .adapter = *this,
+ 	    .value = *value,
+ 	    .id = id,
++            .adapterId = m_instanceId,
+ 	}
+     );
+ 
+--- a/src/WallpaperEngine/Scripting/ScriptEngine.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptEngine.cpp
+@@ -379,6 +379,7 @@
+ 	<< "  var __props = Object.assign({}, globalThis.__layerSeedProps || {});\n"
+ 	<< "  var thisLayer = { text: String(globalThis.__layerSeedText || '') };\n"
+ 	<< "  var thisScene = {\n"
++        << "    getLayer: function(id) { return globalThis.thisScene.getLayer(id); },\n"
+ 	<< "    get time()        { var c = globalThis.__sceneCtx; return c ? c.time : 0; },\n"
+ 	<< "    get currentTime() { var c = globalThis.__sceneCtx; return c ? c.time : 0; },\n"
+ 	<< "    get dt()          { var c = globalThis.__sceneCtx; return c ? c.dt   : 0; },\n"
+--- a/src/WallpaperEngine/Scripting/ScriptableObject.cpp
++++ b/src/WallpaperEngine/Scripting/ScriptableObject.cpp
+@@ -30,7 +30,7 @@
+     return this->m_properties;
+ }
+ 
+-void ScriptableObject::registerProperty (const std::string& name, DynamicValue& value) {
++void ScriptableObject::registerProperty (const std::string& name, DynamicValue& value, bool queue) {
+     this->m_properties.erase (name);
+     auto inserted = this->m_properties.emplace (
+ 	name, PropertyEntry { .key = name + "_" + std::to_string (this->getId ()), .value = value }
+@@ -40,5 +40,5 @@
+ 	return;
+     }
+ 
+-    this->getScene ().getScriptEngine ().queueScript (inserted.first->second.key, inserted.first->second.value, *this);
++    if (queue) this->getScene ().getScriptEngine ().queueScript (inserted.first->second.key, inserted.first->second.value, *this);
+ }
+--- a/src/WallpaperEngine/Scripting/ScriptableObject.h
++++ b/src/WallpaperEngine/Scripting/ScriptableObject.h
+@@ -22,7 +22,7 @@
+     const std::map<std::string, PropertyEntry>& getProperties () const;
+ 
+ protected:
+-    void registerProperty (const std::string& name, DynamicValue& value);
++    void registerProperty (const std::string& name, DynamicValue& value, bool queue = true);
+ 
+ private:
+     std::map<std::string, PropertyEntry> m_properties;
+--- a/src/WallpaperEngine/Scripting/resources/builtins.js
++++ b/src/WallpaperEngine/Scripting/resources/builtins.js
+@@ -3,7 +3,7 @@
+   __data: Object.create(null),
+   get(key) {
+     key = String(key);
+-    return Object.prototype.hasOwnProperty.call(this.__data, key) ? this.__data[key] : null;
++    return Object.prototype.hasOwnProperty.call(this.__data, key) ? this.__data[key] : undefined;
+   },
+   set(key, value) { this.__data[String(key)] = String(value); },
+   remove(key) { delete this.__data[String(key)]; },

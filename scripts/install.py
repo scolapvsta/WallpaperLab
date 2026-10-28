@@ -8,6 +8,7 @@ import subprocess
 import time
 
 root = Path(__file__).resolve().parents[1]
+app_build = Path(os.environ.get('WALLPAPER_LAB_APP_BUILD', str(root/'build'))).resolve()
 home = Path.home()
 base = home / '.local/share/wallpaper-lab'
 runtime = base / 'runtime'
@@ -19,7 +20,7 @@ if launcher.exists():
         restore = json.loads(status.stdout).get('alive', False)
 stage = base / f'stage-{time.time_ns()}'
 stage.mkdir(parents=True)
-subprocess.run(['cmake', '--install', str(root/'build'), '--prefix', str(stage), '--component', 'app'], check=True)
+subprocess.run(['cmake', '--install', str(app_build), '--prefix', str(stage), '--component', 'app'], check=True)
 subprocess.run(['cmake', '--install', str(root/'build-engine'), '--prefix', str(stage), '--component', 'engine-library'], check=True)
 output = root / 'build-engine/output'
 for name in ['libcef.so','libEGL.so','libGLESv2.so','libvk_swiftshader.so','v8_context_snapshot.bin','vk_swiftshader_icd.json','chrome_100_percent.pak','chrome_200_percent.pak','resources.pak','icudtl.dat','locales']:
@@ -29,6 +30,15 @@ for name in ['libcef.so','libEGL.so','libGLESv2.so','libvk_swiftshader.so','v8_c
 (stage/'lib').mkdir()
 for source in (root/'build-engine/lib').glob('libkissfft*'):
     shutil.copy2(source,stage/'lib'/source.name,follow_symlinks=True)
+# Reuse the locally installed Steamworks redistributable. Never fetch credentials,
+# replace the Steam client, or package Workshop content with the application.
+steam_candidates=[]
+if os.environ.get('WALLPAPER_LAB_STEAM_API'):steam_candidates.append(Path(os.environ['WALLPAPER_LAB_STEAM_API']))
+steam_candidates += [runtime/'lib/libsteam_api.so']
+steam_candidates += sorted((home/'.local/share/wallpaperx').glob('*/resources/app.asar.unpacked/node_modules/steamworks.js/dist/linux64/libsteam_api.so'),reverse=True)
+for steam_api in steam_candidates:
+    if steam_api.is_file():
+        shutil.copy2(steam_api,stage/'lib/libsteam_api.so');break
 portable=root/'local/sysroot/usr/lib'
 if portable.exists():
     (stage/'deps').mkdir()
@@ -48,7 +58,8 @@ env=os.environ.copy()
 env['LD_LIBRARY_PATH']=':'.join(str(stage/x) for x in ['.','lib','deps'])
 subprocess.run([str(stage/'wallpaper-lab'),'--list'],env=env,stdout=subprocess.DEVNULL,check=True)
 if launcher.exists():subprocess.run([str(launcher),'--stop'],check=True)
-if runtime.exists():runtime.rename(base/f'previous-{time.time_ns()}')
+previous=base/f'previous-{time.time_ns()}'
+if runtime.exists():runtime.rename(previous)
 stage.rename(runtime)
 launcher.parent.mkdir(parents=True,exist_ok=True)
 launcher.write_text('''#!/bin/sh
@@ -58,16 +69,27 @@ cd "$runtime_dir" || exit 1
 exec "$runtime_dir/wallpaper-lab" "$@"
 ''')
 launcher.chmod(0o755)
+icons=home/'.local/share/icons/hicolor/scalable/apps';icons.mkdir(parents=True,exist_ok=True)
+shutil.copy2(root/'assets/wallpaper-lab.svg',icons/'wallpaper-lab.svg')
 applications=home/'.local/share/applications';applications.mkdir(parents=True,exist_ok=True)
 (applications/'wallpaper-lab.desktop').write_text(f'''[Desktop Entry]
 Type=Application
 Name=Wallpaper Lab
 Comment=Selettore animato e scene Steam Workshop
 Exec="{launcher}"
-Icon=preferences-desktop-wallpaper
+Icon=wallpaper-lab
 Terminal=false
 Categories=Settings;DesktopSettings;
 StartupWMClass=wallpaper-lab
 ''')
-if restore: subprocess.run([str(launcher),'--restore'],check=True)
+if restore:
+    try:
+        subprocess.run([str(launcher),'--restore'],check=True)
+    except subprocess.CalledProcessError:
+        subprocess.run([str(launcher),'--stop'],check=False)
+        runtime.rename(base/f'failed-{time.time_ns()}')
+        if previous.exists():
+            previous.rename(runtime)
+            subprocess.run([str(launcher),'--restore'],check=True)
+        raise SystemExit('New runtime failed to restore the wallpaper; previous runtime restored.')
 print(f'Installed: {launcher}')

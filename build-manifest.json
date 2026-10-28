@@ -1,7 +1,7 @@
 {
   "project": "Wallpaper Lab",
-  "version": "0.1.0",
-  "date": "2026-10-26",
+  "version": "0.13.0",
+  "date": "2026-10-28",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
     "hellpaper": "9774fe954bc01957defcb62629d71139231f2b8e",
@@ -9,8 +9,19 @@
   },
   "patches": {
     "patches/engine-integration.patch": "f9cfbc7137264b7d187d3dd311312141fe153a6e36918801456872bf32d234b7",
-    "patches/raylib-app-id.patch": "f2af296d4406e42ded808ae18f09e918239eb20eaf300506b66fe6ec66dfeff9"
+    "patches/raylib-app-id.patch": "f2af296d4406e42ded808ae18f09e918239eb20eaf300506b66fe6ec66dfeff9",
+    "patches/engine-build-paths.patch": "21fe628f92078789c508ff278def1dd521babad05f7be04ee0c2e6f2a01f1bfe",
+    "patches/engine-audio-web.patch": "49263073bb84056d54eae46eb4652ddd7bd50583f1b37f963d2240a2b5f1aa5c",
+    "patches/engine-display-layout.patch": "a1310bbb8125f9766b35a76efaa835800417d66b26c688634e69e9c8a5ae3066",
+    "patches/engine-wallpaper-placement.patch": "2c5234f02e36b8450e98abd8f22988cff1063d607f6c46ca8141b63c959a2a4b",
+    "patches/engine-live-controls.patch": "7dcc8de3cbfbbf5bcf259a46585ed7fc53bd4a628d7ba919e41a20aa8714d5ea",
+    "patches/engine-scene-interaction.patch": "8765a3b25f802746c8438a01c645dcec4e0291371a9a42c3102f2963cc15f022",
+    "patches/engine-project-controls.patch": "f0a57eaeb3a96e053651eac50d70e8088827413aae209b6ad3dbcff1a2fe2b93",
+    "patches/engine-web-compatibility.patch": "a545834b12eb7fafa2544fd39c6ac0b085d4f6ebaa0cc95f72cd1577a5cc32b8",
+    "patches/engine-sound-controls.patch": "4037748670cde367828ae95991ae91bf8d5ae30d8242d68535a05d70e4574c61",
+    "patches/engine-transitions-media-text.patch": "60c857ba7c76aba60b64f6bd20da95019f8e25e5eeb70b53edf29e42df3a2461"
   },
   "runtime": "single application executable plus separately built engine shared library",
-  "portable_dependencies": "local development prefix, not committed"
+  "portable_dependencies": "local development prefix, not committed",
+  "workshop": "Native Steam UGC020 via locally installed libsteam_api.so; HTTPS static preview cache via libcurl"
 }

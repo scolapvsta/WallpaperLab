@@ -10,7 +10,13 @@ apply_patch_if_needed() {
         git -C "$directory" apply --reverse --check "$PWD/$patch_file"
     fi
 }
-apply_patch_if_needed vendor/engine patches/engine-integration.patch
+python3 scripts/apply-patch-series.py vendor/engine \
+    patches/engine-integration.patch patches/engine-build-paths.patch \
+    patches/engine-audio-web.patch patches/engine-display-layout.patch \
+    patches/engine-wallpaper-placement.patch patches/engine-live-controls.patch \
+    patches/engine-scene-interaction.patch patches/engine-project-controls.patch \
+    patches/engine-web-compatibility.patch patches/engine-sound-controls.patch \
+    patches/engine-transitions-media-text.patch
 apply_patch_if_needed vendor/raylib patches/raylib-app-id.patch
 prefix_args=()
 if [[ -d local/sysroot/usr ]]; then prefix_args+=("-DCMAKE_PREFIX_PATH=$PWD/local/sysroot/usr"); fi

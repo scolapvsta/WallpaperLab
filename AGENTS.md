@@ -20,3 +20,7 @@
 - Repository privata: `scolapvsta/wallpaper-engine-customized`. Non cambiarne la visibilità.
 - Il progetto Codex di riferimento è Wallpaper Engine Customized (WIP).
   Il nome definitivo dell'applicazione è ancora da decidere.
+- Su richiesta di Simone (0.13): per ogni versione/modifica completata aggiornare
+  documentazione e risultati dei test, creare il commit e sincronizzare la repo
+  privata GitHub. Non pubblicare asset Workshop, dati personali o build locali;
+  non cambiare la visibilità. Documentare esplicitamente funzioni parziali e limiti.
