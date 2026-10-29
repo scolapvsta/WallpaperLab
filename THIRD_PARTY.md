@@ -73,3 +73,20 @@ https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaPlayba
 - Rosé Pine: https://rosepinetheme.com/palette/ (palette MIT).
 Le varianti sono adattamenti per superfici, contrasto e accenti di Wallpaper Lab;
 non costituiscono port ufficiali approvati dai progetti di riferimento.
+
+0.15: temi indipendenti e integrazione opzionale Caelestia.
+- Ispirazione visiva da Midnight e System24 (Discord), senza CSS o asset copiati:
+  https://github.com/refact0r/midnight-discord
+  https://github.com/refact0r/system24
+- Comfy (Spicetify), per il rapporto tra superfici arrotondate e accento menta:
+  https://github.com/Comfy-Themes/Spicetify
+- Catppuccin Latte/Mocha e Rosé Pine/Dawn usano i rispettivi riferimenti cromatici
+  già indicati sopra; gli altri preset sono palette ed effetti originali adattati
+  alla UI. Nessun font o immagine dei temi viene scaricato o distribuito.
+- Caelestia CLI installata separatamente, invocata solo per generare palette con
+  `wallpaper --print`; il file scheme.json segue il contratto della shell installata:
+  https://github.com/caelestia-dots/cli
+  https://github.com/caelestia-dots/shell
+- FFmpeg/ffprobe installati separatamente per metadata e miniature dei media
+  locali, con le rispettive licenze dei pacchetti. I file personali importati non
+  sono distribuiti con il progetto.

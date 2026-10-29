@@ -6,14 +6,13 @@ static int creatorColor=-1,creatorColorDrag=-1;static Color creatorColorDraft;st
 static Rectangle creatorColorSwatch,creatorColorBox,creatorHue,creatorRgb[3],creatorReset;
 static char creatorText[4097];static TextEdit creatorEditor;
 static void CreatorCommit(int i,int ok){
-    if(ok&&!uiSmoke)applying=lab_select(i);
+    if(ok&&!uiSmoke)applying=lab_start(i,0);
     if(!ok)snprintf(notice,sizeof(notice),"%s",lab_error());
 }
 static int CreatorControls(int i,int x,int y,int w){
     if(creatorItem!=i){creatorItem=i;creatorDrag=creatorCombo=creatorEdit=creatorColor=creatorColorDrag=-1;}
     double began=GetTime();
     int start=y,count=lab_property_count(i);if(!count)return 0;
-    UiText(lab_tr("Impostazioni del progetto"),x,y,17,AppTheme.text);y+=26;
     y+=TextLines(lab_tr("Controlli definiti dal creator. Le modifiche salvano e ricaricano la scena."),x,y,w,12,2,muted)+10;
     for(int p=0;p<count;p++){
         if(!lab_property_visible(i,p))continue;

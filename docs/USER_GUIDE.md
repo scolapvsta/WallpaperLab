@@ -1,4 +1,4 @@
-# Wallpaper Lab — guida 0.14
+# Wallpaper Lab — guida 0.15
 
 ## Libreria e monitor
 
@@ -6,6 +6,10 @@ Clicca una card per applicarla. In Display scegli panorama, duplicazione oppure
 un monitor. In modalità singola seleziona il monitor nella mappa, poi clicca lo
 sfondo: gli altri monitor mantengono il proprio renderer e wallpaper. Le
 assegnazioni vengono salvate per nome dell'uscita e ripristinate insieme.
+Il pannello dello sfondo offre anche il campo Monitor: è attivo solo in modalità
+singola. Scegliere un'uscita applica a quella lo sfondo selezionato. Cliccare lo
+sfondo già attivo sull'uscita selezionata non riavvia il renderer e non anima una
+transizione. Le modifiche effettive alle sue proprietà continuano ad applicarsi.
 
 I menu si aprono sopra gli altri campi, con scrollbar trascinabile quando serve.
 Le risoluzioni sono l'ultima sezione del pannello, raggruppate per monitor singolo,
@@ -20,6 +24,38 @@ Nei filtri scegli 50, 100 o 200 risultati per pagina. Il piede della griglia mos
 la pagina attuale e il totale. Ctrl + L sposta il cursore sulla ricerca; Ctrl + A,
 C e V selezionano, copiano e incollano. Tieni premuto il tasto centrale e trascina
 in verticale per scorrere griglia, proprietà, filtri, impostazioni e menu.
+
+Le sezioni dello sfondo sono richiudibili: Display di destinazione, Immagine e
+ritaglio, Riproduzione e Proprietà del creator. Immagine raccoglie regolazioni,
+zoom e spostamento; il ripristino delle proprietà del creator rimane in fondo,
+separato dai controlli immagine.
+
+## File locali e cartelle
+
+L'icona cartella con + importa immagini o video; puoi anche trascinarli nella
+finestra. La selezione nativa richiede Zenity oppure KDialog. L'importazione copia
+i file: gli originali rimangono al loro posto. Nome, risoluzione e miniatura
+vengono ricavati automaticamente con ffprobe/ffmpeg. Reimportare lo stesso file,
+con percorso, dimensione e data invariati, riutilizza la copia già importata.
+
+Formati accettati: PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF e video MP4, WebM, MKV,
+MOV, AVI, M4V; il codec deve essere supportato dal renderer e da FFmpeg installati.
+Le immagini usano un progetto web gestito dall'app; i video usano il renderer
+video. Non è richiesta la cartella asset di Wallpaper Engine per questi media.
+Non vengono importati eseguibili o progetti arbitrari tramite il selettore file.
+
+Le card riportano Steam o Locale. Il filtro Origine si combina con gli altri
+criteri secondo AND/OR. In Impostazioni → Librerie puoi scegliere la cartella
+Workshop Steam (normalmente `steamapps/workshop/content/431960`) e quella locale.
+La cartella locale iniziale viene creata in
+`$XDG_DATA_HOME/wallpaper-lab/wallpapers`, oppure
+`~/.local/share/wallpaper-lab/wallpapers`. Cambiare percorso cambia la cartella
+letta e la destinazione delle importazioni successive: non sposta i file esistenti.
+Il percorso Workshop serve alla scansione; la destinazione dei download resta
+gestita dal client Steam e dalle sue librerie.
+
+Da terminale: `wallpaper-lab --import FILE...` e
+`wallpaper-lab --library-path local|steam CARTELLA`.
 
 ## Workshop
 
@@ -38,6 +74,13 @@ l'anteprima. Il secondo sceglie la transizione desktop e ha una propria anteprim
 dissolvenza, fade attraverso nero, zoom, slide, wipe, iris e chiusura/apertura
 verso il mouse. La durata iniziale è 700 ms. Nell'anteprima clicca nell'immagine
 per cambiare l'origine dell'iris. Il desktop usa il cursore del monitor interessato.
+Entrambe le anteprime si chiudono con Esc o clic esterno. La prima pressione dello
+shortcut apre lo switcher sullo sfondo attivo del monitor selezionato; quelle
+successive seguono l'ordine dei preferiti nell'app. Se lo sfondo attivo non è tra
+i preferiti, compare come punto di partenza temporaneo e poi si passa al primo
+preferito, senza modificare la lista. Confermarlo nuovamente non cambia il desktop.
+In Griglia l'evidenziazione anima il contorno senza ingrandire le immagini oltre
+il mosaico; contorno delle celle e bordo esterno coincidono.
 
 Le transizioni campionano solo il framebuffer del wallpaper precedente, a
 risoluzione nativa: non catturano finestre, notifiche o applicazioni. Se il
@@ -46,17 +89,30 @@ lo sfondo senza transizione. Le immagini temporanee rimangono nello stato XDG lo
 
 ## Aspetto e lingue
 
-La luna è accanto al tema nelle impostazioni Aspetto, all'interno della stessa
-larghezza degli altri campi. Tutti i temi hanno una variante chiara e una scura.
-Le palette di riferimento sono Catppuccin (pastello), Dracula (neon) e Rosé Pine
-(toni vetro/oceano/ambra). RGB mantiene un accento animato, disattivabile con
-Riduci animazioni. La trasparenza è indipendente: il cursore Opacità della finestra
-varia dal 70 al 100%, con 100% opaco; non modifica i renderer desktop.
+Aspetto separa le collezioni Temi scuri e Temi chiari: ogni nome è un tema
+indipendente, senza un interruttore chiaro/scuro che ne alteri la palette.
+
+- Scuri: Charcoal, Cyber Neon, Aurora Glass, Sakura Neon, Midnight Violet,
+  Matrix LED, Prism RGB, Nord, Rosé Pine, Catppuccin Mocha e Comfy Mint.
+- Chiari: Paper, Catppuccin Latte, Rosé Dawn, Sakura Paper e Frost.
+
+Cambiano superfici, accenti, contrasto e arrotondamenti. I neon aggiungono luce
+e contorni; Matrix LED usa una trama puntinata e dettagli verdi, Prism RGB un
+bordo cromatico, Aurora Glass riflessi e un fondale morbido; Sakura ha particelle
+discrete. Riduci animazioni ferma gli effetti in movimento. Sono adattamenti
+propri ispirati anche a Midnight/System24 per Discord, Comfy per Spicetify,
+Catppuccin e Rosé Pine; non port ufficiali.
+
+La Trasparenza della UI è indipendente dal tema: 0% è opaco, 30% è il massimo.
+Il cursore occupa la stessa colonna degli altri campi. Varia soltanto le superfici
+dell'interfaccia; miniature, immagini Workshop e scene live restano opache,
+così come il testo. Il renderer desktop non viene alterato. Le preferenze
+precedenti vengono migrate al tema indipendente più vicino.
 
 Le 22 lingue comprendono italiano, inglese, tedesco, spagnolo, francese, portoghese,
 olandese, polacco, romeno, svedese, cinese semplificato/tradizionale, giapponese,
 coreano, hindi, russo, arabo, bengalese, indonesiano, turco, vietnamita e urdu.
-Il catalogo contiene 305 messaggi completi, comprese le impostazioni avanzate
+Il catalogo contiene 328 messaggi completi, comprese le impostazioni avanzate
 che prima ricadevano sull'inglese. Non sostituisce una revisione madrelingua;
 i contenuti degli autori e le categorie/tag forniti da Steam restano originali.
 
@@ -64,6 +120,22 @@ Pango/Cairo gestisce shaping, scritture RTL e font di fallback per le scritte
 Unicode dell'app. I testi Unicode delle scene usano lo stesso sistema di shaping;
 i font necessari devono essere installati nel sistema. Il layout dei pannelli
 non viene ancora specchiato nelle lingue RTL.
+
+## Integrazione Caelestia
+
+Impostazioni → Integrazioni → Caelestia → Colori dal wallpaper è disattivata
+inizialmente. Richiede il comando `caelestia` e la shell Caelestia che legge
+`$XDG_STATE_HOME/caelestia/scheme.json`. Quando è attiva, applicare uno sfondo
+genera una palette dalla sua anteprima e aggiorna barre e widget. L'operazione
+non cambia il wallpaper tramite Caelestia e non ricolora altre applicazioni.
+
+La palette è globale: con più monitor conta l'ultimo wallpaper applicato al
+monitor selezionato. Usa i colori dell'anteprima, non ogni fotogramma animato;
+le anteprime di prova non cambiano la palette. La generazione avviene fuori dal
+thread grafico e un errore dell'integrazione non interrompe il wallpaper.
+Disattivando l'opzione viene ripristinata la palette precedente, se quella attuale
+è ancora l'ultima pubblicata dall'app. Le modifiche manuali successive vengono
+rispettate. Non vengono avviate automaticamente shell o servizi mancanti.
 
 ## Media
 

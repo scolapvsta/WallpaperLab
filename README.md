@@ -10,82 +10,48 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Finestra principale e popup carousel (0.5.0)
+## Versione attuale: 0.15
 
-L’app rimane aperta dopo l’applicazione di uno sfondo. Un clic su una miniatura
-la seleziona; il pulsante **Applica** cambia il desktop. La finestra può essere
-chiusa senza interrompere il renderer. Il testo usa un font di sistema tramite
-Fontconfig e filtraggio bilineare.
+La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
+versionate successive conservano anche la storia delle implementazioni.
 
-- **Libreria**: miniature piu grandi con titolo su due righe, bordi bianchi,
-  stella bianca vuota/piena e cestino su ogni progetto. La selezione apre un
-  pannello laterale integrato: anteprima del progetto, dettagli e azioni. La
-  griglia si ricompone sulla sinistra; i comandi principali restano visibili.
-- **Ricerca**: campo centrale con cursore, cancellazione e filtri combinabili
-  per tipo, risoluzione e reattivita audio. Le dimensioni vengono lette dalla
-  scena (anche `scene.pkg`) o dal video tramite `ffprobe`, se disponibile.
-  Le miniature non vengono usate per indovinare la risoluzione. I metadati
-  mancanti si trovano con **Da verificare**. Il filtro audio usa il supporto
-  dichiarato dal progetto, lo stesso letto dal motore.
-- **Controlli a destra**: filtri, luna (attiva = scuro, disattiva = chiaro) e
-  rotella delle impostazioni. Le modifiche al tema vengono salvate subito.
-- **Carousel**: gestione con gli stessi componenti della libreria, stella
-  bianca e cestino, riordino e cambio precedente/successivo nel pannello laterale.
-  La rotella apre direttamente le impostazioni del carousel.
-- **Impostazioni**: Display, Riproduzione, Carousel e Aspetto sono raccolti
-  sia nella schermata principale sia nel popup. Panoramico, duplicato o singolo
-  monitor; risoluzioni automatiche, FPS, audio ed effetti. La modalita singola
-  sostituisce il gruppo attivo e non crea sfondi diversi simultanei per monitor.
-- **Carousel → Seleziona shortcut**: premi la combinazione completa per
-  salvarla e attivarla, oppure Esc per annullare. Non occorre scegliere i tasti
-  da una lista. Lo shortcut attuale viene sospeso in memoria durante la
-  registrazione e ripristinato all'annullamento o alla chiusura normale.
-  La configurazione e salvata con backup e controllo dei conflitti.
-- **Cestino**: richiede un secondo clic dopo il rilascio del primo. I file
-  vengono spostati nel cestino del sistema e rimossi dal carousel. Lo sfondo
-  attivo e le scene live aperte sono protetti; Steam puo riscaricare un progetto
-  al quale si e ancora iscritti. Non esiste cancellazione permanente automatica.
+- **Libreria e Carousel**: un clic applica lo sfondo e apre la scena live nel
+  pannello destro. Cliccare quello già attivo non riavvia il renderer. La stella
+  bianca gestisce i preferiti, il cestino richiede conferma; eliminando l'attivo
+  viene applicato il primo preferito disponibile o, in assenza, il primo della libreria.
+- **Monitor**: panorama, duplicato o singolo. In singolo ogni uscita mantiene il
+  proprio wallpaper. La mappa Display gestisce disposizione e scala; il campo
+  Monitor nell'inspector applica lo sfondo a un'altra uscita solo in modalità singola.
+- **Inspector**: sezioni richiudibili per destinazione, immagine/ritaglio,
+  riproduzione e proprietà del creator. Zoom, posizione, risoluzione e regolazioni
+  sono salvati per progetto, con aggiornamento live dove supportato.
+- **File personali**: importa immagini/video dalla cartella + o trascinali nella
+  finestra. L'app copia i media e calcola nome, risoluzione e miniatura. Le card
+  distinguono Steam e Locale; l'origine è un filtro AND/OR. Impostazioni → Librerie
+  configura sia la cartella Workshop sia quella locale creata automaticamente.
+- **Workshop**: ricerca e filtri automatici, informazioni del creator e download
+  dalla card o dal pannello. Richiede Steam aperto e un account con Wallpaper Engine.
+- **Aspetto**: 16 temi indipendenti, separati in collezioni chiare/scure. Palette,
+  raggi, neon, riflessi, particelle e LED sono pertinenti al tema. La Trasparenza
+  della UI va da 0% opaco a 30%, senza sbiadire immagini o scene live. Font e peso
+  restano personalizzabili, con fallback Unicode e 22 lingue.
+- **Caelestia**: integrazione facoltativa e inizialmente spenta. Genera i colori
+  di barre e widget dalla miniatura dello sfondo applicato, senza cambiare altre
+  applicazioni. Disattivandola ripristina la palette precedente se ancora gestita
+  dall'app; rispetta eventuali modifiche manuali. Vedi limiti e dettagli nella guida.
 
-L'identita visiva e provvisoria: icona vettoriale propria, Adwaita Sans per il
-contenuto, DejaVu Sans Bold per i pulsanti e Noto Serif per il nome. I font sono
-risolti con Fontconfig; FreeType gestisce il fallback per i titoli in CJK usando
-solo i glifi presenti nella libreria. Nessun font di sistema viene copiato in repo.
+Lo switcher parte dal wallpaper attivo del monitor scelto; le pressioni successive
+seguono l'ordine dei preferiti in app. Il corrente non preferito viene mostrato
+solo come punto di partenza temporaneo, senza aggiungerlo ai preferiti.
+Confermare il corrente non produce transizioni. Le anteprime di switcher e
+transizioni si chiudono con Esc o clic esterno.
 
-Nei layout Fiume, Verticale e Onda un unico ingrandimento segue la posizione
-animata della striscia. Le ripetizioni rapide di Super+Tab non avviano una nuova
-animazione di scala indipendente su ogni sfondo. Le copie ai bordi usano la stessa
-geometria e lo spazio trasparente accoglie l’ingrandimento.
-
-Il popup mostra solo le immagini, senza intestazione o footer. Ogni miniatura
-ha un bordo bianco di circa 2,6 pixel, uguale per tutte; la selezione si distingue per
-l'ingrandimento animato. **Griglia**, **Fiume** e **Verticale** hanno angoli esterni
-arrotondati e immagini accostate senza spazi fra loro.
-La **griglia** si adatta al numero di preferiti: quattro formano un 2×2,
-nove un 3×3, con celle da 160 pixel logici. Le liste grandi sono suddivise in
-pagine, mantenendo visibile la selezione e rispettando le dimensioni del monitor.
-Nella griglia la scelta cresce sopra il mosaico e oltre i suoi bordi, mentre
-le celle sottostanti restano piene. **Fiume** e **Verticale** sono strisce di
-miniature quadrate da 160 pixel: le altre immagini mantengono dimensioni uguali,
-mentre quella scelta si ingrandisce in entrambe le direzioni e sporge dal gruppo.
-I contorni sono decorativi e non tagliano la selezione. Una fascia trasparente
-attorno al gruppo offre lo spazio necessario allo zoom. **Onda** usa uno sfondo trasparente:
-si vedono immagini con angoli morbidi e bordi bianchi, senza cornice esterna.
-Lo zoom è più marcato e le miniature vengono decodificate a 256 pixel per
-mantenere una maggiore nitidezza durante l'ingrandimento.
-
-Entrata e uscita usano la stessa dissolvenza di 140 ms, riprodotta al contrario
-in chiusura. Un rilascio durante l'apertura inverte la dissolvenza dal punto
-raggiunto. Quando si passa da un'immagine all'altra, quella scelta cresce e la
-precedente torna alla dimensione normale, accompagnando lo scorrimento. Il
-movimento è più graduale (circa 350 ms per la maggior parte del percorso) e
-conserva la velocità fra pressioni successive, continuando in avanti anche
-quando si ritorna al primo elemento. Una nuova pressione
-durante la chiusura resta disponibile per la sessione successiva.
-L'animazione è gestita dall'app, senza sommare quella del compositor.
-Il popup legge solo i progetti preferiti, decodifica le miniature durante la
-creazione della finestra e non carica il font della finestra principale.
-Il primo avvio resta soggetto al tempo di creazione della finestra e del contesto
-grafico; il caricamento della scena desktop avviene sempre dopo la conferma.
+I quattro layout restano disponibili. **Griglia** accosta le celle al bordo del
+mosaico e anima il contorno senza ingrandire le immagini all'esterno. **Fiume** e
+**Verticale** mantengono lo scorrimento continuo e lo zoom con spazio trasparente
+attorno al gruppo; **Onda** conserva il movimento e gli angoli morbidi. Le liste
+lunghe vengono paginate in base alle dimensioni del monitor. Il popup usa le
+miniature, mentre la scena desktop parte solo dopo conferma di un wallpaper diverso.
 
 La scorciatoia del popup è integrata con Hyprland con configurazione standard
 **Lua**. L’app verifica i conflitti, salva un backup in
@@ -467,14 +433,10 @@ Il catalogo UTF-8 e in `src/translations.json`, compilato nel binario: il genera
 controlla che ogni messaggio abbia nove traduzioni oltre all'italiano e mantenga
 i parametri dei formati. Non serve una connessione per cambiare lingua.
 
-Aspetto contiene Standard, Neon ciano, Glass, Neon rosa, Pastello, Viola
-profondo, LED, RGB, Oceano e Ambra. I preset cambiano superfici, contrasto,
-arrotondamenti e accenti; Neon/LED/RGB includono effetti grafici. Glass usa
-superfici traslucide sul fondale morbido dell'app. Pastello rimane opaco.
-Comodo, Compatto e Galleria cambiano la densita della griglia mantenendo il
-limite minimo delle miniature. Ogni tema ha una variante chiara e una scura:
-la luna cambia variante mantenendo la famiglia. Le vecchie preferenze sono migrate
-in memoria e salvate al successivo cambio.
+Aspetto ora offre 16 preset indipendenti in collezioni chiare e scure; i vecchi
+preset e le varianti vengono migrati al tema più vicino. La trasparenza è una
+scelta separata, da 0 a 30%, e riguarda le superfici della UI. Comodo, Compatto e
+Galleria cambiano la densità della griglia mantenendo il limite minimo delle miniature.
 
 Il selettore font mostra ogni nome nel font corrispondente, caricato su richiesta
 e mantenuto in cache. Elenca le famiglie installate che supportano l'inglese,
@@ -488,9 +450,10 @@ L'icona aggiorna rilegge in background le cartelle Workshop delle librerie Steam
 rilevate. I thumbnail worker vengono fermati e riavviati prima di sostituire il
 catalogo e le texture; selezione e preferiti seguono il percorso del progetto,
 cosi restano corretti anche quando cambia l'ordine. Il renderer attivo continua.
-Questa funzione rileva i progetti gia scaricati; il browser Workshop in app e una
-funzione successiva. Le preferenze UI sono salvate in `settings.json` con chiavi
-`language`, `ui_theme`, `light_theme`, `theme_variants`, `layout_density` e `font_family`.
+Questa funzione rileva i progetti già scaricati e i file locali importati; i nuovi
+download sono gestiti dalla tab Workshop. Le preferenze UI sono salvate in
+`settings.json`: `language`, `ui_theme`, `theme_catalog`, `window_transparency`,
+`layout_density`, `font_family` e `font_weight`. Le chiavi legacy vengono migrate.
 
 Per diagnostica: `--ui-preferences` mostra preferenze e famiglie disponibili;
 `--ui-option CHIAVE NUMERO` salva una preferenza UI (`font` usa l'indice della
@@ -695,3 +658,23 @@ sincronizzati su GitHub per ogni modifica completata, secondo richiesta di Simon
 
 La [guida](docs/USER_GUIDE.md) descrive impostazioni e precedenze; i
 [risultati](tests/RESULTS.md) distinguono prove automatiche, grafiche e limiti.
+
+
+## Versione 0.15 — media locali, temi indipendenti e Caelestia
+
+- Carousel ancorato al corrente, ordine dei preferiti conservato, no-op sulla
+  selezione già attiva e griglia con celle contenute nel bordo esterno.
+- Esc/clic esterno chiudono entrambe le anteprime senza azionare i controlli sottostanti.
+- Trasparenza selettiva delle superfici: miniature e live preview restano opache.
+  Slider compatto e collezioni di temi indipendenti, senza varianti chiare/scure
+  forzate sullo stesso preset. Riferimenti visivi e palette in [THIRD_PARTY.md](THIRD_PARTY.md).
+- Inspector organizzato e richiudibile, scelta monitor abilitata solo in singolo.
+- Importazione di immagini/video con metadati automatici, cartelle configurabili,
+  tag Steam/Locale e filtro di origine combinabile con AND/OR. File originali preservati.
+- Integrazione Caelestia opzionale, generazione palette fuori dal thread UI,
+  pubblicazione condizionata al wallpaper corrente e ripristino rispettoso delle
+  modifiche manuali. Nessun cambio di shell, servizi o avvio automatico.
+
+Prove native di selezione, ordine, doppio monitor, trasparenza e importazione;
+verifica reale della CLI Caelestia in XDG isolato, più test contrattuali di
+annullamento e ripristino. Dettagli e limiti in [tests/RESULTS.md](tests/RESULTS.md).

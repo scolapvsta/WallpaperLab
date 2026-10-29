@@ -846,3 +846,70 @@ Ripristinati entrambi i renderer indipendenti DP-5/DP-6 con gli stessi wallpaper
 Carousel e profili personali identici prima/dopo; nelle impostazioni sono stati
 aggiunti soltanto i nuovi default `page_size=100` e `window_opacity=100`.
 Evidenza privata `local/ui14/install/`.
+
+## 0.15.0 — carousel corrente, media locali, temi e Caelestia (29 ottobre 2026)
+
+- CTest: **11/11 passati**, inclusi ordine/selezione popup, migrazione preferenze,
+  origine AND/OR, proprietà e copertura dei 328 messaggi nelle 22 lingue.
+- `carousel_anchor_integration.py`: host nativo e renderer in XDG isolato.
+  Con preferiti C,A,B e attivo A, la prima pressione mostra A, le successive B,C;
+  confermare A conserva PID e stato. Attivo D fuori dai preferiti è un'ancora
+  temporanea, poi si passa a C senza riscrivere i preferiti. Il bounding box alpha
+  del canvas Griglia è contenuto nel rettangolo esterno del carousel.
+  Evidenza: `local/ui15/carousel-release/results.json` e canvas nella stessa directory.
+- `ui15_integration.py`: input reale sul desktop e finestra nativa. Selezionare
+  l'attivo non riavvia il renderer; campioni di miniature e scena live sono
+  pixel-identici con trasparenza UI 0 e 30%. Il campo Monitor è inattivo in panorama,
+  attivo in singolo; scegliere DP-5 conserva il PID di DP-6 e crea due assegnazioni.
+  Picker nativo simulato solo nella risposta, importazione reale e refresh automatico;
+  filtro origine verificato. Tutti i 16 preset selezionati tramite menu, collezioni
+  chiare/scure indipendenti e slider compatto. Screenshot ispezionati per neon rosa,
+  vetro, pastello e pannello integrazioni. Entrambe le anteprime chiuse con Esc e
+  clic esterno senza cambiare il desktop. Nessun errore di compilazione shader.
+  Evidenza: `local/ui15/ui-release/`, ripetuto con gradiente spaziale al posto
+  del media uniforme per rilevare anche un alpha globale accidentale: tutti i
+  controlli passati in `local/ui15/ui-gradient-check/`.
+- `local_library_integration.py --desktop`: PNG e MP4 personali generati dal test,
+  nomi/dimensioni/origine, miniature, reimportazione deduplicata e cartelle
+  personalizzate. Copie originali verificate con SHA-256. Rendering nativo di
+  immagine e video con asset dir vuota, senza dipendere da Wallpaper Engine.
+  Evidenza: `local/ui15/local-release/results.json`.
+- `caelestia-integration-test`: CLI finta in PATH privato per il contratto di
+  pubblicazione/ripristino, rispetto delle modifiche manuali, rifiuto palette
+  invalida e annullamento del risultato tardivo prima della pubblicazione.
+- `caelestia_desktop_integration.py`: **CLI Caelestia realmente installata**, media
+  locale e renderer nativo, tutti in XDG isolato. Generata palette con oltre 30
+  ruoli, cambiato primary dopo applicazione del wallpaper, ripristinata la palette
+  precedente al disable. Nessun file wallpaper Caelestia creato; hash dello schema
+  personale e stato dei renderer personali identici prima/dopo.
+  Evidenza: `local/ui15/caelestia-real/results.json`; attivazione/disattivazione
+  anche tramite CLI in `local/ui15/caelestia-cli-final/results.json`.
+- Serie patch engine/raylib e hash manifest verificati; nessuna modifica ai pin
+  o ai sorgenti vendor in questa versione. Nessun asset Workshop committato.
+
+Comandi delle nuove integrazioni (richiedono desktop Hyprland attivo; i test UI
+usano ydotoold e grim, una sessione alla volta):
+
+```sh
+ctest --test-dir build-ui10 --output-on-failure
+python3 tests/local_library_integration.py --desktop --app local/ui15-runtime/wallpaper-lab --output local/local-import-check
+python3 tests/carousel_anchor_integration.py --app local/ui15-runtime/wallpaper-lab --output local/carousel-anchor-check
+python3 tests/ui15_integration.py --app local/ui15-runtime/wallpaper-lab --output local/ui15-check
+python3 tests/caelestia_desktop_integration.py --app local/ui15-runtime/wallpaper-lab --output local/caelestia-check
+```
+
+Limiti: importazione testata end-to-end con PNG e MP4, non ogni contenitore/codec
+accettato; la disponibilità dei decoder dipende dalla macchina. Le scene importate
+manualmente possono ancora richiedere asset upstream. Caelestia è verificata con
+la versione installata e schema privato: la barra personale non è stata ricolorata
+durante i test, né sono state avviate shell o servizi. Palette ricavata dall'anteprima,
+globale per la shell e aggiornata per cambio wallpaper, non per fotogramma. Le
+traduzioni non sostituiscono revisione madrelingua. I test 0.14 di transizioni native
+e MPRIS restano evidenze di quella release, non sono stati rieseguiti integralmente.
+
+
+Runtime 0.15 installato con backup automatico del precedente. Le assegnazioni
+DP-5/DP-6 sono state ripristinate sugli stessi wallpaper; preferiti e profili
+conservati. Il confronto delle preferenze ha rilevato soltanto i nuovi marker
+`theme_catalog=true` e `window_transparency=0`. Caelestia è rimasta disattivata;
+nessuna modifica all'avvio automatico. Evidenza privata `local/ui15/install/`.

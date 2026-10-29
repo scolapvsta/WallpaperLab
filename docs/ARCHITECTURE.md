@@ -2,7 +2,7 @@
 
 - `wallpaper-lab`: shell Raylib e controller C++ con API C. La modalità `--render`
   incorpora la libreria nativa del motore; non lancia renderer upstream.
-- `catalog`, `project_source`, `project_properties`: catalogo Steam, risoluzione
+- `catalog`, `project_source`, `project_properties`: catalogo Steam/locale, risoluzione
   dei preset e proprietà persistenti per progetto.
 - `workshop`: worker serializzato per Steam UGC, callback manuali, trasferimenti
   HTTPS limitati e interrompibili per le anteprime. Nessun codice remoto eseguito
@@ -17,13 +17,13 @@
   blocco degli eventi verso i campi coperti dall'overlay.
 - `shaped_text`: cache limitata di layout Pango/Cairo; shaping Unicode e fallback
   Fontconfig. ASCII mantiene il renderer FreeType dell'interfaccia.
-- `i18n`: 22 locale, fallback inglese per i messaggi avanzati delle nuove lingue.
+- `i18n`: 328 messaggi in 22 locale; nomi dei temi e contenuti degli autori originali.
 - `patches` e `build-manifest.json`: modifiche vendor riproducibili con pin upstream.
 
 Test e limiti effettivi sono raccolti in `tests/RESULTS.md`; build, log e dati
 personali rimangono in `local/` o nelle directory XDG.
 
-## Rendering e UI 0.14
+## Rendering e UI 0.14–0.15
 
 `Transition.h` risolve il framebuffer corrente in un FBO RGBA8 e lo compone con
 lo snapshot precedente. Il tempo di transizione parte dopo tre frame pronti,
@@ -40,9 +40,11 @@ negative globali hanno sempre precedenza su quelle locali. Il file live atomico
 contiene path + image oppure path + position; il renderer lo accetta per due
 secondi e poi torna ai valori persistenti. Letture limitate a una ogni 40 ms.
 
-La UI può essere composta in un render target e presentata con alpha uniforme.
-Il blending usa fattori alpha separati per non moltiplicare la trasparenza ad
-ogni pannello sovrapposto. Le palette non introducono alpha nelle superfici.
+La UI è composta in RGBA quando è richiesta trasparenza. L'alpha delle superfici
+dipende da `window_transparency` (0…30), mentre media e testo restano opachi.
+La presentazione finale usa alpha premoltiplicato, senza un secondo fattore
+globale che sbiadirebbe anche le immagini. `window_opacity` resta sincronizzata
+come chiave legacy inversa; non è più il controllo esposto all'utente.
 Le texture Pango vengono create/rimosse solo dopo il flush del batch Raylib;
 la cache LRU ospita 1.024 etichette. Le immagini Workshop restano statiche.
 
@@ -53,3 +55,42 @@ Steam da 50. I cursori sono memorizzati per query (fino a 64 query diverse);
 la navigazione sequenziale può superare il limite delle query numerate. Per
 ricerche autore filtrate si conserva la scansione delle pagine utente e il
 conteggio locale; il precedente limite di 1.000 pagine autore rimane.
+
+## Catalogo, selezione e integrazioni 0.15
+
+`local_library.hpp` importa media tramite argv, senza shell: verifica estensione e
+dimensioni con ffprobe, copia in uno staging nascosto, genera miniatura e metadata,
+quindi pubblica la directory con rename. Le scansioni ignorano gli staging.
+L'identità è un hash di percorso canonico, dimensione e mtime. Le immagini sono
+progetti web con object-fit cover; i video mantengono il file nativo. L'asset dir
+vuota gestita dall'app permette di renderizzare media locali senza asset Steam.
+Scene locali collocate manualmente possono ancora richiedere gli asset upstream.
+Il catalogo riconosce `lab_origin`, `lab_media_kind`, `lab_width` e `lab_height`;
+in assenza del marker classifica locali i progetti sotto la radice locale.
+Le radici personalizzate sostituiscono la rispettiva radice predefinita, non
+migrano dati. Il source filter partecipa alla stessa combinazione AND/OR.
+Picker, copie e scansioni sono job asincroni; il catalogo viene sostituito sul
+thread UI dopo la conclusione dei worker delle miniature.
+
+Il controller aggiorna il processo corrente dopo aver scoperto i monitor.
+La selezione interattiva del progetto già corrente è un no-op; i cambi proprietà
+che richiedono ricarica usano esplicitamente il percorso di avvio forzato.
+Lo switcher conserva gli indici nell'ordine di `carousel.json`, parte dal processo
+del monitor scelto e può inserire il corrente non preferito come ancora temporanea.
+La prima pressione apre, le successive avanzano; il commit precoce usa la stessa
+regola. La Griglia anima il contorno, senza un secondo layer ingrandito esterno.
+
+`theme_catalog.h` definisce 16 preset indipendenti con flag light, palette, raggio
+ed effetto. `theme_catalog=true` marca la migrazione dai vecchi theme_variants;
+`light_theme` è ora una proprietà derivata del preset, non una variante utente.
+Shader e decorazioni native producono luce, LED, riflessi, particelle e bordo RGB.
+Non vengono eseguiti temi CSS esterni né importate risorse dai progetti di riferimento.
+
+`caelestia_integration.hpp` usa solo `caelestia wallpaper --print PREVIEW`, valida
+la palette e pubblica atomicamente scheme.json. Non usa wallpaper --file,
+scheme set o apply_colours. Conserva la palette precedente e quella pubblicata
+nello stato dell'app; al disable ripristina solo se nessuno ha cambiato la palette.
+La generazione è asincrona rispetto alla UI. Prima della pubblicazione ricontrolla
+flag e processo corrente sotto ControllerLock, scartando risultati tardivi dopo
+disable o un altro cambio wallpaper. Gli errori vengono separati dallo stato del
+renderer. La palette è unica per la shell e derivata dalla miniatura, non da ogni frame.

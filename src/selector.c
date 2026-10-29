@@ -675,8 +675,8 @@ static void PopupImages(PopupLayout layout, int count, int* indices, int positio
         int capacity=layout.columns*layout.rows,start=position/capacity*capacity;
         if(!enlarged){
             for(int n=0;n<capacity;n++){
-                Rectangle cell={(n%layout.columns)*layout.tile+3,(n/layout.columns)*layout.tile+3,layout.tile-6,layout.tile-6};
-                if(start+n<count)PopupCard(indices[start+n],cell,10,origin);
+                Rectangle cell={(n%layout.columns)*layout.tile,(n/layout.columns)*layout.tile,layout.tile,layout.tile};
+                if(start+n<count){PopupCard(indices[start+n],cell,10,origin);if(indices[start+n]==lab_current()){Rectangle badge={origin.x+cell.x+8,origin.y+cell.y+cell.height-26,68,18};DrawRectangleRounded(badge,.2f,6,Fade(BLACK,.75f));const char* text=lab_tr("ATTIVO");UiText(text,badge.x+7,badge.y+4,11,WHITE);}}
                 else{
                     cell.x+=origin.x;cell.y+=origin.y;DrawRectangleRounded(cell,0.13f,12,AppTheme.idle);
                     DrawRectangleRoundedLinesEx(cell,0.13f,12,1.2f,Fade(WHITE,0.25f));
@@ -686,14 +686,8 @@ static void PopupImages(PopupLayout layout, int count, int* indices, int positio
             }
             return;
         }
-        for(int pass=0;pass<2;pass++)for(int n=0;n<capacity&&start+n<count;n++) {
-            int index=indices[start+n];float zoom=wallpapers[index].hoverAnim;
-            if(zoom<0.002f||(start+n==position)!=(pass==1))continue;
-            float size=(layout.tile-6)*(1+0.28f*zoom);
-            float x=(n%layout.columns+0.5f)*layout.tile-size/2;
-            float y=(n/layout.columns+0.5f)*layout.tile-size/2;
-            PopupCard(index,(Rectangle){x,y,size,size},10,origin);
-        }
+        for(int n=0;n<capacity&&start+n<count;n++){int i=indices[start+n];float focus=wallpapers[i].hoverAnim;if(focus>.002f){Rectangle cell={origin.x+(n%layout.columns)*layout.tile+2,origin.y+(n/layout.columns)*layout.tile+2,layout.tile-4,layout.tile-4};DrawRectangleRoundedLinesEx(cell,.12f,12,1.4f,Fade(AppTheme.border,focus));}}
+
         return;
     }
     // A single spatial focus travels above the fixed, clipped strip;
@@ -731,8 +725,9 @@ int carousel_popup_main(void) {
         int i=lab_carousel_item(j);
         if(i>=0&&i<wallpaper_count&&!*lab_reason(i))indices[count++]=i;
     }
-    int baseline=-1;
-    for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;
+    int baseline=-1;int current=lab_current();
+    for(int j=0;j<count;j++)if(indices[j]==current)baseline=j;
+    if(count>0&&baseline<0&&current>=0&&current<wallpaper_count&&!*lab_reason(current)&&count<MAX_POSSIBLE_WALLPAPERS){memmove(indices+1,indices,count*sizeof(int));indices[0]=current;count++;baseline=0;}
     int steps=0,released=0;
     if(lab_popup_poll(&steps,&released)<0)return -1;
     int position=lab_popup_selection(count,baseline,steps);
@@ -754,7 +749,7 @@ int carousel_popup_main(void) {
     popupCapsLoc=GetShaderLocation(popupImageShader,"edgeCaps");
     RenderTexture2D panel=LoadRenderTexture(layout.width,layout.height);
     RenderTexture2D canvas=LoadRenderTexture(frame.width,frame.height);
-    bool confirm=false,closing=false;int lastSteps=steps;double lastEvent=GetTime();
+    bool confirm=false,closing=false,hadFocus=false;int lastSteps=steps;double lastEvent=GetTime();
     float targetPhase=position,visibility=0;
     PopupMotion scrollMotion={position,0},zoomMotion[MAX_POSSIBLE_WALLPAPERS]={0};
     // Explicit test-only export of this app's own canvas, before the global
@@ -777,7 +772,8 @@ int carousel_popup_main(void) {
                     else {targetPhase=position;scrollMotion=(PopupMotion){position,0};}
                     lastSteps=steps;lastEvent=GetTime();
                 }
-                if(WindowShouldClose()||IsKeyPressed(KEY_ESCAPE)||GetTime()-lastEvent>60)closing=true;
+                bool focused=IsWindowFocused();if(focused)hadFocus=true;bool outside=IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),(Rectangle){frame.padding,frame.padding,layout.width,layout.height});
+                if(WindowShouldClose()||IsKeyPressed(KEY_ESCAPE)||outside||(hadFocus&&!focused&&GetTime()>.2)||GetTime()-lastEvent>60)closing=true;
                 else if(released){confirm=true;closing=true;}
             }
         }
@@ -797,6 +793,7 @@ int carousel_popup_main(void) {
             int i=indices[(position+n)%count];
             if(atomic_load(&imagePending[i])){wallpapers[i].texture=LoadTextureFromImage(pendingImages[i]);SetTextureFilter(wallpapers[i].texture,TEXTURE_FILTER_BILINEAR);UnloadImage(pendingImages[i]);atomic_store(&wallpapers[i].loaded,true);atomic_store(&imagePending[i],false);loaded++;}
         }
+        const char* popupTrace=getenv("WALLPAPER_LAB_POPUP_STATE");if(popupTrace){FILE* f=fopen(popupTrace,"w");if(f){fprintf(f,"{\"selected\":%d,\"position\":%d,\"baseline\":%d,\"steps\":%d,\"padding\":%d,\"width\":%d,\"height\":%d}\n",position>=0?indices[position]:-1,position,baseline,steps,frame.padding,layout.width,layout.height);fclose(f);}}
         BeginTextureMode(panel);ClearBackground(BLANK);
         if(g_targetMode!=MODE_WAVE)DrawBackdrop(layout.width,layout.height);
         if(count)PopupImages(layout,count,indices,position,phase,false,(Vector2){0,0});

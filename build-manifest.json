@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "date": "2026-10-29",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -24,5 +24,7 @@
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",
-  "workshop": "Native Steam UGC020 via locally installed libsteam_api.so; HTTPS static preview cache via libcurl"
+  "workshop": "Native Steam UGC020 via locally installed libsteam_api.so; HTTPS static preview cache via libcurl",
+  "local_media": "Managed image/web and native video imports; ffprobe metadata and ffmpeg thumbnails; configurable local and Steam scan roots",
+  "caelestia": "Optional installed CLI palette generation; shell scheme.json only; disabled by default"
 }

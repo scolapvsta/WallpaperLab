@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 0.14.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 0.15.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 set(ENGINE_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/build-engine" CACHE PATH "Built engine tree")
@@ -26,7 +26,7 @@ set_target_properties(engine PROPERTIES IMPORTED_LOCATION "${ENGINE_BUILD}/outpu
 add_library(cef SHARED IMPORTED)
 set_target_properties(cef PROPERTIES IMPORTED_LOCATION "${ENGINE_BUILD}/output/libcef.so")
 add_executable(wallpaper-lab "${TRANSLATIONS_HEADER}" src/app.cpp src/workshop.cpp src/i18n.cpp src/displays.cpp src/catalog.cpp src/preferences.cpp src/shortcuts.cpp src/popup.cpp src/engine_entry.cpp src/selector.c src/gif.c)
-target_compile_definitions(wallpaper-lab PRIVATE _GNU_SOURCE)
+target_compile_definitions(wallpaper-lab PRIVATE _GNU_SOURCE WALLPAPER_LAB_VERSION="${PROJECT_VERSION}")
 target_include_directories(wallpaper-lab PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" src vendor/engine/src vendor/engine/src/External/kissfft vendor/engine/src/External/json/include ${CEF_ROOT} ${SDL2_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/include")
 # Chromium's close() interposer uses RTLD_NEXT. Keep CEF before libc in the
 # executable's direct dependencies, even though only the engine calls its API.
@@ -82,3 +82,7 @@ target_include_directories(text-cache-graphics-test PRIVATE src)
 target_link_libraries(text-cache-graphics-test PRIVATE raylib PkgConfig::PANGO m pthread)
 
 add_test(NAME i18n-source-coverage COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/i18n_coverage.py")
+
+add_executable(caelestia-integration-test tests/caelestia_integration_test.cpp src/catalog.cpp)
+target_include_directories(caelestia-integration-test PRIVATE src vendor/engine/src/External/json/include)
+add_test(NAME caelestia-integration COMMAND caelestia-integration-test)

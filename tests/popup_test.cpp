@@ -72,7 +72,8 @@ int main(){
         state["done"]=true;check(mergePopupEvent(state,"test",1,11,false)==state,"completed session revived");
         auto newer=mergePopupEvent(state,"test",2,1,false);check(!newer["commit"].get<bool>()&&!newer["done"].get<bool>(),"new session not reset");
         check(mergePopupEvent(newer,"test",1,99,true)==newer,"old release affected new session");
-        check(popupSelection(3,0,1)==1&&popupSelection(3,0,3)==0&&popupSelection(3,-1,1)==0,"wrap/initial selection");
+        check(popupSelection(3,0,1)==0&&popupSelection(3,0,4)==0&&popupSelection(3,-1,1)==0,"wrap/initial selection");
+        check(popupSelection(3,2,1)==2&&popupSelection(3,2,2)==0&&popupSelection(3,2,3)==1,"open on active and advance in saved order");
         check(popupSelection(0,-1,10)==-1&&popupSelection(1,0,100)==0,"empty/single list");
         PopupHost first,second;
         check(first.receive("test",1,1,false),"first host not created");

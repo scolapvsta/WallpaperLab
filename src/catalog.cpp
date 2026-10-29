@@ -1,6 +1,7 @@
 #include "project_properties.hpp"
 #include "project_source.hpp"
 #include "catalog.hpp"
+#include "local_library.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
@@ -61,8 +62,8 @@ std::string assetsPath() {
 static std::string lower(std::string s) { std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return std::tolower(c);});return s; }
 static std::string stringValue(const json& j,const char* key,const std::string& fallback="") { auto i=j.find(key); return i!=j.end()&&i->is_string()?i->get<std::string>():fallback; }
 bool matches(const Item& item,int type,int resolution,int audio) {
-    const char* types[]={"","scene","video","web","preset"};
-    if(type>0&&(type>4||item.type!=types[type]))return false;
+    const char* types[]={"","scene","video","web","preset","image"};
+    if(type>0&&(type>5||item.type!=types[type]))return false;
     if(audio==1&&item.audio!=1)return false;
     if(audio==2&&item.audio!=0)return false;
     if(audio==3&&item.audio!=-1)return false;
@@ -92,8 +93,9 @@ bool resolutionMatches(const Item& item,const ResolutionFilter& f){
     }
     return matches(item,0,f.code,0);
 }
-bool matchesCriteria(const Item& item,const std::vector<ResolutionFilter>& filters,int type,int audio,const std::vector<int>& codes,bool any,int groups){
+bool matchesCriteria(const Item& item,const std::vector<ResolutionFilter>& filters,int type,int audio,const std::vector<int>& codes,bool any,int groups,int origin){
  bool result=!any,active=false;auto criterion=[&](bool test){active=true;result=any?result||test:result&&test;};
+ if(origin)criterion(item.origin==(origin==1?"steam":"local"));
  if(type)criterion(matches(item,type,0,0));if(audio)criterion(matches(item,0,0,audio));
  for(int g=0;g<6;g++)if(groups&(1<<g)){bool active=false,matched=false;for(auto& f:filters)if(f.group==g&&std::find(codes.begin(),codes.end(),f.code)!=codes.end()){active=true;matched|=resolutionMatches(item,f);}if(active)criterion(matched);}
  for(int code:codes){bool matched=false,grouped=false;for(auto& f:filters)if(f.code==code){matched=resolutionMatches(item,f);grouped=groups&(1<<f.group);}if(!grouped)criterion(matched);}
@@ -207,19 +209,19 @@ std::vector<Item> scan(const std::vector<fs::path>& roots,bool probeVideos) {
     for(auto root:roots) {
         if(!fs::is_directory(root)) continue;
         for(const auto& entry:fs::directory_iterator(root,fs::directory_options::skip_permission_denied)) {
-            if(entry.is_directory())projects.push_back(entry.path());
+            if(entry.is_directory()&&!entry.path().filename().string().starts_with(".import-"))projects.push_back(entry.path());
         }
     }
     return scanProjects(projects,probeVideos);
 }
 std::vector<Item> scanProjects(const std::vector<fs::path>& projects,bool probeVideos) {
-    std::vector<Item> out; std::set<fs::path> seen;
+    std::vector<Item> out; std::set<fs::path> seen;fs::path localRoot;try{auto file=configDir()/"settings.json";localRoot=fs::weakly_canonical(localLibrary(fs::exists(file)?readJson(file):json::object()));}catch(...){}
     for(const auto& project:projects) {
             if(!fs::is_directory(project) || !fs::is_regular_file(project/"project.json")) continue;
             auto path=fs::canonical(project); if(!seen.insert(path).second) continue;
             Item item; item.path=path.string(); item.id=path.filename().string(); item.title=item.id;
             try {
-                auto original=readJson(path/"project.json");auto j=original;
+                auto original=readJson(path/"project.json");auto j=original;auto local=localRoot.empty()?fs::path():path.lexically_relative(localRoot);item.origin=original.value("lab_origin",std::string())=="local"||(!local.empty()&&*local.begin()!="..")?"local":"steam";
                 if(original.contains("dependency")){try{j=resolveProject(path,projects);item.source=j;}catch(const std::exception& e){item.reason=e.what();}}
                 item.title=stringValue(j,"title",item.id); item.type=lower(stringValue(j,"type"));
                 auto preview=stringValue(j,"preview");
@@ -239,6 +241,7 @@ std::vector<Item> scanProjects(const std::vector<fs::path>& projects,bool probeV
                     if(f.empty() || !fs::is_regular_file((item.source.is_null()?path:fs::path(j.value("_lab_base",path.string())))/f)) item.reason="File del progetto mancante";
                 }
                 if(item.type=="scene"||item.type=="video"||item.type=="web")metadata(item,j,assetPath,probeVideos);
+                if(item.origin=="local"){item.width=j.value("lab_width",item.width);item.height=j.value("lab_height",item.height);if(j.value("lab_media_kind",std::string())=="image")item.type="image";}
                 declaredResolutions(item,j);
                 auto general=j.value("general",json::object());
                 if(general.is_object()&&general.contains("properties")&&general["properties"].is_object())item.properties=general["properties"];

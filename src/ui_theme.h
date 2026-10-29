@@ -1,43 +1,50 @@
 #pragma once
-// Theme effects are local to the app; compositor and desktop styling stay untouched.
+#include "theme_catalog.h"
 static Shader backdropShader;
-static int backdropResolution,backdropTime,backdropStyle,backdropBase,backdropAccent;
-static float themeRoundness=1;
+static int backdropResolution,backdropTime,backdropStyle,backdropBase,backdropAccent,backdropAlpha;
+static float themeRoundness=1,uiSurfaceAlpha=1,themeTransparencyPreview=-1;
 static int themeId=0;
-static const char* themeNames[]={"Standard","Standard","Neon ciano","Glass","Neon rosa","Pastello","Viola profondo","LED","RGB","Oceano","Ambra"};
-// Muted surfaces and a single accent, inspired by Catppuccin, Rosé Pine and Dracula.
-// Transparency is applied once to the UI canvas, independently of these palettes.
 static Color ThemeHex(unsigned int rgb){return (Color){rgb>>16,(rgb>>8)&255,rgb&255,255};}
 static void ApplyTheme(void){
- themeId=lab_option("ui_theme");if(themeId<0||themeId>10)themeId=0;bool light=lab_option("light_theme");
- static const unsigned int accents[]={0x99d8c3,0x99d8c3,0x8be9fd,0x9ccfd8,0xff79c6,0xcba6f7,0xbb9af7,0xa6e3a1,0x89b4fa,0x7dcfff,0xf6c177};
- static const unsigned int lightAccents[]={0x267762,0x267762,0x007d8e,0x286983,0xb13b79,0x8839ef,0x6846a5,0x426e35,0x2861b5,0x136e96,0x91621d};
- unsigned int bases[]={0x101216,0x101216,0x171c29,0x1b2431,0x211b2c,0x1e1e2e,0x1a1b26,0x171f1c,0x181a26,0x15232f,0x251f20};
- unsigned int surfaces[]={0x191c21,0x191c21,0x212736,0x252f3e,0x2c2439,0x262638,0x242638,0x222d27,0x242637,0x202f3d,0x30282a};
- unsigned int lightBases[]={0xf0f2f5,0xf0f2f5,0xecf3f6,0xeef3f6,0xf9eff5,0xeff1f5,0xefedf7,0xeff4ed,0xeff1f7,0xedf4f7,0xf8f2e9};
- unsigned int lightSurfaces[]={0xffffff,0xffffff,0xf8fcfd,0xfafcfe,0xfffafd,0xe6e9ef,0xf9f8ff,0xfafff8,0xfafbff,0xf8fdff,0xfffcf6};
- AppTheme.bg=ThemeHex(light?lightBases[themeId]:bases[themeId]);surface=ThemeHex(light?lightSurfaces[themeId]:surfaces[themeId]);
- AppTheme.text=ThemeHex(light?0x343748:themeId==5?0xcdd6f4:0xe7e9f1);muted=ThemeHex(light?0x626779:0xa4aec3);
- AppTheme.border=ThemeHex(light?lightAccents[themeId]:accents[themeId]);
- if(themeId==8&&!lab_option("reduce_motion")){Color cycle=ColorFromHSV(IsWindowReady()?fmodf(GetTime()*8,360):215,.42f,light?.63f:.96f);AppTheme.border=cycle;}
- control=ColorLerp(surface,AppTheme.text,light?.055f:.06f);controlHover=ColorLerp(surface,AppTheme.border,light?.13f:.14f);lineColor=ColorLerp(surface,AppTheme.text,light?.18f:.16f);
- themeRoundness=themeId==3?1.35f:themeId==5?1.5f:themeId==7?.8f:1;
- AppTheme.idle=control;AppTheme.hover=controlHover;
+ themeId=lab_option("ui_theme");if(themeId<0||themeId>=LAB_THEME_COUNT)themeId=0;const LabTheme* t=&labThemes[themeId];
+ uiSurfaceAlpha=1-Clamp(themeTransparencyPreview>=0?themeTransparencyPreview:lab_option("window_transparency"),0,30)/100.f;
+ AppTheme.bg=ThemeHex(t->bg);surface=ThemeHex(t->surface);AppTheme.text=ThemeHex(t->text);muted=ThemeHex(t->muted);AppTheme.border=ThemeHex(t->accent);themeRoundness=t->radius;
+ if(t->effect==7&&!lab_option("reduce_motion"))AppTheme.border=ColorFromHSV(IsWindowReady()?fmodf(GetTime()*10,360):215,.55f,1);
+ control=ColorLerp(surface,AppTheme.text,t->light?.055f:.055f);controlHover=ColorLerp(surface,AppTheme.border,t->light?.13f:.19f);lineColor=ColorLerp(surface,AppTheme.text,t->light?.19f:.16f);
+ AppTheme.bg.a=surface.a=control.a=controlHover.a=roundf(uiSurfaceAlpha*255);AppTheme.idle=control;AppTheme.hover=controlHover;
 }
 static void ThemePanel(Rectangle r,float roundness,int segments,Color color){
-    float radius=Clamp(roundness*themeRoundness,0,1);
-    if((themeId==2||themeId==4||themeId==7)&&r.width>28&&r.height>24)
-        DrawRectangleRoundedLinesEx((Rectangle){r.x-1,r.y-1,r.width+2,r.height+2},radius,segments,1,Fade(AppTheme.border,.07f));
-    DrawRectangleRounded(r,radius,segments,color);
+ float radius=Clamp(roundness*themeRoundness,0,1);int effect=labThemes[themeId].effect;
+ if((effect==1||effect==3&&!labThemes[themeId].light||effect==6||effect==7)&&r.width>28&&r.height>24){
+  for(int n=3;n>0;n--)DrawRectangleRoundedLinesEx((Rectangle){r.x-n,r.y-n,r.width+2*n,r.height+2*n},radius,segments,1,Fade(AppTheme.border,.035f));
+ }
+ DrawRectangleRounded(r,radius,segments,color);
+ if((effect==1||(effect==3&&!labThemes[themeId].light)||effect==6||effect==7)&&r.width>28&&r.height>24){
+  DrawRectangleRoundedLinesEx(r,radius,segments,1,Fade(AppTheme.border,.24f));
+  if(r.width>400&&r.height>250){DrawRectangleGradientV(r.x+16,r.y+2,r.width-32,48,Fade(AppTheme.border,.065f),BLANK);float l=16;Color rim=Fade(AppTheme.border,.55f);DrawLineEx((Vector2){r.x+12,r.y+12+l},(Vector2){r.x+12,r.y+12},1.5f,rim);DrawLineEx((Vector2){r.x+12,r.y+12},(Vector2){r.x+12+l,r.y+12},1.5f,rim);DrawLineEx((Vector2){r.x+r.width-12-l,r.y+r.height-12},(Vector2){r.x+r.width-12,r.y+r.height-12},1.5f,rim);DrawLineEx((Vector2){r.x+r.width-12,r.y+r.height-12},(Vector2){r.x+r.width-12,r.y+r.height-12-l},1.5f,rim);if(effect==6)for(int y=r.y+45;y<r.y+r.height-35;y+=16)DrawRectangle(r.x+3,y,2,4,Fade(AppTheme.border,.38f));}
+ }
+ if(effect==2&&r.width>28&&r.height>24){DrawRectangleRoundedLinesEx(r,radius,segments,1,Fade(AppTheme.border,.22f));DrawLine(r.x+8,r.y+1,r.x+r.width-8,r.y+1,Fade(WHITE,.13f));}
+ if(effect==10&&r.width>90&&r.height>34)DrawRectangleRoundedLinesEx(r,radius,segments,1,Fade(AppTheme.border,.12f));
 }
 static void InitBackdrop(void){
-    const char* fs="#version 330 core\nin vec2 fragTexCoord;out vec4 finalColor;uniform vec2 resolution;uniform float time,style;uniform vec3 base,accent;\n"
-      "void main(){vec2 uv=gl_FragCoord.xy/resolution;float t=time*.07;vec2 a=vec2(.24+.12*sin(t),.72+.09*cos(t));vec2 b=vec2(.78+.1*cos(t*.8),.27+.12*sin(t));float glow=exp(-dot(uv-a,uv-a)*9.)*.025+exp(-dot(uv-b,uv-b)*13.)*.015;vec3 col=base+accent*glow;"
-      "if(style==3.)col+=vec3(.006,.004,.009)*sin(uv.y*6.+uv.x*3.);if(style==7.)col+=accent*(.002*pow(.5+.5*sin(uv.y*resolution.y*.55-time*.6),8.));finalColor=vec4(col,1.);}";
-    backdropShader=LoadShaderFromMemory(NULL,fs);backdropResolution=GetShaderLocation(backdropShader,"resolution");backdropTime=GetShaderLocation(backdropShader,"time");backdropStyle=GetShaderLocation(backdropShader,"style");backdropBase=GetShaderLocation(backdropShader,"base");backdropAccent=GetShaderLocation(backdropShader,"accent");
+ const char* fs="#version 330 core\nin vec2 fragTexCoord;out vec4 finalColor;uniform vec2 resolution;uniform float time,style,alpha;uniform vec3 base,accent;\n"
+ "void main(){vec2 uv=gl_FragCoord.xy/resolution;float t=time*.04;float halo=exp(-length(uv-vec2(.15+.05*sin(t),.8))*4.)*.08+exp(-length(uv-vec2(.85,.2))*5.)*.035;vec3 c=base;"
+ "if(style==1.||style==5.||style==7.){c+=accent*halo;float grid=(1.-smoothstep(0.,.7,abs(mod(gl_FragCoord.x,48.)-24.)))*(1.-uv.y)*.018;c+=accent*grid;}"
+ "if(style==2.)c+=accent*halo*1.8+vec3(.025,.01,.04)*sin(uv.x*5.+uv.y*4.+t);"
+ "if(style==3.)c+=accent*halo*.7;if(style==4.||style==9.||style==10.)c+=accent*halo*.2;"
+ "if(style==6.){vec2 p=mod(gl_FragCoord.xy,24.);float dotLed=(1.-smoothstep(.3,1.2,length(p-12.)))*.09;c+=accent*dotLed*(.6+.4*sin(time*.5+uv.x*5.));}"
+ "finalColor=vec4(c,alpha);}";
+ backdropShader=LoadShaderFromMemory(NULL,fs);backdropResolution=GetShaderLocation(backdropShader,"resolution");backdropTime=GetShaderLocation(backdropShader,"time");backdropStyle=GetShaderLocation(backdropShader,"style");backdropBase=GetShaderLocation(backdropShader,"base");backdropAccent=GetShaderLocation(backdropShader,"accent");backdropAlpha=GetShaderLocation(backdropShader,"alpha");
 }
 static void DrawBackdrop(int width,int height){
-    if(themeId<2||themeId==5||!backdropShader.id){DrawRectangle(0,0,width,height,AppTheme.bg);return;}
-    Vector2 resolution={width,height};float time=lab_option("reduce_motion")?0:GetTime(),style=themeId;float base[]={AppTheme.bg.r/255.f,AppTheme.bg.g/255.f,AppTheme.bg.b/255.f};float accent[]={AppTheme.border.r/255.f,AppTheme.border.g/255.f,AppTheme.border.b/255.f};
-    SetShaderValue(backdropShader,backdropResolution,&resolution,SHADER_UNIFORM_VEC2);SetShaderValue(backdropShader,backdropTime,&time,SHADER_UNIFORM_FLOAT);SetShaderValue(backdropShader,backdropStyle,&style,SHADER_UNIFORM_FLOAT);SetShaderValue(backdropShader,backdropBase,base,SHADER_UNIFORM_VEC3);SetShaderValue(backdropShader,backdropAccent,accent,SHADER_UNIFORM_VEC3);BeginShaderMode(backdropShader);DrawRectangle(0,0,width,height,WHITE);EndShaderMode();
+ int effect=labThemes[themeId].effect;
+ if(!effect||!backdropShader.id){DrawRectangle(0,0,width,height,AppTheme.bg);return;}
+ Vector2 resolution={width,height};float time=lab_option("reduce_motion")?0:GetTime(),style=effect;float base[]={AppTheme.bg.r/255.f,AppTheme.bg.g/255.f,AppTheme.bg.b/255.f},accent[]={AppTheme.border.r/255.f,AppTheme.border.g/255.f,AppTheme.border.b/255.f};
+ SetShaderValue(backdropShader,backdropResolution,&resolution,SHADER_UNIFORM_VEC2);SetShaderValue(backdropShader,backdropTime,&time,SHADER_UNIFORM_FLOAT);SetShaderValue(backdropShader,backdropStyle,&style,SHADER_UNIFORM_FLOAT);SetShaderValue(backdropShader,backdropBase,base,SHADER_UNIFORM_VEC3);SetShaderValue(backdropShader,backdropAccent,accent,SHADER_UNIFORM_VEC3);SetShaderValue(backdropShader,backdropAlpha,&uiSurfaceAlpha,SHADER_UNIFORM_FLOAT);BeginShaderMode(backdropShader);DrawRectangle(0,0,width,height,WHITE);EndShaderMode();
+ if(effect==3||effect==2){for(int n=0;n<10;n++){float px=fmodf(n*173.3f+width*.13f+sinf(time*.2f+n)*24,width),py=fmodf(n*97.1f+time*(effect==3?8:3),height);DrawEllipse(px,py,effect==3?2.5f:1.4f,effect==3?1.3f:1.4f,Fade(AppTheme.border,labThemes[themeId].light?.12f:.1f));}}
+}
+static void ThemeWindowTrim(int sw,int sh){
+ int effect=labThemes[themeId].effect;if(!effect)return;
+ if(effect==7){for(int x=0;x<sw;x+=8)DrawRectangle(x,0,8,2,ColorFromHSV(fmodf(x*360.f/sw+(lab_option("reduce_motion")?0:GetTime()*10),360),.6f,.9f));}
+ else DrawRectangleRoundedLinesEx((Rectangle){1,1,sw-2,sh-2},effect==6?.002f:.018f,12,effect==1||effect==3?1.5f:1,Fade(AppTheme.border,effect==1||effect==3?.48f:.2f));
 }

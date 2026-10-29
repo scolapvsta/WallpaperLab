@@ -55,6 +55,7 @@ int main(){
         require(matchesCriteria(formats[5],filters,0,0,{1,2,3},false,1),"whole single-monitor group must match any resolution inside that group");
         require(!matchesCriteria(formats[5],filters,0,0,{1,2,3,7,8},false,3),"two selected groups must both match in AND mode");
         require(matchesCriteria(formats[5],filters,0,0,{1,2,3,7,8},true,3),"two selected groups must be alternatives in OR mode");
+        require(!matchesCriteria(multi,filters,1,0,{},false,0,2)&&matchesCriteria(multi,filters,1,0,{},true,0,2),"origin AND/OR did not combine with wallpaper type");
         require(!matchesCriteria(multi,filters,0,0,{999},true),"unknown criterion matched");
         packed.resize(packed.size()-6);{std::ofstream file(root/"500/scene.pkg",std::ios::binary);file.write(packed.data(),packed.size());}
         auto truncated=scanProjects({root/"500"}).front();

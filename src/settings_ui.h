@@ -1,5 +1,5 @@
 // Deferred overlay menus: opening a choice never changes document geometry.
-static int choiceReserve=0;
+static int choiceReserve=0;static bool choiceEnabled=true;
 static int choiceScroll=0,choicePending=-1,choiceValue=-1;
 static Rectangle choiceControls[96],choiceRows[96][96];static int choiceCounts[96];
 static bool choiceWheel=false,choiceMulti=false;static bool* choiceChecks=NULL;
@@ -7,7 +7,7 @@ static char choiceLabels[96][256];static int choiceSelected=0;static Rectangle c
 static int Choice(int id,int x,int* py,int w,const char* label,const char** options,int count,int selected){
  int result=selected;if(choicePending==id){result=choiceValue;choicePending=-1;}
  int y=*py;int cw=fminf(292,w*.60f);TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
- choiceRegistering=choiceOpen<0||choiceOpen==id||!CheckCollisionPointRec(GetMousePosition(),choiceList);bool clicked=Button(box,selected>=0&&selected<count?options[selected]:"—",choiceOpen==id,!applying);choiceRegistering=false;
+ choiceRegistering=choiceOpen<0||choiceOpen==id||!CheckCollisionPointRec(GetMousePosition(),choiceList);if(!choiceEnabled&&choiceOpen==id)choiceOpen=-1;bool clicked=Button(box,selected>=0&&selected<count?options[selected]:"—",choiceOpen==id,!applying&&choiceEnabled);choiceRegistering=false;
  if(clicked){choiceOpen=choiceOpen==id?-1:id;choiceScroll=Clamp(selected-2,0,fmaxf(0,count-7));}
  if(choiceOpen==id){choiceSelected=result;choiceMulti=false;choiceChecks=NULL;for(int n=0;n<count&&n<96;n++)snprintf(choiceLabels[n],256,"%s",options[n]);}
  DrawLineEx((Vector2){box.x+box.width-15,y+14},(Vector2){box.x+box.width-10,y+19},1.5f,muted);return result;
@@ -45,4 +45,12 @@ static bool ValueSlider(int id,int x,int* y,int w,const char* label,float* value
  if(Hot((Rectangle){x,top+17,w,26},!applying)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT))uiSliderDrag=id;
  bool committed=false;if(uiSliderDrag==id){*value=lo+Clamp((GetMouseX()-track.x)/track.width,0,1)*(hi-lo);if(!IsMouseButtonDown(MOUSE_BUTTON_LEFT)){uiSliderDrag=-1;committed=true;}}
  float t=(*value-lo)/(hi-lo);ThemePanel(track,1,6,controlHover);DrawRectangleRec((Rectangle){track.x,track.y,track.width*t,5},AppTheme.border);DrawCircle(track.x+track.width*t,track.y+2,6,AppTheme.text);if(Hot((Rectangle){x,top+17,w,26},!applying)||uiSliderDrag==id)SetMouseCursor(MOUSE_CURSOR_RESIZE_EW);*y+=48;return committed;
+}
+
+static bool EntrySlider(int x,int* y,int w,const char* label,float* value){
+ int top=*y,cw=fminf(292,w*.6f);TextLines(label,x,top+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,top,cw,34};ThemePanel(box,.2f,8,control);opacityTrack=(Rectangle){box.x+10,top+16,cw-66,4};
+ if(Hot(box,!applying)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT))uiSliderDrag=0;bool commit=false;
+ if(uiSliderDrag==0){*value=Clamp((GetMouseX()-opacityTrack.x)/opacityTrack.width,0,1)*.3f;if(!IsMouseButtonDown(MOUSE_BUTTON_LEFT)){uiSliderDrag=-1;commit=true;}}
+ themeTransparencyPreview=uiSliderDrag==0?*value*100:-1;
+ ThemePanel(opacityTrack,1,6,controlHover);DrawRectangle(opacityTrack.x,opacityTrack.y,opacityTrack.width*(*value/.3f),4,AppTheme.border);DrawCircle(opacityTrack.x+opacityTrack.width*(*value/.3f),opacityTrack.y+2,5,AppTheme.text);UiText(TextFormat("%.0f%%",*value*100),box.x+cw-42,top+10,12,muted);*y+=43;return commit;
 }

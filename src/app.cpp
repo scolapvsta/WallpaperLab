@@ -8,6 +8,9 @@
 #include "shortcuts.hpp"
 #include "popup.hpp"
 #include "displays.hpp"
+#include "local_library.hpp"
+#include "caelestia_integration.hpp"
+#include "theme_catalog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -16,6 +19,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <future>
+#include <mutex>
 #include <iostream>
 #include <iomanip>
 #include <spawn.h>
@@ -53,7 +57,21 @@ fs::path feedDir(){auto runtime=getenv("XDG_RUNTIME_DIR");return runtime?fs::pat
 json previewProcess;
 bool stagedCatalogReady=false;std::future<std::vector<Item>> catalogScan;std::vector<Item> stagedItems;std::vector<ResolutionFilter> stagedResolutions;
 std::vector<std::string> fontFamilies={"Default"};int fontRevision=0,appliedWeight=-1;std::string appliedFamily;
-std::vector<fs::path> libraryRoots(){std::vector<fs::path> roots;for(auto p:steamLibraries())roots.push_back(p/"steamapps/workshop/content/431960");if(auto extra=getenv("WALLPAPER_LAB_LIBRARY"))roots={fs::path(extra)};return roots;}
+std::vector<fs::path> libraryRoots(){
+ if(auto extra=getenv("WALLPAPER_LAB_LIBRARY"))return {fs::path(extra)};
+ auto prefs=loadSettings();std::vector<fs::path> roots;auto custom=prefs.value("workshop_path",std::string());if(!custom.empty())roots.emplace_back(custom);else for(auto p:steamLibraries())roots.push_back(p/"steamapps/workshop/content/431960");auto local=localLibrary(prefs);fs::create_directories(local);roots.push_back(local);return roots;
+}
+std::future<json> fileJob;std::string fileNotice;
+json selectedRunning(const json& selection);
+bool owned(const json& process);
+std::mutex integrationStatusMutex;std::future<void> integrationJob;
+void syncCaelestia(const Item& item,const json& prefs,bool alreadyLocked=false){
+ if(!prefs.value("caelestia_enabled",false))return;
+ try{std::unique_ptr<ControllerLock> publicationLock;bool published=updateCaelestia(item.preview,true,[&]{if(!alreadyLocked)try{publicationLock=std::make_unique<ControllerLock>();}catch(...){return false;}auto latest=loadSettings();if(!latest.value("caelestia_enabled",false))return false;auto active=selectedRunning(latest);return owned(active)&&active.value("path",std::string())==item.path;});if(published){std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}
+ catch(const std::exception& e){try{std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}catch(...){}}
+}
+
+
 void resolveFonts(bool discover=false){
     if(discover){
         auto list=capture({"fc-list",":lang=en","-f","%{family[0]}\n"});
@@ -97,11 +115,11 @@ void stop(const json& process) {
     int status;waitpid(pid,&status,WNOHANG);
 }
 json running() {try{return readJson(stateDir()/"running.json");}catch(...){return json::object();}}
-json selectedRunning(){auto process=running();if(process.contains("outputs")){int screen=std::clamp(settings.value("screen",0),0,std::max(0,(int)monitors.size()-1));if(monitors.empty())return json::object();return process["outputs"].value(monitors[screen],json::object());}return process;}
+json selectedRunning(const json& selection=settings){auto process=running();if(process.contains("outputs")){int screen=std::clamp(selection.value("screen",0),0,std::max(0,(int)monitors.size()-1));if(monitors.empty())return json::object();return process["outputs"].value(monitors[screen],json::object());}return process;}
 void refreshRunning(){auto process=selectedRunning();activePath=owned(process)?process.value("path",std::string()):std::string();}
 std::vector<std::string> renderArgs(const Item& item,const json& prefs,bool preview) {
     if(!item.reason.empty())throw std::runtime_error(item.reason);
-    std::string assets=assetsPath();if(assets.empty())throw std::runtime_error("Assets di Wallpaper Engine non trovati nelle librerie Steam");
+    std::string assets;if(item.origin=="local"&&item.type!="scene"){auto empty=stateDir()/"local-assets";fs::create_directories(empty);assets=empty.string();}else assets=assetsPath();if(assets.empty())throw std::runtime_error("Assets di Wallpaper Engine non trovati nelle librerie Steam");
     auto profilesForRender=loadPlacements();auto profile=profilesForRender.value(item.path,json::object()).value("playback",json::object());
     auto enabled=[&](const char* local,const char* global){return !prefs.value(global,false)&&profile.value(local,true);};
     std::vector<std::string> args={executable(),"--render","--assets-dir",assets,"--fps",std::to_string(std::clamp(prefs.value("fps",60),15,120)),"--volume",enabled("audio","muted")?"100":"0"};
@@ -148,7 +166,8 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
         ControllerLock lock;
         prefs=loadSettings();
         if(direction) {
-            item=items.at(nextCarouselItem(loadCarousel(),items,prefs.value("path",std::string()),direction));
+            auto active=selectedRunning(prefs);item=items.at(nextCarouselItem(loadCarousel(),items,owned(active)?active.value("path",std::string()):prefs.value("path",std::string()),direction));
+            if(owned(active)&&active.value("path",std::string())==item.path)return {};
         }
         auto args=renderArgs(item,prefs,preview);
         if(!preview&&prefs.value("transition_type",0)>0&&!prefs.value("reduce_motion",false)){
@@ -200,6 +219,7 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
             try{writeJson(stateDir()/"running.json",process);}
             catch(...){writeJson(configDir()/"settings.json",oldPrefs);throw;}
             stop(victim);
+            syncCaelestia(item,prefs,true);
         }
         return {};
     }catch(const std::exception& e){
@@ -225,8 +245,9 @@ void init(bool popupOnly=false,bool probeVideos=false) {
         }
         displayDraft=displayCanvas(displayData,settings);
     }catch(...){}
+    refreshRunning();
     if(popupOnly) {
-        std::vector<fs::path> projects;for(auto& path:carousel)projects.emplace_back(path.get<std::string>());
+        std::vector<fs::path> projects;for(auto& path:carousel)projects.emplace_back(path.get<std::string>());if(!activePath.empty()&&std::none_of(projects.begin(),projects.end(),[&](const auto& p){return p==activePath;}))projects.emplace_back(activePath);
         items=scanProjects(projects);
     } else {
         items=scan(libraryRoots(),probeVideos);
@@ -260,7 +281,16 @@ int lab_font_selected(){auto it=std::find(fontFamilies.begin(),fontFamilies.end(
 int lab_font_revision(){return fontRevision;}
 int lab_set_font(int i){return guarded([&]{auto family=fontFamilies.at(i);if(!savePreference("font_family",i==0?"":family))throw std::runtime_error(errorMessage);resolveFonts();});}
 const char* lab_path(int i){return items.at(i).path.c_str();}
-int lab_rescan_start(){return guarded([&]{if(pending.valid()||catalogScan.valid()||stagedCatalogReady)throw std::runtime_error("Attendi la fine del caricamento");auto roots=libraryRoots();catalogScan=std::async(std::launch::async,[roots]{return scan(roots,true);});});}
+int lab_files_busy(){return fileJob.valid();}
+const char* lab_files_notice(){return lab_tr(fileNotice.c_str());}
+const char* lab_library_path(int local){static std::string value;if(local)value=localLibrary(settings).string();else{value=settings.value("workshop_path",std::string());if(value.empty())for(auto p:steamLibraries())if(fs::is_directory(p/"steamapps/workshop/content/431960")){value=(p/"steamapps/workshop/content/431960").string();break;}}return value.c_str();}
+int lab_files_start(int action){if(fileJob.valid()||pending.valid()||catalogScan.valid())return 0;fileNotice.clear();std::string title=lab_tr(action==0?"Importa immagini o video":action==1?"Workshop Steam":"Sfondi locali");auto prefs=loadSettings();fileJob=std::async(std::launch::async,[action,title,prefs]{auto files=chooseLocalFiles(action!=0,title);if(files.empty())return json{{"cancelled",true}};if(action!=0){auto directory=fs::canonical(files.front());if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");ControllerLock lock;auto latest=loadSettings();latest[action==1?"workshop_path":"local_path"]=directory.string();writeJson(configDir()/"settings.json",latest);return json{{"changed",true}};}int count=0;for(auto& file:files){importLocalMedia(file,localLibrary(prefs));count++;}return json{{"imported",count}};});return 1;}
+int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
+int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return 1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
+int lab_caelestia_available(){return executableAvailable("caelestia");}
+const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):status.value("error",std::string());}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
+void lab_cancel_switcher_preview(){stop(switcherDemoProcess);switcherDemoProcess=json::object();}
+int lab_rescan_start(){return guarded([&]{if(pending.valid()||fileJob.valid()||catalogScan.valid()||stagedCatalogReady)throw std::runtime_error("Attendi la fine del caricamento");auto roots=libraryRoots();catalogScan=std::async(std::launch::async,[roots]{return scan(roots,true);});});}
 int lab_rescan_ready(){
     if(!catalogScan.valid()||catalogScan.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;
     try{auto next=catalogScan.get();auto filters=resolutionFilters(next);stagedItems=std::move(next);stagedResolutions=std::move(filters);stagedCatalogReady=true;return 1;}catch(const std::exception& e){errorMessage=e.what();return -1;}
@@ -269,6 +299,7 @@ void lab_rescan_commit(){stagedCatalogReady=false;items.swap(stagedItems);staged
 int lab_count(){return std::min((int)items.size(),2048);}
 const char* lab_title(int i){return items.at(i).title.c_str();}
 const char* lab_preview(int i){return items.at(i).preview.c_str();}
+const char* lab_origin(int i){return items.at(i).origin.c_str();}
 const char* lab_type(int i){return items.at(i).type.c_str();}
 const char* lab_error(){return lab_tr(errorMessage.c_str());}
 int lab_current(){auto p=activePath;for(int i=0;i<lab_count();++i)if(items[i].path==p)return i;return -1;}
@@ -293,15 +324,17 @@ int lab_select(int i){
     if(i<0||i>=lab_count())return pending.valid()?1:0;
     if(!items[i].reason.empty()){errorMessage=items[i].reason;return pending.valid()?1:0;}
     if(pending.valid()){if(i!=deletingIndex)queuedSelection=i;return 1;}
+    try{settings=loadSettings();refreshRunning();}catch(const std::exception& e){errorMessage=e.what();return 0;}if(i==lab_current())return 0;
     return lab_start(i,0);
 }
 int lab_poll(){
+    if(integrationJob.valid()&&integrationJob.wait_for(std::chrono::seconds(0))==std::future_status::ready)try{integrationJob.get();}catch(...){}
     if(!pending.valid()||pending.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;
     errorMessage=pending.get();
     if(deletingIndex>=0){if(errorMessage.empty()){items[deletingIndex].reason="Sfondo spostato nel cestino";carousel=loadCarousel();deletedResult=deletingIndex;}deletingIndex=-1;}
     try{flushPlacements();}catch(const std::exception& e){errorMessage=e.what();}
     try{refreshRunning();}catch(const std::exception& e){errorMessage=e.what();}
-    if(queuedSelection>=0){int next=queuedSelection;queuedSelection=-1;return lab_start(next,0)?0:-1;}
+    if(queuedSelection>=0){int next=queuedSelection;queuedSelection=-1;if(next!=lab_current())return lab_start(next,0)?0:-1;}
     if(!errorMessage.empty())return -1;
     try{settings=loadSettings();refreshRunning();}catch(const std::exception& e){errorMessage=e.what();}
     return pendingPreview?2:1;
@@ -314,7 +347,7 @@ int lab_matches(int i,int type,int resolution,int audio){
     auto& item=items.at(i);if(!matches(item,type,0,audio))return 0;
     for(auto& f:resolutions)if(f.code==resolution)return resolutionMatches(item,f);return resolution==0;
 }
-int lab_matches_grouped(int i,int type,int audio,const int* codes,int count,int groups){if(i<0||i>=lab_count()||count<0||count>64)return 0;return matchesCriteria(items[i],resolutions,type,audio,std::vector<int>(codes,codes+count),settings.value("filter_any",false),groups);}
+int lab_matches_grouped(int i,int type,int audio,const int* codes,int count,int groups,int origin){if(i<0||i>=lab_count()||count<0||count>64)return 0;return matchesCriteria(items[i],resolutions,type,audio,std::vector<int>(codes,codes+count),settings.value("filter_any",false),groups,origin);}
 int lab_matches_all(int i,int type,int audio,const int* codes,int count){
  if(i<0||i>=lab_count()||count<0||count>64)return 0;
  return matchesCriteria(items[i],resolutions,type,audio,std::vector<int>(codes,codes+count),settings.value("filter_any",false));
@@ -480,16 +513,17 @@ int lab_monitor_count(){return monitors.size();}
 const char* lab_monitor(int i){return monitorLabels.at(i).c_str();}
 int lab_mode(){auto m=settings.value("mode",std::string("span"));return m=="span"?0:m=="mirror"?1:2;}
 int lab_screen(){return settings.value("screen",0);}
-int lab_option(const char* key){if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
+int lab_option(const char* key){if(std::string(key)=="light_theme")return labThemes[std::clamp(settings.value("ui_theme",0),0,LAB_THEME_COUNT-1)].light;if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
 int lab_set_mode(int mode){return savePreference("mode",mode==0?"span":mode==1?"mirror":"single");}
 int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 0;int ok=savePreference("screen",screen);refreshRunning();return ok;}
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
-    if(k=="ui_theme"||k=="light_theme")return guarded([&]{ControllerLock lock;auto latest=loadSettings();if(k=="light_theme")latest["light_theme"]=value!=0;else latest["ui_theme"]=value==1?0:std::clamp(value,0,10);latest["theme_variants"]=true;writeJson(configDir()/"settings.json",latest);settings=latest;});
+    if(k=="ui_theme"||k=="light_theme")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int id=k=="light_theme"?(value?1:0):std::clamp(value,0,LAB_THEME_COUNT-1);latest["ui_theme"]=id;latest["light_theme"]=bool(labThemes[id].light);latest["theme_catalog"]=true;writeJson(configDir()/"settings.json",latest);settings=latest;});
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));
     if(k=="carousel_layout")return savePreference(k,std::clamp(value,0,3));
-    if(k=="window_opacity")return savePreference(k,std::clamp(value,70,100));
+    if(k=="window_opacity"||k=="window_transparency")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int t=std::clamp(k=="window_opacity"?100-value:value,0,30);latest["window_transparency"]=t;latest["window_opacity"]=100-t;writeJson(configDir()/"settings.json",latest);settings=latest;});
+    if(k=="caelestia_enabled"){int ok=guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[k]=bool(value);writeJson(configDir()/"settings.json",latest);settings=latest;if(!value)updateCaelestia("",false);});if(ok&&value){refreshRunning();int i=lab_current();if(i>=0&&!integrationJob.valid()){auto item=items[i];auto prefs=settings;integrationJob=std::async(std::launch::async,[item,prefs]{syncCaelestia(item,prefs);});}}return ok;}
     if(k=="page_size")return savePreference(k,value<=50?50:value<=100?100:200);
     if(k=="transition_type")return savePreference(k,std::clamp(value,0,8));
     if(k=="fullscreen_policy")return savePreference(k,std::clamp(value,0,2));
@@ -554,10 +588,11 @@ int lab_popup_poll(int* steps,int* released){
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
 int lab_popup_max_width(){return popupMaxWidth;}
 int lab_popup_max_height(){return popupMaxHeight;}
-void lab_shutdown(){workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
+void lab_shutdown(){if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
 }
 int main(int argc,char**argv) {
     try {
+        if(argc>1&&std::string(argv[1])=="--version"){std::cout<<"Wallpaper Lab "<<WALLPAPER_LAB_VERSION<<'\n';return 0;}
         for(int i=1;i<argc;++i)if(std::string(argv[i]).starts_with("--type="))return engineMain(argc,argv,"");
         if(argc>1&&std::string(argv[1])=="--render") {
             std::string ready;std::vector<char*> av={argv[0]};
@@ -576,7 +611,7 @@ int main(int argc,char**argv) {
             auto result=workshop::snapshot();std::cout<<result.dump(2)<<'\n';workshop::shutdown();return result.value("error",std::string()).empty()?0:1;
         }
         if(argc>1&&std::string(argv[1])=="--help") {
-            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --restore | --stop | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
+            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --restore | --stop | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
         }
         if(argc>1&&std::string(argv[1])=="--switcher-preview"){
             init(true);switcherDemo=true;demoStarted=std::chrono::steady_clock::now();carousel_popup_main();return 0;
@@ -611,6 +646,8 @@ int main(int argc,char**argv) {
         init(false,argc==1||(argc>1&&(std::string(argv[1])=="--ui-test"||std::string(argv[1])=="--display-settings"||std::string(argv[1])=="--appearance-settings"||std::string(argv[1])=="--language-settings"||std::string(argv[1])=="--resolutions")));
         if(argc>1) {
             std::string cmd=argv[1];
+            if(cmd=="--import"){if(argc<3)throw std::runtime_error("Uso: --import FILE...");json imported=json::array();for(int n=2;n<argc;n++)imported.push_back(importLocalMedia(argv[n],localLibrary(settings)).string());std::cout<<imported.dump(2)<<'\n';return 0;}
+            if(cmd=="--library-path"){if(argc!=4||(std::string(argv[2])!="local"&&std::string(argv[2])!="steam"))throw std::runtime_error("Uso: --library-path local|steam CARTELLA");auto directory=fs::canonical(argv[3]);if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");if(!savePreference(std::string(argv[2])=="local"?"local_path":"workshop_path",directory.string()))throw std::runtime_error(errorMessage);return 0;}
             if(cmd=="--benchmark-properties"){
                 if(argc!=3)throw std::runtime_error("Indica un wallpaper");int i=find(argv[2]);auto start=std::chrono::steady_clock::now();double checksum=0;int frames=120;
                 for(int f=0;f<frames;f++)for(int p=0;p<lab_property_count(i);p++){
@@ -632,7 +669,7 @@ int main(int argc,char**argv) {
             }
             if(cmd=="--ui-option"){
                 if(argc!=4)throw std::runtime_error("Uso: --ui-option CHIAVE VALORE");
-                int value=std::stoi(argv[3]);if(!(std::string(argv[2])=="font"?lab_set_font(value):lab_set_option(argv[2],value)))throw std::runtime_error("Opzione non valida");std::cout<<settings.dump(2)<<'\n';return 0;
+                int value=std::stoi(argv[3]);if(!(std::string(argv[2])=="font"?lab_set_font(value):lab_set_option(argv[2],value)))throw std::runtime_error("Opzione non valida");if(integrationJob.valid())integrationJob.get();std::cout<<settings.dump(2)<<'\n';return 0;
             }
             if(cmd=="--ui-preferences"){json out={{"settings",settings},{"fonts",fontFamilies},{"font_selected",lab_font_selected()}};std::cout<<out.dump(2)<<'\n';return 0;}
             if(cmd=="--resolutions"){json out=json::array();for(auto& f:resolutions)out.push_back({{"code",f.code},{"label",f.label},{"count",f.count},{"group",f.group}});std::cout<<out.dump(2)<<'\n';return 0;}
@@ -656,7 +693,7 @@ int main(int argc,char**argv) {
             if(cmd=="--favorite") {if(argc<3)throw std::runtime_error("Indica un wallpaper");int i=find(argv[2]);if(!lab_favorite_change(i,0))throw std::runtime_error(errorMessage);return 0;}
             if(cmd=="--shortcut"||cmd=="--shortcut-off") {configureShortcut(argc>2?argv[2]:shortcut.value("combo",std::string("SUPER+Tab")),cmd=="--shortcut");return 0;}
             if(cmd=="--next"||cmd=="--previous") {auto error=launch(Item{},settings,false,cmd=="--next"?1:-1);if(!error.empty())throw std::runtime_error(error);return 0;}
-            if(cmd=="--list") {json out=json::array();for(auto&i:items)out.push_back({{"id",i.id},{"title",i.title},{"type",i.type},{"path",i.path},{"preview",i.preview},{"reason",i.reason},{"width",i.width},{"height",i.height},{"audio_reactive",i.audio},{"supported_resolutions",i.supported},{"resolution_variants",i.variants.size()}});std::cout<<out.dump(2)<<'\n';return 0;}
+            if(cmd=="--list") {json out=json::array();for(auto&i:items)out.push_back({{"id",i.id},{"title",i.title},{"type",i.type},{"origin",i.origin},{"path",i.path},{"preview",i.preview},{"reason",i.reason},{"width",i.width},{"height",i.height},{"audio_reactive",i.audio},{"supported_resolutions",i.supported},{"resolution_variants",i.variants.size()}});std::cout<<out.dump(2)<<'\n';return 0;}
             if(cmd=="--status"){auto p=running();bool alive=owned(p);if(p.contains("outputs"))for(auto& [name,child]:p["outputs"].items())alive=alive||owned(child);p["alive"]=alive;std::cout<<p.dump(2)<<'\n';return 0;}
             if(cmd=="--stop"){
                 fs::create_directories(stateDir());

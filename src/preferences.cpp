@@ -1,4 +1,5 @@
 #include "preferences.hpp"
+#include "theme_catalog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -49,6 +50,9 @@ json loadSettings() {
     auto file=configDir()/"settings.json";
     if(fs::exists(file)) { auto saved=readJson(file);if(!saved.is_object())throw std::runtime_error("Impostazioni non valide");prefs.update(saved); }
     if(!prefs.value("theme_variants",false)){int theme=prefs.value("ui_theme",prefs.value("light_theme",false)?1:0);prefs["light_theme"]=theme==1||theme==5;prefs["ui_theme"]=theme==1?0:theme;prefs["theme_variants"]=true;}
+    if(!prefs.value("theme_catalog",false)){int id=std::clamp(prefs.value("ui_theme",0),0,10);int dark[]={0,1,2,3,4,14,6,7,8,9,10},light[]={1,1,13,13,12,5,11,13,5,13,11};prefs["ui_theme"]=prefs.value("light_theme",false)?light[id]:dark[id];prefs["theme_catalog"]=true;}
+    int theme=std::clamp(prefs.value("ui_theme",0),0,LAB_THEME_COUNT-1);prefs["ui_theme"]=theme;prefs["light_theme"]=bool(labThemes[theme].light);
+    prefs["window_transparency"]=std::clamp(prefs.value("window_transparency",100-prefs.value("window_opacity",100)),0,30);prefs["window_opacity"]=100-prefs["window_transparency"].get<int>();
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
     int pageSize=prefs.value("page_size",100);prefs["page_size"]=pageSize<=50?50:pageSize<=100?100:200;
     return prefs;

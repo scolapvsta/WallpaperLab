@@ -30,7 +30,7 @@ json mergePopupEvent(json current,const std::string& epoch,long long session,int
 }
 int popupSelection(int count,int current,int steps){
     if(count<=0)return -1;
-    return ((current>=0&&current<count?current:count-1)+(long long)std::max(steps,0))%count;
+    return ((current>=0&&current<count?current:0)+(long long)std::max(steps-1,0))%count;
 }
 json popupState(){auto f=directory()/"event.json";return fs::exists(f)?readJson(f):json::object();}
 PopupHost::~PopupHost(){if(fd>=0)close(fd);}

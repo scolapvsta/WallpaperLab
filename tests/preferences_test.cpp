@@ -12,8 +12,8 @@ int main(){
     setenv("XDG_CONFIG_HOME",(root/"config").c_str(),1);setenv("XDG_STATE_HOME",(root/"state").c_str(),1);
     try {
         writeJson(configDir()/"settings.json",{{"ui_theme",5},{"light_theme",false}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==5,"legacy pastel migration failed");
-        writeJson(configDir()/"settings.json",{{"ui_theme",1}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==0,"legacy light migration failed");
-        writeJson(configDir()/"settings.json",{{"ui_theme",4},{"light_theme",true},{"theme_variants",true}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==4,"custom theme lost light variant");
+        writeJson(configDir()/"settings.json",{{"ui_theme",1}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==1,"legacy light migration failed");
+        writeJson(configDir()/"settings.json",{{"ui_theme",4},{"light_theme",true},{"theme_variants",true}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==12,"legacy light pink did not migrate to independent Sakura Paper");
         require(loadCarousel().empty(),"new carousel is not empty");
         std::vector<Item> items={{"1","One","scene","","/one",""},{"2","Two","scene","","/two",""},{"3","Broken","preset","","/three","unsupported"}};
         changeCarousel("/two",0);changeCarousel("/one",0);changeCarousel("/three",0);
