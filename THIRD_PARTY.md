@@ -66,3 +66,10 @@ https://helpx.adobe.com/premiere/desktop/add-video-effects/effects-and-transitio
 Contratto degli eventi multimediali:
 https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaTimelineEvent.html
 https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaPlaybackEvent.html
+
+0.14: riferimenti cromatici, senza asset grafici o componenti UI importati:
+- Catppuccin Latte/Mocha: https://catppuccin.com/palette/ (palette MIT).
+- Dracula: https://draculatheme.com/contribute (palette MIT).
+- Rosé Pine: https://rosepinetheme.com/palette/ (palette MIT).
+Le varianti sono adattamenti per superfici, contrasto e accenti di Wallpaper Lab;
+non costituiscono port ufficiali approvati dai progetti di riferimento.

@@ -1,0 +1,125 @@
+--- a/src/WallpaperEngine/Render/RenderContext.cpp
++++ b/src/WallpaperEngine/Render/RenderContext.cpp
+@@ -31,6 +31,7 @@
+ 
+     // search the background in the viewport selection
+ 
++    bool sourceReady=false;
+     // render the background
+     if (const auto ref = this->m_wallpapers.find (viewport->name); ref != this->m_wallpapers.end ()) {
+ 	// Calibration changes the sampled slice, never the native surface size
+@@ -42,6 +43,7 @@
+             position = { calibrated.x, calibrated.y };
+             size = { calibrated.z, calibrated.w };
+         }
++        sourceReady=ref->second->isReady();
+         ref->second->render (viewport->viewport, this->getOutput ().renderVFlip (), position, size);
+     }
+ 
+@@ -72,7 +74,7 @@
+             }
+         }
+     }
+-    Helpers::transitionFrame(viewport->name,viewport->viewport);
++    Helpers::transitionFrame(viewport->name,viewport->viewport,sourceReady);
+     Helpers::publishLiveFrame(viewport->name,viewport->viewport);
+     viewport->swapOutput ();
+ }
+--- a/src/WallpaperEngine/Render/Helpers/Transition.h
++++ b/src/WallpaperEngine/Render/Helpers/Transition.h
+@@ -1,25 +1,31 @@
+ #pragma once
+ #include "TransitionShader.h"
+-#include <fstream>
++#include "ImageAdjustments.h"
+ #include <map>
+-#include <chrono>
+-#include <cstdlib>
+-#include <nlohmann/json.hpp>
+ namespace WallpaperEngine::Render::Helpers {
+-inline void transitionFrame(const std::string& output,const glm::ivec4& viewport){
+- const char* config=std::getenv("WALLPAPER_LAB_TRANSITION");if(!config)return;
+- struct State{bool loaded=false,done=false;GLuint program=0,vao=0,old=0,current=0,fb=0;std::chrono::steady_clock::time_point start;int effect=0;float x=.5,y=.5;};
+- static std::map<std::string,State> states;auto& s=states[output];if(s.done)return;
+- GLint program,vao,active,texture0,texture1,read,draw;glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&texture0);glActiveTexture(GL_TEXTURE1);glGetIntegerv(GL_TEXTURE_BINDING_2D,&texture1);glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);
+- auto restore=[&]{glUseProgram(program);glBindVertexArray(vao);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,texture0);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,texture1);glActiveTexture(active);glBindFramebuffer(GL_READ_FRAMEBUFFER,read);};
+- if(!s.loaded){s.loaded=true;s.start=std::chrono::steady_clock::now();try{auto j=nlohmann::json::parse(config);auto entry=j.at(output);s.effect=entry.at("effect");s.x=entry.value("x",.5);s.y=1-entry.value("y",.5);std::ifstream file(entry.at("file").get<std::string>(),std::ios::binary);uint32_t h[5]={};file.read((char*)h,sizeof(h));if(h[0]!=0x574c4631||h[2]<1||h[3]<1||uint64_t(h[2])*h[3]>40000000)throw std::runtime_error("frame");std::vector<unsigned char> bytes(size_t(h[2])*h[3]*3);file.read((char*)bytes.data(),bytes.size());if(!file)throw std::runtime_error("frame");
+- glGenTextures(1,&s.old);glBindTexture(GL_TEXTURE_2D,s.old);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,h[2],h[3],0,GL_RGB,GL_UNSIGNED_BYTE,bytes.data());glPixelStorei(GL_UNPACK_ALIGNMENT,4);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+- glGenTextures(1,&s.current);glBindTexture(GL_TEXTURE_2D,s.current);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,viewport.z,viewport.w,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);glGenFramebuffers(1,&s.fb);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,s.current,0);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+- auto shader=[](GLenum type,const char* text){GLuint id=glCreateShader(type);glShaderSource(id,1,&text,nullptr);glCompileShader(id);return id;};const char* vertex="#version 330 core\nout vec2 uv;void main(){uv=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(uv*2.-1.,0,1);}";auto v=shader(GL_VERTEX_SHADER,vertex),f=shader(GL_FRAGMENT_SHADER,LAB_TRANSITION_FRAGMENT);s.program=glCreateProgram();glAttachShader(s.program,v);glAttachShader(s.program,f);glLinkProgram(s.program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(s.program,GL_LINK_STATUS,&ok);if(!ok)throw std::runtime_error("shader");glGenVertexArrays(1,&s.vao);if(const char* trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";
+- }catch(...){s.done=true;restore();return;}}
+- float t=std::chrono::duration<float>(std::chrono::steady_clock::now()-s.start).count()/.7f;
+- if(t>=1){if(const char* trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" completed\n";glDeleteFramebuffers(1,&s.fb);glDeleteTextures(1,&s.old);glDeleteTextures(1,&s.current);glDeleteProgram(s.program);glDeleteVertexArrays(1,&s.vao);s.done=true;restore();return;}
+- glBindFramebuffer(GL_READ_FRAMEBUFFER,draw);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glBlitFramebuffer(viewport.x,viewport.y,viewport.x+viewport.z,viewport.y+viewport.w,0,0,viewport.z,viewport.w,GL_COLOR_BUFFER_BIT,GL_NEAREST);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);
+- bool scissor=glIsEnabled(GL_SCISSOR_TEST),blend=glIsEnabled(GL_BLEND),depth=glIsEnabled(GL_DEPTH_TEST);glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glUseProgram(s.program);glUniform1i(glGetUniformLocation(s.program,"previousImage"),0);glUniform1i(glGetUniformLocation(s.program,"currentImage"),1);glUniform1f(glGetUniformLocation(s.program,"progress"),t);glUniform1i(glGetUniformLocation(s.program,"effect"),s.effect);glUniform2f(glGetUniformLocation(s.program,"origin"),s.x,s.y);glUniform2f(glGetUniformLocation(s.program,"aspect"),float(viewport.z)/std::min(viewport.z,viewport.w),float(viewport.w)/std::min(viewport.z,viewport.w));glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s.old);glBindVertexArray(s.vao);glDrawArrays(GL_TRIANGLES,0,3);if(scissor)glEnable(GL_SCISSOR_TEST);if(blend)glEnable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);restore();
++inline void transitionFrame(const std::string& output,const glm::ivec4& vp,bool sourceReady){
++ struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0;GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5;std::chrono::steady_clock::time_point start{};};
++ static std::map<std::string,State> states;auto& s=states[output];auto adjustment=imageAdjustments();bool neutral=adjustment==glm::vec3(0,1,1);const char* raw=std::getenv("WALLPAPER_LAB_TRANSITION");if((!raw||s.finished)&&neutral)return;if(vp.z<1||vp.w<1)return;
++ struct Restore {
++  GLint program,vao,active,tex[2],read,draw,unpack,viewport[4];GLboolean blend,depth,scissor;
++  Restore(){glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glGetIntegerv(GL_TEXTURE_BINDING_2D,&tex[n]);}glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);glGetIntegerv(GL_UNPACK_ALIGNMENT,&unpack);glGetIntegerv(GL_VIEWPORT,viewport);blend=glIsEnabled(GL_BLEND);depth=glIsEnabled(GL_DEPTH_TEST);scissor=glIsEnabled(GL_SCISSOR_TEST);}
++  ~Restore(){glUseProgram(program);glBindVertexArray(vao);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glBindTexture(GL_TEXTURE_2D,tex[n]);}glActiveTexture(active);glBindFramebuffer(GL_READ_FRAMEBUFFER,read);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);glPixelStorei(GL_UNPACK_ALIGNMENT,unpack);glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);if(blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);else glDisable(GL_DEPTH_TEST);if(scissor)glEnable(GL_SCISSOR_TEST);else glDisable(GL_SCISSOR_TEST);}
++ } restore;
++ glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
++ if(!s.initialized){
++  s.initialized=true;std::vector<unsigned char> bytes(3,0);int width=1,height=1;
++  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
++  if(!s.snapshot)s.finished=true;
++  glActiveTexture(GL_TEXTURE0);glGenTextures(1,&s.old);glBindTexture(GL_TEXTURE_2D,s.old);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,bytes.data());
++  glGenTextures(1,&s.current);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);glGenFramebuffers(1,&s.fb);
++  for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glBindTexture(GL_TEXTURE_2D,n?s.current:s.old);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);}
++  auto compile=[](GLenum type,const char* code){GLuint id=glCreateShader(type);glShaderSource(id,1,&code,nullptr);glCompileShader(id);return id;};const char* vertex="#version 330 core\nout vec2 uv;void main(){uv=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(uv*2.-1.,0,1);}";GLuint v=compile(GL_VERTEX_SHADER,vertex),f=compile(GL_FRAGMENT_SHADER,LAB_TRANSITION_FRAGMENT);s.program=glCreateProgram();glAttachShader(s.program,v);glAttachShader(s.program,f);glLinkProgram(s.program);glDeleteShader(v);glDeleteShader(f);GLint ok;glGetProgramiv(s.program,GL_LINK_STATUS,&ok);if(!ok){glDeleteProgram(s.program);s.program=0;s.finished=true;return;}glGenVertexArrays(1,&s.vao);
++ }
++ if(!s.program)return;
++ auto now=std::chrono::steady_clock::now();if(!s.finished&&sourceReady&&++s.stable>=3&&s.start==std::chrono::steady_clock::time_point{}){s.start=now;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";}
++ float t=s.finished?1:s.start==std::chrono::steady_clock::time_point{}?0:std::chrono::duration<float>(now-s.start).count()/.7f;
++ if(t>=1&&!s.finished){s.finished=true;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" completed\n";}
++ glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);if(s.w!=vp.z||s.h!=vp.w){s.w=vp.z;s.h=vp.w;glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,s.w,s.h,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);}glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,s.current,0);glBindFramebuffer(GL_READ_FRAMEBUFFER,restore.draw);glBlitFramebuffer(vp.x,vp.y,vp.x+vp.z,vp.y+vp.w,0,0,vp.z,vp.w,GL_COLOR_BUFFER_BIT,GL_NEAREST);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,restore.draw);glViewport(vp.x,vp.y,vp.z,vp.w);
++ glUseProgram(s.program);glUniform1i(glGetUniformLocation(s.program,"previousImage"),0);glUniform1i(glGetUniformLocation(s.program,"currentImage"),1);glUniform1f(glGetUniformLocation(s.program,"progress"),std::clamp(t,0.f,1.f));glUniform1i(glGetUniformLocation(s.program,"effect"),s.finished?0:s.effect);glUniform2f(glGetUniformLocation(s.program,"origin"),s.x,s.y);glUniform2f(glGetUniformLocation(s.program,"aspect"),float(vp.z)/std::min(vp.z,vp.w),float(vp.w)/std::min(vp.z,vp.w));glUniform3f(glGetUniformLocation(s.program,"adjustments"),adjustment.x,adjustment.y,adjustment.z);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s.old);glBindVertexArray(s.vao);glDrawArrays(GL_TRIANGLES,0,3);
+ }
+ }
+--- a/src/WallpaperEngine/Render/Helpers/TransitionShader.h
++++ b/src/WallpaperEngine/Render/Helpers/TransitionShader.h
+@@ -1,11 +1,14 @@
+ #pragma once
++// Both callers supply bottom-left UVs. Snapshot uploads are top-left, FBOs bottom-left.
+ #define LAB_TRANSITION_FRAGMENT "#version 330 core\n" \
+-"in vec2 uv;out vec4 color;uniform sampler2D previousImage,currentImage;uniform float progress;uniform int effect;uniform vec2 origin,aspect;\n" \
+-"void main(){float t=smoothstep(0.,1.,progress);vec4 a=texture(previousImage,vec2(uv.x,1.-uv.y)),b=texture(currentImage,uv);color=mix(a,b,t);" \
+-"if(effect==2)color=t<.5?a*(1.-t*2.):b*(t*2.-1.);" \
+-"if(effect==3)color=mix(a,texture(currentImage,(uv-.5)/(.6+.4*t)+.5),t);" \
+-"if(effect==4)color=mix(texture(previousImage,vec2(((uv-.5)/(1.-.35*t)+.5).x,1.-((uv-.5)/(1.-.35*t)+.5).y)),b,t);" \
+-"if(effect==5){vec2 q=uv-vec2(1.-t,0);color=q.x>=0.?texture(currentImage,q):a;}" \
++"in vec2 uv;out vec4 color;uniform sampler2D previousImage,currentImage;uniform float progress;uniform int effect;uniform vec2 origin,aspect;uniform vec3 adjustments;\n" \
++"vec4 adjusted(vec4 c){float l=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=mix(vec3(l),c.rgb,adjustments.z);c.rgb=(c.rgb-.5)*adjustments.y+.5+adjustments.x;return vec4(clamp(c.rgb,0.,1.),1.);}" \
++"vec4 oldAt(vec2 p){return texture(previousImage,vec2(clamp(p.x,0.,1.),1.-clamp(p.y,0.,1.)));}" \
++"void main(){float t=smoothstep(0.,1.,progress);vec4 a=oldAt(uv),b=adjusted(texture(currentImage,uv));color=effect==0?b:mix(a,b,t);" \
++"if(effect==2)color=t<.5?vec4(a.rgb*(1.-t*2.),1):vec4(b.rgb*(t*2.-1.),1);" \
++"if(effect==3){vec2 q=(uv-.5)/(.7+.3*t)+.5;color=mix(a,adjusted(texture(currentImage,clamp(q,0.,1.))),t);}" \
++"if(effect==4){vec2 q=(uv-.5)/(1.-.3*t)+.5;color=mix(oldAt(q),b,t);}" \
++"if(effect==5){vec2 q=uv-vec2(1.-t,0);color=q.x>=0.?adjusted(texture(currentImage,q)):a;}" \
+ "if(effect==6)color=uv.x<t?b:a;" \
+ "float r=length((uv-origin)*aspect),radius=length(aspect);" \
+ "if(effect==7)color=r<t*radius?b:a;" \
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/ImageAdjustments.h
+@@ -0,0 +1,19 @@
++#pragma once
++#include <algorithm>
++#include <cmath>
++#include <glm/vec3.hpp>
++#include <chrono>
++#include <cstdlib>
++#include <fstream>
++#include <filesystem>
++#include <nlohmann/json.hpp>
++namespace WallpaperEngine::Render::Helpers {
++inline glm::vec3 imageAdjustments(){
++ static glm::vec3 result(0,1,1);static auto last=std::chrono::steady_clock::time_point{};auto now=std::chrono::steady_clock::now();if(now-last<std::chrono::milliseconds(40))return result;last=now;
++ auto file=std::getenv("WALLPAPER_LAB_PROFILE_FILE"),project=std::getenv("WALLPAPER_LAB_PROJECT"),live=std::getenv("WALLPAPER_LAB_LIVE_FILE");if(!project)return result;
++ auto read=[&](const nlohmann::json& j){float b=j.value("brightness",0.f),c=j.value("contrast",1.f),s=j.value("saturation",1.f);if(std::isfinite(b)&&std::isfinite(c)&&std::isfinite(s))result={std::clamp(b,-1.f,1.f),std::clamp(c,0.f,2.f),std::clamp(s,0.f,2.f)};};
++ try{if(file){std::ifstream f(file);auto profiles=nlohmann::json::parse(f);read(profiles.value(project,nlohmann::json::object()).value("image",nlohmann::json::object()));}}catch(...){}
++ try{if(live&&std::filesystem::file_time_type::clock::now()-std::filesystem::last_write_time(live)<std::chrono::seconds(2)){std::ifstream f(live);auto j=nlohmann::json::parse(f);if(j.value("path",std::string())==project&&j.contains("image"))read(j["image"]);}}catch(...){}
++ return result;
++}
++}

@@ -784,3 +784,65 @@ CText del progetto reale ricevono titolo `日本語 한국어 हिन्दी
 `Artist`; la texture dei testi viene ricostruita. È stato corretto anche il
 registro separato `__textLayers`, inizialmente non raggiunto dagli eventi media.
 Evidenza: `local/ui13/reze-test/`, senza modificare file Workshop o player utente.
+
+## 0.14.0 — transizioni, Xray, profili e navigazione (29 ottobre 2026)
+
+- Build app e libreria motore riuscite; CTest **10/10**, compreso controllo delle
+  chiavi UI nel catalogo (305 messaggi × 22 lingue, formati printf preservati).
+- `transition_graphics_integration.py`: otto effetti su renderer embedded reale,
+  25 frame per effetto. Snapshot rosso/verde e nuova scena web asimmetrica:
+  orientamento precedente/successivo corretto; partenza dopo readiness e termine
+  tracciati. Nessun nero inatteso negli effetti che non prevedono il nero.
+  Saturazione, contrasto e luminosità live, persistenza e reset senza cambio PID;
+  il renderer personale è rimasto identico. `local/ui14/transitions/`.
+- `text-cache-graphics-test`: 1.100 testi Unicode/fotogramma, oltre i 1.024 slot LRU.
+  Rendering in batch confrontato con flush immediato: **0 pixel differenti**,
+  187.909 pixel di testo effettivamente renderizzati. `local/ui14/text-cache/`.
+- Xray 3257420414: proprietà reali nella GUI, 24 catture durante scrolling avanti
+  e indietro; nessun flash bianco nel pannello filtri. Scroll centrale e thumb
+  del menu lingue trascinati con input reale. `local/ui14/xray/`.
+  Questa prova della GUI non applica lo sfondo personale.
+- Lo stesso Xray è stato anche renderizzato con un processo isolato su DP-6:
+  luminosità +15% applicata senza riavvio, intensità media da 42,21 a 79,19,
+  nessun frame nero nella sequenza misurata. `local/ui14/xray-render/`.
+- `playback_options_integration.py`: tutte le quattro combinazioni globale/locale
+  per cinque opzioni nei launch plan; globale OFF ha sempre precedenza.
+- `ui14_integration.py`: 205 progetti web fittizi, pagina 1/2 reale, 50/100/200
+  risultati, categoria risoluzione intera con AND, overlay senza spostare i campi,
+  tre slider immagine persistenti, cinque dropdown locali persistenti, splitter
+  filtri, opacità indipendente, cambio di tutte le 22 lingue e preview transizione
+  correttamente orientata. `local/ui14/demo-check/`.
+- Steam reale, sola lettura: nome/autore, AND/OR, dettagli e dipendenze, gruppo
+  risoluzioni OR dentro AND con tipo Scene, 100/200 risultati, due pagine da 100
+  senza ID duplicati. `local/ui14/steam/`, `local/ui14/steam-more/`.
+- GUI Workshop reale: filtri tipo e categoria risoluzione applicati automaticamente,
+  cambio a 200 risultati senza Search, miniature con azione download; Esc chiude
+  il menu senza lasciare Workshop. `local/ui14/workshop-ui/`.
+  In questa versione non è stata avviata una nuova sottoscrizione da una miniatura;
+  la stessa API di download è già stata verificata con sottoscrizioni reali in 0.12.
+- Serie patch completa e hash manifest verificati, pin upstream invariati.
+
+Limiti: traduzioni complete nel catalogo ma senza revisione madrelingua esterna;
+layout RTL ancora non specchiato. Metadati Steam e testo libero dei creator
+rimangono originali. Correzione immagine finale SDR, non color grading HDR.
+Non è un nuovo audit grafico di tutti i wallpaper: eventuali artefatti specifici
+di altri progetti richiedono identificazione e riproduzione. Restano i limiti di
+compatibilità del renderer documentati nelle versioni precedenti. Nessuna modifica
+all'autostart, ai player/dispositivi audio personali o a processi WallpaperX.
+
+Comandi riproducibili (test grafici da eseguire con schermo sbloccato):
+
+```sh
+ctest --test-dir build-ui10 --output-on-failure
+build-ui10/text-cache-graphics-test "$PWD/local/text-cache-test"
+python3 tests/ui14_integration.py --app local/ui14-runtime/wallpaper-lab --output local/ui14-check
+python3 tests/transition_graphics_integration.py --app local/ui14-runtime/wallpaper-lab --output local/transition-check
+python3 tests/playback_options_integration.py --app local/ui14-runtime/wallpaper-lab --output local/playback-check
+python3 tests/workshop_integration.py --app local/ui14-runtime/wallpaper-lab --output local/workshop-check
+```
+
+Installazione locale 0.14 completata con backup automatico del runtime precedente.
+Ripristinati entrambi i renderer indipendenti DP-5/DP-6 con gli stessi wallpaper.
+Carousel e profili personali identici prima/dopo; nelle impostazioni sono stati
+aggiunti soltanto i nuovi default `page_size=100` e `window_opacity=100`.
+Evidenza privata `local/ui14/install/`.

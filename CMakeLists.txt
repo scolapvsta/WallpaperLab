@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 0.13.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 0.14.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 set(ENGINE_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/build-engine" CACHE PATH "Built engine tree")
@@ -75,3 +75,10 @@ add_test(NAME project-properties COMMAND project-properties-test)
 add_executable(project-source-test tests/project_source_test.cpp src/catalog.cpp)
 target_include_directories(project-source-test PRIVATE src vendor/engine/src/External/json/include)
 add_test(NAME project-source COMMAND project-source-test)
+
+# Explicit desktop test only: needs an unlocked compositor, never part of CTest.
+add_executable(text-cache-graphics-test tests/text_cache_graphics_test.c)
+target_include_directories(text-cache-graphics-test PRIVATE src)
+target_link_libraries(text-cache-graphics-test PRIVATE raylib PkgConfig::PANGO m pthread)
+
+add_test(NAME i18n-source-coverage COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/i18n_coverage.py")

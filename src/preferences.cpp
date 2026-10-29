@@ -45,10 +45,12 @@ void saveWallpaperPosition(const std::string& path,double x,double y){
     writeJson(configDir()/"wallpaper_profiles.json",latest);
 }
 json loadSettings() {
-    json prefs={{"fullscreen_policy",1},{"font_weight",1},{"carousel_layout",1},{"mode","span"},{"screen",0},{"fps",60},{"muted",true},{"disable_audio_processing",false},{"disable_mouse",true},{"disable_parallax",true},{"disable_particles",false}};
+    json prefs={{"window_opacity",100},{"page_size",100},{"fullscreen_policy",1},{"font_weight",1},{"carousel_layout",1},{"mode","span"},{"screen",0},{"fps",60},{"muted",true},{"disable_audio_processing",false},{"disable_mouse",true},{"disable_parallax",true},{"disable_particles",false}};
     auto file=configDir()/"settings.json";
     if(fs::exists(file)) { auto saved=readJson(file);if(!saved.is_object())throw std::runtime_error("Impostazioni non valide");prefs.update(saved); }
     if(!prefs.value("theme_variants",false)){int theme=prefs.value("ui_theme",prefs.value("light_theme",false)?1:0);prefs["light_theme"]=theme==1||theme==5;prefs["ui_theme"]=theme==1?0:theme;prefs["theme_variants"]=true;}
+    prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
+    int pageSize=prefs.value("page_size",100);prefs["page_size"]=pageSize<=50?50:pageSize<=100?100:200;
     return prefs;
 }
 json loadCarousel() {

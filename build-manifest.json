@@ -1,7 +1,7 @@
 {
   "project": "Wallpaper Lab",
-  "version": "0.13.0",
-  "date": "2026-10-28",
+  "version": "0.14.0",
+  "date": "2026-10-29",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
     "hellpaper": "9774fe954bc01957defcb62629d71139231f2b8e",
@@ -19,7 +19,8 @@
     "patches/engine-project-controls.patch": "f0a57eaeb3a96e053651eac50d70e8088827413aae209b6ad3dbcff1a2fe2b93",
     "patches/engine-web-compatibility.patch": "a545834b12eb7fafa2544fd39c6ac0b085d4f6ebaa0cc95f72cd1577a5cc32b8",
     "patches/engine-sound-controls.patch": "4037748670cde367828ae95991ae91bf8d5ae30d8242d68535a05d70e4574c61",
-    "patches/engine-transitions-media-text.patch": "60c857ba7c76aba60b64f6bd20da95019f8e25e5eeb70b53edf29e42df3a2461"
+    "patches/engine-transitions-media-text.patch": "60c857ba7c76aba60b64f6bd20da95019f8e25e5eeb70b53edf29e42df3a2461",
+    "patches/engine-stable-transitions-image-controls.patch": "8e30b95ca1219e51dfb15df534510b7a65744aca289ea27b614710e0233b7472"
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",

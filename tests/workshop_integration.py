@@ -10,6 +10,10 @@ owner='76561198399626031';author=query('author-and-name',{'author':owner,'text':
 preset=query('preset-dependencies',{'text':'1806366520'});assert preset['items'][0]['dependencies']==['893418273'];results['preset_dependencies']=preset['items'][0]['dependencies']
 detail=query('direct-url',{'text':'https://steamcommunity.com/sharedfiles/filedetails/?id=1818234419'});assert len(detail['items'])==1 and detail['items'][0]['id']=='1818234419';assert detail['items'][0]['description']and detail['items'][0]['owner'];results['direct_id_url_and_details']=True
 page2=query('page-2',{'text':'minimal','sort':0,'page':2});assert page2['page']==2 and page2['items'];results['pagination']=True
+groupQuery={'text':'minimal','tags':['Scene'],'tag_groups':[['1920 x 1080','2560 x 1440']],'sort':0,'page_size':100}
+grouped=query('grouped-resolution',groupQuery);assert len(grouped['items'])==100 and all('Scene'in i['tags']and('1920 x 1080'in i['tags']or'2560 x 1440'in i['tags'])for i in grouped['items']);results['resolution_group_or_inside_and']=True
+second=query('group-page-2',groupQuery|{'page':2});assert len(second['items'])==100 and not({i['id']for i in grouped['items']}&{i['id']for i in second['items']});results['100_rows_distinct_pages']=True
+large=query('page-200',{'text':'minimal','sort':0,'page_size':200});assert len(large['items'])==200;results['200_rows_per_page']=True
 # A foreign app ID is rejected before subscribing or downloading anything.
 r=subprocess.run([str(app),'--workshop-download','1840'],env=env,capture_output=True,text=True,timeout=45);j=json.loads(r.stdout);assert r.returncode!=0 and j['downloads']['1840']['status']=='error';results['invalid_item_rejected']=True;(out/'invalid.json').write_text(r.stdout)
 if a.download_id:

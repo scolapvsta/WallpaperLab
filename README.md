@@ -670,3 +670,28 @@ Dipendenza aggiuntiva di build e runtime: `pangocairo` tramite pkg-config.
 Le modifiche al motore sono salvate in `engine-transitions-media-text.patch`.
 La repository resta privata; da questa versione codice e documentazione vengono
 sincronizzati su GitHub per ogni modifica completata, secondo richiesta di Simone.
+
+## Versione 0.14 — transizioni stabili e controlli per wallpaper
+
+- Transizioni avviate dopo la disponibilità della nuova scena; snapshot orientati
+  correttamente, bordi del campionamento bloccati e stato OpenGL ripristinato.
+- Cache del testo Unicode con scaricamento del batch prima di eliminare o creare
+  texture: evita il riutilizzo di texture ancora referenziate dalla UI di Xray.
+- Luminosità, contrasto e saturazione salvati per progetto e applicati in tempo
+  reale al rendering finale, inclusa la scena live nell'inspector.
+- Audio, reattività musicale, mouse, parallasse e particelle individuali. Un'opzione
+  funziona solo se attiva sia globalmente sia nel profilo del wallpaper.
+- Risoluzioni raggruppate in fondo ai filtri, con casella per l'intera categoria;
+  selezionare una categoria significa accettare una qualsiasi delle sue risoluzioni.
+  Le scelte individuali rispettano AND/OR. Stesso comportamento sul Workshop.
+- Pagine da 50, 100 o 200 risultati e indicazione pagina/totale; Steam viene
+  interrogato a blocchi di 50 con cursori per la navigazione sequenziale.
+- Download dalle miniature, ordinamenti con icone e reset colorato.
+- Temi rivisti, opacità della sola UI dal 70 al 100%, luna allineata al campo tema,
+  scrollbar trascinabili nei menu e scorrimento con trascinamento del tasto centrale.
+- Indicazione Ctrl + L nella ricerca; testo multilingue più leggibile e catalogo
+  ampliato a 305 messaggi completi nelle 22 lingue. Titoli, descrizioni e tag Steam
+  restano metadati originali; le etichette del creator non vengono riscritte.
+
+La [guida](docs/USER_GUIDE.md) descrive impostazioni e precedenze; i
+[risultati](tests/RESULTS.md) distinguono prove automatiche, grafiche e limiti.

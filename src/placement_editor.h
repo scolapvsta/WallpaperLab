@@ -38,6 +38,6 @@ static int PlacementControls(int index,int x,int y,int width){
     if(changed){
         if(lab_set_position(index,placementX,placementY))snprintf(notice,sizeof(notice),lab_tr("Posizione salvata e aggiornata sul desktop."));
     }
-    TextLines(lab_tr("Posizione nel ritaglio disponibile, senza scoprire il canvas. Aumenta lo zoom per avere piu margine."),x,y,width,13,3,muted);y+=62;
+    TextLines(lab_tr("Posizione nel ritaglio disponibile, senza scoprire il canvas. Aumenta lo zoom per avere più margine."),x,y,width,13,3,muted);y+=62;
     return y-start;
 }

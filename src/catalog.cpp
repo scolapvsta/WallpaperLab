@@ -92,10 +92,11 @@ bool resolutionMatches(const Item& item,const ResolutionFilter& f){
     }
     return matches(item,0,f.code,0);
 }
-bool matchesCriteria(const Item& item,const std::vector<ResolutionFilter>& filters,int type,int audio,const std::vector<int>& codes,bool any){
+bool matchesCriteria(const Item& item,const std::vector<ResolutionFilter>& filters,int type,int audio,const std::vector<int>& codes,bool any,int groups){
  bool result=!any,active=false;auto criterion=[&](bool test){active=true;result=any?result||test:result&&test;};
  if(type)criterion(matches(item,type,0,0));if(audio)criterion(matches(item,0,0,audio));
- for(int code:codes){bool matched=false;for(auto& f:filters)if(f.code==code)matched=resolutionMatches(item,f);criterion(matched);}
+ for(int g=0;g<6;g++)if(groups&(1<<g)){bool active=false,matched=false;for(auto& f:filters)if(f.group==g&&std::find(codes.begin(),codes.end(),f.code)!=codes.end()){active=true;matched|=resolutionMatches(item,f);}if(active)criterion(matched);}
+ for(int code:codes){bool matched=false,grouped=false;for(auto& f:filters)if(f.code==code){matched=resolutionMatches(item,f);grouped=groups&(1<<f.group);}if(!grouped)criterion(matched);}
  return !active||result;
 }
 bool resolutionAll(const Item& item,const std::vector<ResolutionFilter>& filters,const std::vector<int>& codes){

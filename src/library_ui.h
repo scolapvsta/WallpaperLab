@@ -3,6 +3,7 @@
 #include "font_fallback.h"
 #include "library_layout.h"
 static Font uiFont,brandFont,buttonFont,fallbackFont;
+static RenderTexture2D uiCanvas;static bool uiCanvasActive=false;
 static int iconIndex=-1;
 static int displayDragging=-1,displaySelected=0;
 static Vector2 displayMapOrigin,displayDragMouse,displayDragPosition;
@@ -13,7 +14,9 @@ static int choiceOpen=-1;static bool choiceRendering=false,choiceRegistering=fal
 static bool deleteReady=false;
 static double deleteOpenedAt=0;
 static void RequestDelete(int index){deleteIndex=index;deleteReady=false;deleteOpenedAt=GetTime();}
+static bool wholeResGroups[6]={0};
 static bool selectedResolutions[64]={0},resolutionGroups[6]={true,true,false,false,false,false};
+static int libraryPage=1,libraryTotal=0;static unsigned long libraryQuery=0;
 static float filterSize=260;static bool filterResizing=false;
 static float filterScroll=0,filterScrollDraw=0,filterWidth=0;
 static Rectangle resolutionRows[64],resolutionHeaders[6],settingsTabs[6],themeChoices[11],languageChoices[32],densityChoices[3],fontChoices[96],fontControl,shortcutControl,languageControl,variantChoices[2];
@@ -54,12 +57,19 @@ static void UiText(const char* text,int x,int y,int size,Color color){
 static int UiMeasure(const char* text,int size){if(ComplexText(text))return Shape(text,size)->width;float width=0;while(*text){int bytes=0,cp=GetCodepointNext(text,&bytes);if(bytes<1)break;width+=GlyphAdvance(TextFont(cp),cp,size);text+=bytes;}return ceilf(width);}
 static void ButtonText(const char* text,float x,float y,Color color){if(ComplexText(text)){UiText(text,x,y,15,color);return;}DrawTextEx(buttonFont,text,(Vector2){x,y},15,0,color);}
 static bool Hot(Rectangle r,bool enabled){return enabled&&(choiceOpen<0||choiceRendering||choiceRegistering)&&(!inputBlocked||modalDrawing)&&CheckCollisionPointRec(GetMousePosition(),inputClip)&&CheckCollisionPointRec(GetMousePosition(),r);}
+static float ScrollInput(Rectangle area){
+ static Rectangle owner;static Vector2 lastMiddle;bool over=CheckCollisionPointRec(GetMousePosition(),area);if(choiceOpen>=0&&!choiceRendering)return 0;
+ if(over&&IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)){owner=area;lastMiddle=GetMousePosition();}
+ float wheel=over?GetMouseWheelMove():0;
+ if(IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)&&owner.x==area.x&&owner.y==area.y&&owner.width==area.width){SetMouseCursor(MOUSE_CURSOR_RESIZE_NS);Vector2 mouse=GetMousePosition();wheel+=(mouse.y-lastMiddle.y)/48.f;lastMiddle=mouse;}
+ return wheel;
+}
 static bool Button(Rectangle r,const char* label,bool active,bool enabled){
     bool hot=Hot(r,enabled);Color bg=active?AppTheme.border:hot?controlHover:control;
     ThemePanel(r,0.22f,12,enabled?bg:Fade(bg,0.45f));
     Color ink=active?(lab_option("light_theme")?WHITE:(Color){17,30,25,255}):AppTheme.text;
-    char shown[512];snprintf(shown,sizeof(shown),"%s",label);float fontSize=Clamp(15*(r.width-16)/fmaxf(1,MeasureTextEx(buttonFont,label,15,0).x),12,15);
-    while(strlen(shown)>3&&MeasureTextEx(buttonFont,shown,fontSize,0).x>r.width-16){int len=strlen(shown);if(len>=3&&!strcmp(shown+len-3,"..."))shown[len-=3]=0;len--;while(len>0&&((unsigned char)shown[len]&0xc0)==0x80)len--;shown[len]=0;strcat(shown,"...");}
+    char shown[512];snprintf(shown,sizeof(shown),"%s",label);bool complex=ComplexText(label);float measured=complex?UiMeasure(label,15):MeasureTextEx(buttonFont,label,15,0).x;float fontSize=Clamp(15*(r.width-16)/fmaxf(1,measured),12,15);
+    while(strlen(shown)>3&&(complex?UiMeasure(shown,fontSize):MeasureTextEx(buttonFont,shown,fontSize,0).x)>r.width-16){int len=strlen(shown);if(len>=3&&!strcmp(shown+len-3,"..."))shown[len-=3]=0;len--;while(len>0&&((unsigned char)shown[len]&0xc0)==0x80)len--;shown[len]=0;strcat(shown,"...");}
     if(ComplexText(shown))UiText(shown,r.x+(r.width-UiMeasure(shown,fontSize))/2,r.y+(r.height-fontSize)/2,fontSize,enabled?ink:Fade(ink,.35f));else DrawTextEx(buttonFont,shown,(Vector2){r.x+(r.width-MeasureTextEx(buttonFont,shown,fontSize,0).x)/2,r.y+(r.height-fontSize)/2-1},fontSize,0,enabled?ink:Fade(ink,0.35f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
@@ -192,18 +202,20 @@ static void RecordShortcut(void){
 }
 #include "text_edit.h"
 static TextEdit searchEdit;
-static void FocusSearch(bool select){isSearching=true;EditFocus(&searchEdit,searchBuffer,select);}
+static void FocusSearch(bool select){choiceOpen=-1;isSearching=true;EditFocus(&searchEdit,searchBuffer,select);}
 static float ShortcutInline(float x,float y,float available);
 static float CompactGlyphWidth(const char* label);
 #include "settings_ui.h"
+#include "resolution_picker.h"
 #include "display_editor.h"
 #include "transition_ui.h"
+static float opacityDraft=1;
 static void SettingsBody(Rectangle area){
     int x=area.x+16,y=area.y+12,w=area.width-32;
     const char* tabs[]={lab_tr("Display"),lab_tr("Riproduzione"),lab_tr("Carousel"),lab_tr("Aspetto"),lab_tr("Generali"),"Workshop"};
     const int order[]={4,0,1,2,3,5};for(int slot=0;slot<6;slot++){int i=order[slot];settingsTabs[i]=(Rectangle){x,y+slot*43,122,36};if(Button(settingsTabs[i],tabs[i],settingsTab==i,!applying)){settingsTab=i;settingsScroll=settingsScrollDraw=0;choiceOpen=-1;displayDragging=-1;SetRecording(false);}}
-    x+=140;w-=140;Rectangle body={x,y,w,area.height-24};Rectangle saved=inputClip;inputClip=body;
-    if(!choiceWheel&&displayDragging<0&&Hot(body,true))settingsScroll=Clamp(settingsScroll-GetMouseWheelMove()*48,0,fmaxf(0,settingsExtent-body.height));choiceWheel=false;
+    x+=140;w-=140;Rectangle body={x,y-3,w+3,area.height-21};Rectangle saved=inputClip;inputClip=body;
+    if(!choiceWheel&&displayDragging<0&&Hot(body,true))settingsScroll=Clamp(settingsScroll-ScrollInput(body)*48,0,fmaxf(0,settingsExtent-body.height));choiceWheel=false;
     settingsScrollDraw=SmoothScroll(settingsScrollDraw,settingsScroll);BeginScissorMode(body.x,body.y,body.width,body.height);y=body.y-settingsScrollDraw;
     if(settingsTab==0)y+=DisplayEditor(x,y,w);
     else if(settingsTab==1){
@@ -220,14 +232,17 @@ static void SettingsBody(Rectangle area){
         int current=lab_shortcut_enabled();int value=BoolChoice(21,x,&y,w,lab_tr("Shortcut attivo"),current);if(value!=current)lab_set_shortcut(lab_shortcut(),value);
     }else if(settingsTab==3){
         const char* themes[10];int ids[10],n=0,at=0;for(int i=0;i<11;i++)if(i!=1){ids[n]=i;themes[n]=lab_tr(themeNames[i]);if(i==lab_option("ui_theme"))at=n;n++;}
-        int value=Choice(30,x,&y,w-46,lab_tr("Temi"),themes,n,at);if(GlyphButton((Rectangle){x+w-38,y-43,36,34},UI_MOON,!lab_option("light_theme"),true,""))lab_set_option("light_theme",!lab_option("light_theme"));if(value!=at)lab_set_option("ui_theme",ids[value]);
+        choiceReserve=44;int value=Choice(30,x,&y,w,lab_tr("Temi"),themes,n,at);choiceReserve=0;if(GlyphButton((Rectangle){x+w-36,y-43,34,34},UI_MOON,!lab_option("light_theme"),true,""))lab_set_option("light_theme",!lab_option("light_theme"));if(value!=at)lab_set_option("ui_theme",ids[value]);
+        if(uiSliderDrag!=0)opacityDraft=(lab_option("window_opacity")?lab_option("window_opacity"):100)/100.f;
+        if(ValueSlider(0,x,&y,w,lab_tr("Opacità della finestra"),&opacityDraft,.7f,1,false))lab_set_option("window_opacity",roundf(opacityDraft*100));
+        y+=TextLines(lab_tr("Solo l’interfaccia · indipendente dal tema"),x,y,w,12,2,muted)+14;
         int current;
         const char* densities[]={lab_tr("Comodo"),lab_tr("Compatto"),lab_tr("Galleria")};current=lab_option("layout_density");value=Choice(32,x,&y,w,lab_tr("Layout della libreria"),densities,3,current);if(current!=value)lab_set_option("layout_density",value);
-        const char* fonts[96];for(int i=0;i<lab_font_count();i++)fonts[i]=i?lab_font_name(i):lab_tr("Predefinito");current=lab_font_selected();fontControl=(Rectangle){x+w-w*.56f,y,w*.56f,34};value=Choice(33,x,&y,w,lab_tr("Font dell'interfaccia"),fonts,lab_font_count(),current);fontMenu=choiceOpen==33;if(current!=value){lab_set_font(value);for(int i=0;i<96;i++)if(fontPreview[i].texture.id){UnloadFont(fontPreview[i]);fontPreview[i]=(Font){0};}}
+        const char* fonts[96];for(int i=0;i<lab_font_count();i++)fonts[i]=i?lab_font_name(i):lab_tr("Predefinito");current=lab_font_selected();fontControl=(Rectangle){x+w-fminf(292,w*.6f),y,fminf(292,w*.6f),34};value=Choice(33,x,&y,w,lab_tr("Font dell'interfaccia"),fonts,lab_font_count(),current);fontMenu=choiceOpen==33;if(current!=value){lab_set_font(value);for(int i=0;i<96;i++)if(fontPreview[i].texture.id){UnloadFont(fontPreview[i]);fontPreview[i]=(Font){0};}}
         const char* weights[]={lab_tr("Medio"),lab_tr("Semigrassetto"),lab_tr("Grassetto")};current=lab_option("font_weight");value=Choice(34,x,&y,w,lab_tr("Peso del testo"),weights,3,current);if(current!=value)lab_set_option("font_weight",value);
         y+=TextLines(lab_tr("Le modifiche si applicano a tutta l'interfaccia e al carousel."),x,y+8,w,14,3,muted)+22;
     }else if(settingsTab==4){
-        const char* languages[32];for(int i=0;i<lab_language_count();i++)languages[i]=lab_language_name(i);int current=lab_option("language");languageControl=(Rectangle){x+w-w*.56f,y,w*.56f,34};int value=Choice(40,x,&y,w,lab_tr("Lingua"),languages,lab_language_count(),current);languageMenu=choiceOpen==40;if(current!=value)lab_set_option("language",value);
+        const char* languages[32];for(int i=0;i<lab_language_count();i++)languages[i]=lab_language_name(i);int current=lab_option("language");languageControl=(Rectangle){x+w-fminf(292,w*.6f),y,fminf(292,w*.6f),34};int value=Choice(40,x,&y,w,lab_tr("Lingua"),languages,lab_language_count(),current);languageMenu=choiceOpen==40;if(current!=value)lab_set_option("language",value);
         current=lab_option("reduce_motion");value=BoolChoice(41,x,&y,w,lab_tr("Riduci animazioni"),current);if(current!=value)lab_set_option("reduce_motion",value);
         const char* logic[]={lab_tr("Tutti i criteri (AND)"),lab_tr("Almeno un criterio (OR)")};current=lab_option("filter_any");value=Choice(42,x,&y,w,lab_tr("Filtri della libreria"),logic,2,current);if(current!=value)lab_set_option("filter_any",value);
         y+=TextLines("Ctrl + L",x,y+12,w,15,2,muted)+12;
@@ -250,15 +265,18 @@ static void FilterRow(int x,int y,const char* title,const char** labels,int coun
     }
 }
 static int ActiveResolutionCodes(int* codes){int n=0;for(int i=1;i<64;i++)if(selectedResolutions[i])codes[n++]=i;return n;}
+static void PageSizeControl(int x,int* y,int w){const char* options[]={"50","100","200"};int size=lab_option("page_size");int at=size==50?0:size==200?2:1;int value=Choice(57,x,y,w,lab_tr("Risultati per pagina"),options,3,at);if(value!=at)lab_set_option("page_size",value==0?50:value==1?100:200);}
 static void FiltersPanel(Rectangle area){
- DrawRectangleRec(area,surface);Rectangle old=inputClip;inputClip=area;int x=area.x+16,y=area.y+18,w=area.width-32;
+ DrawRectangleRec(area,surface);Rectangle old=inputClip;inputClip=area;if(Hot(area,true))filterScroll=fmaxf(0,filterScroll-ScrollInput(area)*48);filterScrollDraw=SmoothScroll(filterScrollDraw,filterScroll);BeginScissorMode(area.x,area.y,area.width,area.height);int x=area.x+16,y=area.y+18-filterScrollDraw,w=area.width-32;
  UiText(lab_tr("Filtri"),x,y,20,AppTheme.text);y+=36;
- if(Button((Rectangle){x,y,w,32},lab_tr("Azzera filtri"),false,true)){filterType=filterAudio=0;memset(selectedResolutions,0,sizeof(selectedResolutions));}y+=44;
+ if(Button((Rectangle){x,y,w,32},lab_tr("Azzera filtri"),true,true)){filterType=filterAudio=0;memset(selectedResolutions,0,sizeof(selectedResolutions));memset(wholeResGroups,0,sizeof(wholeResGroups));}y+=44;
  const char* logic[]={lab_tr("Tutti i criteri (AND)"),lab_tr("Almeno un criterio (OR)")};int at=lab_option("filter_any"),next=Choice(54,x,&y,w,"AND / OR",logic,2,at);if(next!=at)lab_set_option("filter_any",next);
  const char* types[]={lab_tr("Tutti"),lab_tr("Scene"),lab_tr("Video"),lab_tr("Web"),lab_tr("Preset")};filterType=Choice(51,x,&y,w,lab_tr("Tipo di sfondo"),types,5,filterType);
- const char* audio[]={lab_tr("Tutti"),lab_tr("Reattivi"),lab_tr("Non reattivi"),lab_tr("Da verificare")};filterAudio=Choice(52,x,&y,w,lab_tr("Audio"),audio,4,filterAudio);
- const char* labels[64];int codes[64],count=0;bool selected[64];for(int n=0;n<lab_resolution_count();n++){int code=lab_resolution_code(n);if(code>0&&code<64){codes[count]=code;labels[count]=lab_resolution_label(n);selected[count]=selectedResolutions[code];count++;}}
- MultiChoice(53,x,&y,w,lab_tr("Risoluzioni"),labels,count,selected);for(int n=0;n<count;n++)selectedResolutions[codes[n]]=selected[n];inputClip=old;
+ const char* audio[]={lab_tr("Tutti"),lab_tr("Reattivi"),lab_tr("Non reattivi"),lab_tr("Da verificare")};filterAudio=Choice(52,x,&y,w,lab_tr("Audio"),audio,4,filterAudio);PageSizeControl(x,&y,w);y+=14;
+ UiText(lab_tr("Risoluzioni"),x,y,18,AppTheme.text);y+=30;
+ const char* labels[64];int codes[64],groups[64],count=0;bool selected[64];for(int n=0;n<lab_resolution_count();n++){int code=lab_resolution_code(n);if(code>0&&code<64){codes[count]=code;groups[count]=lab_resolution_group(n);labels[count]=lab_resolution_label(n);selected[count]=selectedResolutions[code];count++;}}
+ ResolutionPicker(x,&y,w,labels,groups,selected,count,wholeResGroups);for(int n=0;n<count;n++)selectedResolutions[codes[n]]=selected[n];float total=y+filterScrollDraw-area.y+20;filterScroll=Clamp(filterScroll,0,fmaxf(0,total-area.height));EndScissorMode();inputClip=old;
+ if(total>area.height){float h=fmaxf(20,area.height*area.height/total);DrawRectangle(area.x+area.width-4,area.y+filterScrollDraw/(total-area.height)*(area.height-h),3,h,muted);}
 }
 static float CompactGlyphWidth(const char* label){return MeasureTextEx(buttonFont,label,15,0).x+54;}
 static float ShortcutInline(float x,float y,float available){
@@ -279,20 +297,21 @@ static void SearchBar(Rectangle r){
     Icon(UI_SEARCH,(Vector2){r.x+23,r.y+r.height/2},muted,false);
     if(hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT))FocusSearch(false);
     if(hot)SetMouseCursor(MOUSE_CURSOR_IBEAM);
-    if(searchBufferCount||isSearching)EditDraw(&searchEdit,searchBuffer,(Rectangle){r.x+44,r.y+5,r.width-(page==3?140:84),r.height-10},17,isSearching);
+    if(searchBufferCount||isSearching)EditDraw(&searchEdit,searchBuffer,(Rectangle){r.x+44,r.y+5,r.width-(page==3?194:140),r.height-10},17,isSearching);
     else UiText(lab_tr("Cerca uno sfondo..."),r.x+44,r.y+13,17,muted);
+    UiText("Ctrl + L",r.x+r.width-(page==3?178:96),r.y+16,12,muted);
     if(searchBufferCount&&GlyphButton((Rectangle){r.x+r.width-(page==3?112:36),r.y+7,30,30},UI_CLOSE,false,true,"")){searchBufferCount=0;searchBuffer[0]=0;g_scroll.y=0;}
 }
 #include "workshop_ui.h"
 static void Header(int sw,int top,int count){
-    DrawRectangle(0,0,sw,top,themeId==3?Fade(AppTheme.bg,.78f):AppTheme.bg);
+    DrawRectangle(0,0,sw,top,AppTheme.bg);
     Icon(UI_LOGO,(Vector2){44,40},AppTheme.text,false);
     DrawTextEx(brandFont,"Wallpaper Lab",(Vector2){72,21},27,0,AppTheme.text);
     float navX=fmaxf(285,72+MeasureTextEx(brandFont,"Wallpaper Lab",27,0).x+30);const char* navNames[]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop"};UiIcon navIcons[]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD};
     for(int i=0;i<3;i++){int navPage=i==2?3:i;float width=MeasureTextEx(buttonFont,lab_tr(navNames[i]),15,0).x+62;if(i==0)headerLibrary=(Rectangle){navX,22,width,38};else if(i==1)headerCarousel=(Rectangle){navX,22,width,38};else headerWorkshop=(Rectangle){navX,22,width,38};if(GlyphButton((Rectangle){navX,22,width,38},navIcons[i],page==navPage,!applying,lab_tr(navNames[i])))ChangePage(navPage);navX+=width+8;}
     headerSettings=(Rectangle){navX,22,40,38};if(GlyphButton(headerSettings,UI_GEAR,settingsOpen||page==2,!applying,"")){settingsOpen=!settingsOpen;choiceOpen=-1;settingsScroll=settingsScrollDraw=0;SetRecording(false);}
     UiText(page==0?lab_tr("Libreria"):page==1?lab_tr("Carousel"):page==3?"Workshop":lab_tr("Impostazioni"),28,94,23,AppTheme.text);
-    UiText(page==2?lab_tr("Tutto in un posto"):TextFormat(lab_tr("%d sfondi"),page==3?(int)lab_ws_number(-1,"total"):count),28,126,13,muted);
+    UiText(page==2?lab_tr("Tutto in un posto"):TextFormat(lab_tr("%d sfondi"),page==3?(int)lab_ws_number(-1,"total"):libraryTotal),28,126,13,muted);
     if(page!=2){
         int width=fminf(page==3?440:530,fmaxf(200,sw-(page==3?610:520)));Rectangle search={fmaxf(190,(sw-width)/2.f),89,width,46};SearchBar(search);
         Rectangle filter={search.x-52,89,44,46},moon={search.x+search.width+8,89,44,46},refresh={search.x+search.width+8,89,44,46},display={search.x+search.width+60,89,44,46};
@@ -316,7 +335,7 @@ static void Grid(Rectangle area,int count,int* indices,float dt){
     LibraryGridLayout layout=library_grid_layout(area.width,desired);int cols=layout.columns;float tile=layout.tile;
     float rowHeight=tile+(lab_option("layout_density")==1?100:112),maxScroll=fmaxf(0,ceilf(count/(float)cols)*rowHeight+24-area.height);
     if(Hot(area,true)){
-        float wheel=GetMouseWheelMove();
+        float wheel=ScrollInput(area);
         if(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))masterScale=Clamp(masterScale+wheel*0.05f,0.7f,1.5f);
         else g_scroll.y=Clamp(g_scroll.y-wheel*80,0,maxScroll);
     }
@@ -364,6 +383,7 @@ static void Grid(Rectangle area,int count,int* indices,float dt){
 }
 #include "placement_editor.h"
 #include "project_controls.h"
+#include "wallpaper_controls.h"
 
 static void Inspector(Rectangle area){
     if(selected_index<0||deleted[selected_index])return;
@@ -376,7 +396,7 @@ static void Inspector(Rectangle area){
     int actions=panel.y+panel.height-108;
     Rectangle body={panel.x+1,panel.y+58,actual-2,fmaxf(75,actions-panel.y-68)};Rectangle saved=inputClip;inputClip=body;
     float previewHeight=Clamp(fminf(body.height*0.45f,w*9.f/16),100,320);
-    if(Hot(body,true))detailScroll=fmaxf(0,detailScroll-GetMouseWheelMove()*55);
+    if(Hot(body,true))detailScroll=fmaxf(0,detailScroll-ScrollInput(body)*55);
     detailScrollDraw=SmoothScroll(detailScrollDraw,detailScroll);
     BeginScissorMode(body.x,body.y,body.width,body.height);int y=body.y+4-detailScrollDraw;
     Rectangle preview={x,y,w,previewHeight};ThemePanel(preview,0.04f,8,control);
@@ -395,7 +415,7 @@ static void Inspector(Rectangle area){
     y+=TextLines(lab_title(i),x,y,w,22,3,AppTheme.text)+12;
     UiText(TextFormat("%s · %s",TypeLabel(i),ResolutionLabel(i)),x,y,14,muted);y+=27;
     if(lab_supported_count(i)>1)y+=TextLines(TextFormat(lab_tr("Risoluzioni dichiarate: %s"),lab_supported_resolutions(i)),x,y,w,13,3,muted)+10;
-    TextLines(lab_audio(i)<0?lab_tr("Reattivita audio da verificare"):lab_audio(i)?lab_tr("Reattivo all'audio del PC"):lab_tr("Reattivita audio non dichiarata"),x,y,w,14,2,muted);y+=48;
+    TextLines(lab_audio(i)<0?lab_tr("Reattività audio da verificare"):lab_audio(i)?lab_tr("Reattivo all'audio del PC"):lab_tr("Reattività audio non dichiarata"),x,y,w,14,2,muted);y+=48;
     DrawLine(x,y,x+w,y,lineColor);y+=20;
     UiText(lab_tr("Risoluzione dello sfondo"),x,y,16,AppTheme.text);y+=28;
     int variant=lab_variant_selected(i),variants=lab_variant_count(i);
@@ -406,13 +426,13 @@ static void Inspector(Rectangle area){
         for(int v=-1;v<variants;v++){if(Button((Rectangle){x,y,w,34},v<0?lab_tr("Originale"):lab_variant_label(i,v),v==variant,true)){if(lab_variant_set(i,v)&&!uiSmoke)applying=lab_select(i);variantOpen=false;}y+=40;}
     }
     if(!variants)y+=TextLines(lab_tr("Nessuna variante di risoluzione dichiarata."),x,y,w,13,2,muted)+16;
+    y+=WallpaperControls(i,x,y,w)+12;
     y+=CreatorControls(i,x,y,w)+12;
     y+=PlacementControls(i,x,y,w)+12;
     UiText(lab_tr("Display di destinazione"),x,y,15,AppTheme.text);y+=26;
     TextLines(lab_mode()==2&&lab_monitor_count()>lab_screen()?lab_monitor(lab_screen()):lab_mode()==0?lab_tr("Tutti i display · Panoramico"):lab_tr("Tutti i display · Duplicato"),x,y,w,14,2,muted);y+=44;
 
-    UiText(lab_tr("Riproduzione"),x,y,15,AppTheme.text);y+=28;
-    UiText(TextFormat("%d FPS · %s",lab_option("fps"),lab_option("muted")?lab_tr("Audio disattivato"):lab_tr("Audio attivo")),x,y,14,muted);y+=36;
+
     if(page==1){
         if(Button((Rectangle){x,y,(w-8)/2,36},lab_tr("Precedente"),false,!applying))applying=lab_next(-1);
         if(Button((Rectangle){x+(w+8)/2,y,(w-8)/2,36},lab_tr("Successivo"),false,!applying))applying=lab_next(1);y+=46;
@@ -421,7 +441,7 @@ static void Inspector(Rectangle area){
         if(Button((Rectangle){x,y,(w-8)/2,36},lab_tr("Sposta prima"),false,!applying))lab_favorite_change(i,-1);
         if(Button((Rectangle){x+(w+8)/2,y,(w-8)/2,36},lab_tr("Sposta dopo"),false,!applying))lab_favorite_change(i,1);y+=52;
     }
-    if(i==lab_current())y+=TextLines(lab_tr("Applica un altro sfondo prima di eliminare quello attivo."),x,y,w,14,3,muted);
+
     y+=CreatorReset(i,x,y,w);
     if(*lab_reason(i))y+=TextLines(lab_reason(i),x,y,w,14,4,(Color){228,134,133,255});
     float maxScroll=fmaxf(0,y+20+detailScrollDraw-body.y-body.height);detailScroll=Clamp(detailScroll,0,maxScroll);
@@ -445,7 +465,7 @@ static void Modals(int sw,int sh){
         modalDrawing=true;DrawRectangle(0,0,sw,sh,Fade(BLACK,.64f));
         float width=fminf(720,sw-64),height=fminf(700,sh-90);Rectangle box={(sw-width)/2,(sh-height)/2,width,height};ThemePanel(box,.04f,12,surface);
         if(GlyphButton((Rectangle){box.x+width-48,box.y+12,32,32},UI_CLOSE,false,!applying,"")){displayPopup=false;displayDragging=-1;}
-        Rectangle savedClip=inputClip;Rectangle body={box.x+20,box.y+18,width-40,height-36};inputClip=body;if(displayDragging<0&&CheckCollisionPointRec(GetMousePosition(),body))displayPopupScroll=Clamp(displayPopupScroll-GetMouseWheelMove()*48,0,fmaxf(0,displayContentHeight-body.height));displayPopupScrollDraw=SmoothScroll(displayPopupScrollDraw,displayPopupScroll);BeginScissorMode(body.x,body.y,body.width,body.height);
+        Rectangle savedClip=inputClip;Rectangle body={box.x+20,box.y+18,width-40,height-36};inputClip=body;if(displayDragging<0&&CheckCollisionPointRec(GetMousePosition(),body))displayPopupScroll=Clamp(displayPopupScroll-ScrollInput(body)*48,0,fmaxf(0,displayContentHeight-body.height));displayPopupScrollDraw=SmoothScroll(displayPopupScrollDraw,displayPopupScroll);BeginScissorMode(body.x,body.y,body.width,body.height);
         DisplayEditor(body.x,body.y-displayPopupScrollDraw,body.width);EndScissorMode();inputClip=savedClip;modalDrawing=false;
     }
     if(settingsOpen){
@@ -469,8 +489,8 @@ static void Modals(int sw,int sh){
         Icon(UI_TRASH,(Vector2){x+40,y+42},(Color){236,105,115,255},false);
         UiText(lab_tr("Eliminare questo sfondo?"),x+66,y+29,25,AppTheme.text);
         TextLines(lab_title(deleteIndex),x+28,y+82,w-56,20,2,AppTheme.text);
-        TextLines(lab_tr("Spostamento nel cestino, recuperabile. Steam puo riscaricare gli sfondi ancora sottoscritti."),x+28,y+148,w-56,16,3,muted);
-        if(deletingActive)TextLines(lab_tr("Passera al primo altro preferito disponibile, oppure al primo sfondo della libreria."),x+28,y+222,w-56,14,2,AppTheme.border);
+        TextLines(lab_tr("Spostamento nel cestino, recuperabile. Steam può riscaricare gli sfondi ancora sottoscritti."),x+28,y+148,w-56,16,3,muted);
+        if(deletingActive)TextLines(lab_tr("Passerà al primo altro preferito disponibile, oppure al primo sfondo della libreria."),x+28,y+222,w-56,14,2,AppTheme.border);
         if(Button((Rectangle){x+28,y+h-62,150,40},lab_tr("Annulla"),false,deleteReady))deleteIndex=-1;
         Color saved=AppTheme.border;AppTheme.border=(Color){218,72,84,255};
         if(Button((Rectangle){x+204,y+h-62,328,40},lab_tr("Sposta nel cestino"),true,deleteReady)){
@@ -492,13 +512,16 @@ static void SearchInput(void){
 }
 static void GeometryCenters(FILE* f,const Rectangle* rects,int count){fprintf(f,"[");for(int i=0;i<count;i++)fprintf(f,"%s[%.1f,%.1f]",i?",":"",rects[i].x+rects[i].width/2,rects[i].y+rects[i].height/2);fprintf(f,"]");}
 static void CustomizationGeometry(FILE* f){
-    fprintf(f,"},\"workshop\":{\"selected\":%d,\"count\":%d,\"busy\":%s,\"revision\":%d,\"search\":[%.1f,%.1f],\"download\":[%.1f,%.1f],\"author\":[%.1f,%.1f],\"logic\":[%.1f,%.1f],\"cards\":",wsSelected,lab_ws_count(),lab_ws_number(-1,"busy")?"true":"false",wsSeenRevision,wsSearchButton.x+wsSearchButton.width/2,wsSearchButton.y+wsSearchButton.height/2,wsDownloadButton.x+wsDownloadButton.width/2,wsDownloadButton.y+wsDownloadButton.height/2,wsAuthorControl.x+wsAuthorControl.width/2,wsAuthorControl.y+wsAuthorControl.height/2,wsLogicControl.x+wsLogicControl.width/2,wsLogicControl.y+wsLogicControl.height/2);GeometryCenters(f,wsResultCards,50);
+    fprintf(f,"},\"workshop\":{\"selected\":%d,\"count\":%d,\"busy\":%s,\"revision\":%d,\"search\":[%.1f,%.1f],\"download\":[%.1f,%.1f],\"author\":[%.1f,%.1f],\"logic\":[%.1f,%.1f],\"cards\":",wsSelected,lab_ws_count(),lab_ws_number(-1,"busy")?"true":"false",wsSeenRevision,wsSearchButton.x+wsSearchButton.width/2,wsSearchButton.y+wsSearchButton.height/2,wsDownloadButton.x+wsDownloadButton.width/2,wsDownloadButton.y+wsDownloadButton.height/2,wsAuthorControl.x+wsAuthorControl.width/2,wsAuthorControl.y+wsAuthorControl.height/2,wsLogicControl.x+wsLogicControl.width/2,wsLogicControl.y+wsLogicControl.height/2);GeometryCenters(f,wsResultCards,lab_ws_count());
     fprintf(f,",\"tags\":");GeometryCenters(f,wsTagRows,wsTagCount);
     fprintf(f,"},\"choice_open\":%d,\"choice_scroll\":%d,\"choices\":{",choiceOpen,choiceScroll);bool choiceComma=false;
-    for(int n=0;n<64;n++)if(choiceControls[n].width>0){fprintf(f,"%s\"%d\":{\"control\":[%.1f,%.1f],\"options\":",choiceComma?",":"",n,choiceControls[n].x+choiceControls[n].width/2,choiceControls[n].y+choiceControls[n].height/2);GeometryCenters(f,choiceRows[n],choiceCounts[n]);fprintf(f,"}");choiceComma=true;}
+    for(int n=0;n<96;n++)if(choiceControls[n].width>0){fprintf(f,"%s\"%d\":{\"control\":[%.1f,%.1f],\"options\":",choiceComma?",":"",n,choiceControls[n].x+choiceControls[n].width/2,choiceControls[n].y+choiceControls[n].height/2);GeometryCenters(f,choiceRows[n],choiceCounts[n]);fprintf(f,"}");choiceComma=true;}
     fprintf(f,"},\"header\":{");Rectangle rects[]={headerFilter,headerMoon,headerRefresh,headerDisplay,headerSettings,headerLibrary,headerCarousel,headerWorkshop};const char* names[]={"filter","moon","refresh","display","settings","library","carousel","workshop"};
     for(int i=0;i<8;i++)fprintf(f,"%s\"%s\":[%.1f,%.1f]",i?",":"",names[i],rects[i].x+rects[i].width/2,rects[i].y+rects[i].height/2);
     fprintf(f,"},\"shortcut\":[%.1f,%.1f],\"settings_tabs\":",shortcutControl.x+shortcutControl.width/2,shortcutControl.y+shortcutControl.height/2);GeometryCenters(f,settingsTabs,6);
+    fprintf(f,",\"choice_list\":[%.1f,%.1f,%.1f,%.1f],\"choice_thumb\":[%.1f,%.1f,%.1f,%.1f]",choiceList.x,choiceList.y,choiceList.width,choiceList.height,choiceThumb.x,choiceThumb.y,choiceThumb.width,choiceThumb.height);
+    fprintf(f,",\"image_tracks\":[");for(int n=0;n<3;n++)fprintf(f,"%s[%.1f,%.1f,%.1f]",n?",":"",adjustmentTracks[n].x,adjustmentTracks[n].y,adjustmentTracks[n].width);fprintf(f,"],\"opacity_track\":[%.1f,%.1f,%.1f],\"library_total\":%d,\"library_page\":%d",opacityTrack.x,opacityTrack.y,opacityTrack.width,libraryTotal,libraryPage);
+    fprintf(f,",\"resolution_groups\":");GeometryCenters(f,groupChecks,6);
     fprintf(f,",\"theme_variants\":");GeometryCenters(f,variantChoices,2);
     fprintf(f,",\"themes\":");GeometryCenters(f,themeChoices,11);fprintf(f,",\"languages\":");GeometryCenters(f,languageChoices,lab_language_count());fprintf(f,",\"density\":");GeometryCenters(f,densityChoices,3);
     fprintf(f,",\"zoom_track\":[%.1f,%.1f,%.1f],\"creator_reset\":[%.1f,%.1f],\"color_swatch\":[%.1f,%.1f],\"color_box\":[%.1f,%.1f,%.1f,%.1f]",zoomTrack.x,zoomTrack.y,zoomTrack.width,creatorReset.x+creatorReset.width/2,creatorReset.y+creatorReset.height/2,creatorColorSwatch.x+creatorColorSwatch.width/2,creatorColorSwatch.y+creatorColorSwatch.height/2,creatorColorBox.x,creatorColorBox.y,creatorColorBox.width,creatorColorBox.height);
@@ -543,7 +566,7 @@ static void CommitLibraryScan(pthread_t* loaders){
 int selector_main(int argc,char**argv){
     LoadDefaultConfig();ParseConfigFile();g_base_thumb_size=420;g_max_threads=4;g_max_fps=90;
     SetTraceLogLevel(LOG_WARNING);LoadWallpapers(NULL);
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE|FLAG_MSAA_4X_HINT);InitWindow(1440,900,"Wallpaper Lab");SetWindowMinSize(1000,720);SetExitKey(KEY_NULL);SetTargetFPS(g_max_fps);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE|FLAG_MSAA_4X_HINT|FLAG_WINDOW_TRANSPARENT);InitWindow(1440,900,"Wallpaper Lab");SetWindowMinSize(1000,720);SetExitKey(KEY_NULL);SetTargetFPS(g_max_fps);
     ReloadUiFonts();InitBackdrop();
     selected_index=lab_current();detailOpen=false;
     if(argc>1&&!strcmp(argv[1],"--display-settings")){settingsOpen=true;settingsTab=0;}
@@ -551,7 +574,7 @@ int selector_main(int argc,char**argv){
     if(argc>1&&!strcmp(argv[1],"--language-settings")){settingsOpen=true;settingsTab=4;}
     filterSize=lab_option("filter_width")>0?lab_option("filter_width"):260;
     if(argc>1&&(!strcmp(argv[1],"--workshop")||!strcmp(argv[1],"--workshop-ui-test"))){ChangePage(3);filtersOpen=true;}
-    bool uiTest=argc>1&&!strcmp(argv[1],"--ui-test");uiSmoke=uiTest;inspectorSize=lab_option("inspector_width")>0?lab_option("inspector_width"):390;if(uiTest){smokeStage=0;smokeStart=GetTime();}
+    bool uiTest=argc>1&&!strcmp(argv[1],"--ui-test");uiSmoke=uiTest||getenv("WALLPAPER_LAB_UI_READ_ONLY");inspectorSize=lab_option("inspector_width")>0?lab_option("inspector_width"):390;if(uiTest){smokeStage=0;smokeStart=GetTime();}
     pthread_t loaders[4];for(int n=0;n<4;n++)pthread_create(&loaders[n],NULL,LoaderThread,NULL);
     float refreshClock=0,stateClock=0;
     while(!WindowShouldClose()){
@@ -570,10 +593,10 @@ int selector_main(int argc,char**argv){
             if(target>=0){smokeApplyStarted=true;applying=lab_start(target,0);}
         }
         int removed=lab_deleted();if(removed>=0){deleted[removed]=true;if(selected_index==removed){selected_index=lab_current();detailOpen=selected_index>=0;}snprintf(notice,sizeof(notice),lab_tr("Sfondo spostato nel cestino del sistema."));}
-        if(completed){applying=false;if(completed>0&&removed<0)snprintf(notice,sizeof(notice),"%s",completed==1?lab_tr("Sfondo applicato"):"Scena live aperta in una finestra separata");}
+        if(completed){applying=false;if(completed>0&&removed<0)snprintf(notice,sizeof(notice),"%s",completed==1?lab_tr("Sfondo applicato"):lab_tr("Scena live aperta in una finestra separata"));}
         refreshClock+=dt;if(refreshClock>1&&!applying){lab_refresh();refreshClock=0;}
         bool escape=IsKeyPressed(KEY_ESCAPE);
-        if(escape){if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}
+        if(escape){if(choiceOpen>=0)choiceOpen=-1;else if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}
         if(recordingKey)RecordShortcut();
         else if(!inputBlocked&&(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))&&IsKeyPressed(KEY_L)){FocusSearch(true);creatorEdit=-1;wsAuthorEditing=false;}
         else if(isSearching&&!inputBlocked){SearchInput();if(page==3&&IsKeyPressed(KEY_ENTER))WorkshopSearch(1);}
@@ -583,7 +606,9 @@ int selector_main(int argc,char**argv){
         }
         int resolutionCodes[64],resolutionCount=ActiveResolutionCodes(resolutionCodes);
         int indices[MAX_POSSIBLE_WALLPAPERS],count=0,available=page==1?lab_carousel_count():wallpaper_count;
-        for(int n=0;n<available;n++){int i=page==1?lab_carousel_item(n):n;if(i>=0&&!deleted[i]&&(!searchBufferCount||stristr(lab_title(i),searchBuffer))&&lab_matches_all(i,filterType,filterAudio,resolutionCodes,resolutionCount))indices[count++]=i;}
+        for(int n=0;n<available;n++){int i=page==1?lab_carousel_item(n):n;if(i>=0&&!deleted[i]&&(!searchBufferCount||stristr(lab_title(i),searchBuffer))&&lab_matches_grouped(i,filterType,filterAudio,resolutionCodes,resolutionCount,(wholeResGroups[0]?1:0)|(wholeResGroups[1]?2:0)|(wholeResGroups[2]?4:0)|(wholeResGroups[3]?8:0)|(wholeResGroups[4]?16:0)|(wholeResGroups[5]?32:0)))indices[count++]=i;}
+        libraryTotal=count;
+        if(page==0){unsigned long hash=filterType+filterAudio*13+lab_option("filter_any")*37;for(const char* p=searchBuffer;*p;p++)hash=hash*33+(unsigned char)*p;for(int n=0;n<resolutionCount;n++)hash=hash*33+resolutionCodes[n];if(hash!=libraryQuery){libraryPage=1;libraryQuery=hash;}int per=lab_option("page_size");if(!per)per=100;int pages=fmaxf(1,ceilf(count/(float)per));libraryPage=Clamp(libraryPage,1,pages);int begin=(libraryPage-1)*per,countOnPage=fminf(per,count-begin);memmove(indices,indices+begin,countOnPage*sizeof(int));count=countOnPage;}
         if(!inputBlocked&&!isSearching&&!wsAuthorEditing&&creatorEdit<0&&!recordingKey&&placementAxis<0&&page!=2&&page!=3){
             int dir=IsKeyPressed(KEY_RIGHT)?1:IsKeyPressed(KEY_LEFT)?-1:0;
             if(dir&&count){int at=-1;for(int n=0;n<count;n++)if(indices[n]==selected_index)at=n;at=(at+dir+count)%count;SelectItem(indices[at],at);}
@@ -606,15 +631,17 @@ int selector_main(int argc,char**argv){
         detailWidth=lab_option("reduce_motion")?target:Lerp(detailWidth,target,1-expf(-dt*15));if(fabsf(detailWidth-target)<0.5f)detailWidth=target;
         int top=page==1?252:headerHeight;
         Rectangle content={filterWidth,top,fmaxf(100,sw-detailWidth-filterWidth),sh-top-statusHeight};
-        UploadImages();BeginDrawing();ClearBackground(AppTheme.bg);DrawBackdrop(sw,sh);
+        UploadImages();int opacity=uiSliderDrag==0?roundf(opacityDraft*100):lab_option("window_opacity");if(!opacity)opacity=100;uiCanvasActive=opacity<100;
+        if(uiCanvasActive&&(uiCanvas.texture.width!=sw||uiCanvas.texture.height!=sh)){if(uiCanvas.id)UnloadRenderTexture(uiCanvas);uiCanvas=LoadRenderTexture(sw,sh);}
+        BeginDrawing();if(uiCanvasActive)BeginTextureMode(uiCanvas);rlSetBlendFactorsSeparate(RL_SRC_ALPHA,RL_ONE_MINUS_SRC_ALPHA,RL_ONE,RL_ONE_MINUS_SRC_ALPHA,RL_FUNC_ADD,RL_FUNC_ADD);BeginBlendMode(BLEND_CUSTOM_SEPARATE);ClearBackground(AppTheme.bg);DrawBackdrop(sw,sh);
         if(page==2)SettingsBody((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});
         else{
             if(page==3){if(filtersOpen)WorkshopFilters((Rectangle){0,top,filterWidth,sh-top-statusHeight});WorkshopGrid(content);if(detailWidth>1)WorkshopInspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
-            else{if(filtersOpen)FiltersPanel((Rectangle){0,top,filterWidth,sh-top-statusHeight});Grid(content,count,indices,dt);if(detailWidth>1)Inspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
+            else{if(filtersOpen)FiltersPanel((Rectangle){0,top,filterWidth,sh-top-statusHeight});Grid((Rectangle){content.x,content.y,content.width,content.height-(page==0?48:0)},count,indices,dt);if(page==0){int per=lab_option("page_size");if(!per)per=100;int pages=fmaxf(1,ceilf(libraryTotal/(float)per));float y=content.y+content.height-40,nav=content.width<380?34:96;if(Button((Rectangle){content.x+16,y,nav,32},content.width<380?"‹":lab_tr("Indietro"),false,libraryPage>1)){libraryPage--;g_scroll.y=g_smoothScrollY=0;}if(Button((Rectangle){content.x+content.width-16-nav,y,nav,32},content.width<380?"›":lab_tr("Avanti"),false,libraryPage<pages)){libraryPage++;g_scroll.y=g_smoothScrollY=0;}const char* label=TextFormat(lab_tr("Pagina %d di %d"),libraryPage,pages);UiText(label,content.x+(content.width-UiMeasure(label,14))/2,y+8,14,muted);}if(detailWidth>1)Inspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
         }
         if(filterWidth>1)ThemePanel((Rectangle){filterWidth-2,top+(sh-top-statusHeight)/2-24,4,48},1,8,filterResizing?AppTheme.border:muted);
         if(detailWidth>1){float dx=sw-detailWidth;ThemePanel((Rectangle){dx-2,top+(sh-top-statusHeight)/2-24,4,48},1,8,detailResizing?AppTheme.border:muted);}
-        Header(sw,top,count);StatusBar(sw,sh);Modals(sw,sh);ChoiceOverlay();TransitionPreview();EndDrawing();
+        Header(sw,top,count);StatusBar(sw,sh);Modals(sw,sh);ChoiceOverlay();TransitionPreview();EndBlendMode();if(uiCanvasActive){EndTextureMode();ClearBackground(BLANK);BeginBlendMode(BLEND_CUSTOM_SEPARATE);DrawTexturePro(uiCanvas.texture,(Rectangle){0,0,sw,-sh},(Rectangle){0,0,sw,sh},(Vector2){0},0,Fade(WHITE,opacity/100.f));EndBlendMode();}EndDrawing();
         // Opt-in state evidence for isolated desktop interaction tests.
         stateClock+=dt;const char* stateOutput=getenv("WALLPAPER_LAB_UI_STATE");
         if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"theme\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
@@ -643,7 +670,7 @@ int selector_main(int argc,char**argv){
     if(uiTest&&getenv("WALLPAPER_LAB_TEST_APPLY")){
         const char* out=getenv("WALLPAPER_LAB_TEST_OUTPUT");if(out){FILE* f=fopen(TextFormat("%s/persistent-window.json",out),"w");if(f){fprintf(f,"{\"applied\":%s,\"frames_after_apply\":%d}\n",smokeApplySucceeded?"true":"false",smokeFramesAfterApply);fclose(f);}}
     }
-    WorkshopCleanup();if(backdropShader.id)UnloadShader(backdropShader);if(liveTexture.id)UnloadTexture(liveTexture);lab_shutdown();atomic_store(&loader_running,false);for(int n=0;n<4;n++)pthread_join(loaders[n],NULL);
+    WorkshopCleanup();if(uiCanvas.id)UnloadRenderTexture(uiCanvas);if(transitionCanvas.id)UnloadRenderTexture(transitionCanvas);if(transitionShader.id)UnloadShader(transitionShader);for(int n=0;n<1024;n++){if(shapedCache[n].texture.id)UnloadTexture(shapedCache[n].texture);free(shapedCache[n].text);}if(backdropShader.id)UnloadShader(backdropShader);if(liveTexture.id)UnloadTexture(liveTexture);lab_shutdown();atomic_store(&loader_running,false);for(int n=0;n<4;n++)pthread_join(loaders[n],NULL);
     for(int i=0;i<wallpaper_count;i++){if(atomic_load(&wallpapers[i].loaded))UnloadTexture(wallpapers[i].texture);if(atomic_load(&imagePending[i]))UnloadImage(pendingImages[i]);free(wallpapers[i].path);free(wallpapers[i].filename);}
     for(int i=0;i<96;i++)if(fontPreview[i].texture.id&&fontPreview[i].texture.id!=GetFontDefault().texture.id)UnloadFont(fontPreview[i]);
     if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;

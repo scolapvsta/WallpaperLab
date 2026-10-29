@@ -104,20 +104,23 @@ uint64_t resolveAuthor(std::string text){
  }
  std::smatch match;auto xml=http(url);if(!std::regex_search(xml,match,std::regex("<steamID64>([0-9]+)</steamID64>")))throw std::runtime_error("Nome autore non trovato. Steam richiede il login web per cercare tutti i nomi: scegli un autore dai risultati o incolla il suo profilo/SteamID64.");return validID(match[1]);
 }
+static std::map<std::string,std::map<int,std::string>> queryCursors;
 void query(const json& q){
- uint64_t handle=~0ull;auto owner=resolveAuthor(q.value("author",std::string()));int page=std::clamp(q.value("page",1),1,1000);int sort=q.value("sort",3);
+ uint64_t handle=~0ull;auto owner=resolveAuthor(q.value("author",std::string()));int page=std::clamp(q.value("page",1),1,1000000);int limit=std::clamp(q.value("page_size",50),50,200);limit=limit/50*50;auto identity=q;identity.erase("page");auto cursorKey=identity.dump();if(!queryCursors.contains(cursorKey)&&queryCursors.size()>=64)queryCursors.erase(queryCursors.begin());auto& cursors=queryCursors[cursorKey];cursors[1]="*";int sort=q.value("sort",3);
  std::string search=q.value("text",std::string());
  std::smatch idMatch;uint64_t direct=0;if(std::regex_search(search,idMatch,std::regex("^(?:https://steamcommunity\\.com/sharedfiles/filedetails/\\?id=)?([0-9]{8,20})(?:&.*)?$")))direct=validID(idMatch[1]);
- json rows=json::array();QueryResult result{};bool filterAuthor=(owner&&(!search.empty()||!q.value("tags",json::array()).empty()))||direct;unsigned matchesCount=0;int nativePage=filterAuthor?1:page;
+ json rows=json::array();QueryResult result{};bool filterAuthor=(owner&&(!search.empty()||(!q.value("tags",json::array()).empty()||!q.value("tag_groups",json::array()).empty())))||direct;unsigned matchesCount=0;int nativePage=filterAuthor?1:(page-1)*limit/50+1;int lastNative=(page-1)*limit/50+limit/50;
  try{do {
  if(direct){handle=UGC(CreateQueryUGCDetailsRequest,uint64_t,uint64_t*,uint32_t)(ugc,&direct,1);search.clear();}
  else if(owner)handle=UGC(CreateQueryUserUGCRequest,uint64_t,uint32_t,int,int,int,uint32_t,uint32_t,uint32_t)(ugc,uint32_t(owner),0,0,sort==0?5:sort==19?3:0,431960,431960,nativePage);
- else handle=UGC(CreateQueryAllUGCRequestPage,uint64_t,int,int,uint32_t,uint32_t,uint32_t)(ugc,sort,0,431960,431960,page);
+ else if(cursors.contains(nativePage))handle=UGC(CreateQueryAllUGCRequestCursor,uint64_t,int,int,uint32_t,uint32_t,const char*)(ugc,sort,0,431960,431960,cursors[nativePage].c_str());
+ else if(nativePage<=1000)handle=UGC(CreateQueryAllUGCRequestPage,uint64_t,int,int,uint32_t,uint32_t,uint32_t)(ugc,sort,0,431960,431960,nativePage);
  if(handle==~0ull)throw std::runtime_error("Query Steam non valida");
   UGC(SetReturnLongDescription,bool,uint64_t,bool)(ugc,handle,true);UGC(SetReturnMetadata,bool,uint64_t,bool)(ugc,handle,true);UGC(SetReturnChildren,bool,uint64_t,bool)(ugc,handle,true);
   UGC(SetMatchAnyTag,bool,uint64_t,bool)(ugc,handle,q.value("any",false));UGC(SetRankedByTrendDays,bool,uint64_t,uint32_t)(ugc,handle,q.value("days",7));
   if(!search.empty()&&!owner&&!UGC(SetSearchText,bool,uint64_t,const char*)(ugc,handle,search.c_str()))throw std::runtime_error("Testo di ricerca non valido per Steam");
   if(!owner&&!direct)for(auto& tag:q.value("tags",json::array())){auto t=tag.get<std::string>();if(!UGC(AddRequiredTag,bool,uint64_t,const char*)(ugc,handle,t.c_str()))throw std::runtime_error("Filtro Steam rifiutato: "+t);}
+  if(!owner&&!direct)for(auto& group:q.value("tag_groups",json::array())){std::vector<std::string> strings=group.get<std::vector<std::string>>();std::vector<const char*> pointers;for(auto& tag:strings)pointers.push_back(tag.c_str());struct TagGroup{const char** strings;int count;} tags{pointers.data(),int(pointers.size())};if(!UGC(AddRequiredTagGroup,bool,uint64_t,const TagGroup*)(ugc,handle,&tags))throw std::runtime_error("Gruppo di filtri rifiutato da Steam");}
   // Keep explicit content out of the initial browse, matching the safe default.
   if(!q.value("mature",false)){UGC(AddExcludedTag,bool,uint64_t,const char*)(ugc,handle,"Mature");UGC(AddExcludedTag,bool,uint64_t,const char*)(ugc,handle,"Nudity");UGC(AddExcludedTag,bool,uint64_t,const char*)(ugc,handle,"Sexual Content");}
   result=awaitCall<QueryResult>(UGC(SendQueryUGCRequest,uint64_t,uint64_t)(ugc,handle),3401);
@@ -129,19 +132,20 @@ void query(const json& q){
    char preview[2048]={},metadata[10001]={};UGC(GetQueryUGCPreviewURL,bool,uint64_t,uint32_t,char*,uint32_t)(ugc,handle,i,preview,sizeof(preview));UGC(GetQueryUGCMetadata,bool,uint64_t,uint32_t,char*,uint32_t)(ugc,handle,i,metadata,sizeof(metadata));
    json tags=json::array();auto num=UGC(GetQueryUGCNumTags,uint32_t,uint64_t,uint32_t)(ugc,handle,i);
    for(unsigned n=0;n<std::min(num,100u);n++){char tag[512]={};if(UGC(GetQueryUGCTag,bool,uint64_t,uint32_t,uint32_t,char*,uint32_t)(ugc,handle,i,n,tag,sizeof(tag)))tags.push_back(tag);}
-   if(filterAuthor){bool matched=q.value("any",false)?false:true;auto required=q.value("tags",json::array());for(auto& tag:required){bool has=std::find(tags.begin(),tags.end(),tag)!=tags.end();matched=q.value("any",false)?matched||has:matched&&has;}if(!required.empty()&&!matched)continue;matchesCount++;if(matchesCount<=unsigned((page-1)*50)||matchesCount>unsigned(page*50))continue;}
+   if(filterAuthor){bool matched=q.value("any",false)?false:true;auto required=q.value("tags",json::array());for(auto& tag:required){bool has=std::find(tags.begin(),tags.end(),tag)!=tags.end();matched=q.value("any",false)?matched||has:matched&&has;}if(!required.empty()&&!matched)continue;bool groupsMatch=true;for(auto& group:q.value("tag_groups",json::array())){bool found=false;for(auto& tag:group)found|=std::find(tags.begin(),tags.end(),tag)!=tags.end();groupsMatch&=found;}if(!groupsMatch)continue;matchesCount++;if(matchesCount<=unsigned((page-1)*limit)||matchesCount>unsigned(page*limit))continue;}
    json children=json::array();if(d.children&&d.children<=256){std::vector<uint64_t> ids(d.children);if(UGC(GetQueryUGCChildren,bool,uint64_t,uint32_t,uint64_t*,uint32_t)(ugc,handle,i,ids.data(),ids.size()))for(auto id:ids)children.push_back(idString(id));}
    uint64_t subs=0,faves=0;UGC(GetQueryUGCStatistic,bool,uint64_t,uint32_t,int,uint64_t*)(ugc,handle,i,0,&subs);UGC(GetQueryUGCStatistic,bool,uint64_t,uint32_t,int,uint64_t*)(ugc,handle,i,1,&faves);
    uint64_t bytes=0;char folder[4096]={};uint32_t timestamp=0;bool local=UGC(GetItemInstallInfo,bool,uint64_t,uint64_t*,char*,uint32_t,uint32_t*)(ugc,d.id,&bytes,folder,sizeof(folder),&timestamp)&&fs::is_regular_file(fs::path(folder)/"project.json");
    rows.push_back({{"dependencies",children},{"plain_description",plainDescription(std::string(d.description,strnlen(d.description,sizeof(d.description))))},{"id",idString(d.id)},{"title",std::string(d.title,strnlen(d.title,sizeof(d.title)))},{"description",std::string(d.description,strnlen(d.description,sizeof(d.description)))},{"owner",idString(d.owner)},{"author",authorName(d.owner)},{"created",d.created},{"updated",d.updated},{"tags",tags},{"preview_url",preview},{"thumbnail",""},{"metadata",metadata},{"votes_up",d.votesUp},{"votes_down",d.votesDown},{"score",d.score},{"subscriptions",subs},{"favorites",faves},{"size",d.size>0?uint64_t(d.size):bytes},{"children",d.children},{"file_type",d.type},{"installed",local},{"folder",local?folder:""}});
   }
   UGC(ReleaseQueryUGCRequest,bool,uint64_t)(ugc,handle);handle=~0ull;
-  if(!filterAuthor||nativePage*50>=int(result.total)||!result.returned||nativePage>=1000)break;
+  if(!owner&&!direct&&result.cursor[0])cursors[nativePage+1]=std::string(result.cursor,strnlen(result.cursor,sizeof(result.cursor)));
+  if(direct||nativePage*50>=int(result.total)||!result.returned||(filterAuthor?nativePage>=1000:nativePage>=lastNative))break;
   nativePage++;pump();{std::lock_guard lock(mutex);if(quitting||!commands.empty()){state["busy"]=false;return;}}
  }while(true);
  if(filterAuthor)result.total=matchesCount;
   pump();for(auto& r:rows)r["author"]=authorName(validID(r["owner"]));
-  update([&](json& s){s["items"]=rows;s["total"]=result.total;s["page"]=page;s["query"]=q;s["author_search"]=owner!=0;s["author_name_filter"]=owner!=0&&!search.empty();s["busy"]=false;s["revision"]=s["revision"].get<int>()+1;});
+  update([&](json& s){s["items"]=rows;s["total"]=result.total;s["page"]=page;s["page_size"]=limit;s["query"]=q;s["author_search"]=owner!=0;s["author_name_filter"]=owner!=0&&!search.empty();s["busy"]=false;s["revision"]=s["revision"].get<int>()+1;});
   // Disk cache uses Steam IDs, never remote file names. Only HTTPS images
   // from Steam's own CDN are fetched; no project code is executed in previews.
   for(size_t first=0;first<rows.size();first+=4){

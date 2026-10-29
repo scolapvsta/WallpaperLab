@@ -16,7 +16,8 @@ python3 scripts/apply-patch-series.py vendor/engine \
     patches/engine-wallpaper-placement.patch patches/engine-live-controls.patch \
     patches/engine-scene-interaction.patch patches/engine-project-controls.patch \
     patches/engine-web-compatibility.patch patches/engine-sound-controls.patch \
-    patches/engine-transitions-media-text.patch
+    patches/engine-transitions-media-text.patch \
+    patches/engine-stable-transitions-image-controls.patch
 apply_patch_if_needed vendor/raylib patches/raylib-app-id.patch
 prefix_args=()
 if [[ -d local/sysroot/usr ]]; then prefix_args+=("-DCMAKE_PREFIX_PATH=$PWD/local/sysroot/usr"); fi

@@ -102,11 +102,13 @@ void refreshRunning(){auto process=selectedRunning();activePath=owned(process)?p
 std::vector<std::string> renderArgs(const Item& item,const json& prefs,bool preview) {
     if(!item.reason.empty())throw std::runtime_error(item.reason);
     std::string assets=assetsPath();if(assets.empty())throw std::runtime_error("Assets di Wallpaper Engine non trovati nelle librerie Steam");
-    std::vector<std::string> args={executable(),"--render","--assets-dir",assets,"--fps",std::to_string(std::clamp(prefs.value("fps",60),15,120)),"--volume",prefs.value("muted",true)?"0":"100"};
-    if(prefs.value("disable_audio_processing",false))args.push_back("--no-audio-processing");
-    if(prefs.value("disable_mouse",true))args.push_back("--disable-mouse");
-    if(prefs.value("disable_parallax",true))args.push_back("--disable-parallax");
-    if(prefs.value("disable_particles",false))args.push_back("--disable-particles");
+    auto profilesForRender=loadPlacements();auto profile=profilesForRender.value(item.path,json::object()).value("playback",json::object());
+    auto enabled=[&](const char* local,const char* global){return !prefs.value(global,false)&&profile.value(local,true);};
+    std::vector<std::string> args={executable(),"--render","--assets-dir",assets,"--fps",std::to_string(std::clamp(prefs.value("fps",60),15,120)),"--volume",enabled("audio","muted")?"100":"0"};
+    if(!enabled("reactive","disable_audio_processing"))args.push_back("--no-audio-processing");
+    if(!enabled("mouse","disable_mouse"))args.push_back("--disable-mouse");
+    if(!enabled("parallax","disable_parallax"))args.push_back("--disable-parallax");
+    if(!enabled("particles","disable_particles"))args.push_back("--disable-particles");
     auto position=wallpaperPosition(loadPlacements(),item.path);
     if(position["x"].get<double>()!=0||position["y"].get<double>()!=0||position.value("zoom",1.)!=1)args.insert(args.end(),{"--lab-position",position.dump()});
     args.insert(args.end(),{"--lab-profile-file",(configDir()/"wallpaper_profiles.json").string(),"--lab-live-file",(stateDir()/"placement-live.json").string(),"--lab-project",item.path,"--lab-feed-dir",feedDir().string()});
@@ -312,6 +314,7 @@ int lab_matches(int i,int type,int resolution,int audio){
     auto& item=items.at(i);if(!matches(item,type,0,audio))return 0;
     for(auto& f:resolutions)if(f.code==resolution)return resolutionMatches(item,f);return resolution==0;
 }
+int lab_matches_grouped(int i,int type,int audio,const int* codes,int count,int groups){if(i<0||i>=lab_count()||count<0||count>64)return 0;return matchesCriteria(items[i],resolutions,type,audio,std::vector<int>(codes,codes+count),settings.value("filter_any",false),groups);}
 int lab_matches_all(int i,int type,int audio,const int* codes,int count){
  if(i<0||i>=lab_count()||count<0||count>64)return 0;
  return matchesCriteria(items[i],resolutions,type,audio,std::vector<int>(codes,codes+count),settings.value("filter_any",false));
@@ -319,6 +322,13 @@ int lab_matches_all(int i,int type,int audio,const int* codes,int count){
 int lab_resolution_group(int i){return resolutions.at(i).group;}
 int lab_supported_count(int i){return items.at(i).supported.size();}
 const char* lab_supported_resolutions(int i){static std::string label;label.clear();for(auto [w,h]:items.at(i).supported){if(!label.empty())label+=" · ";label+=std::to_string(w)+" × "+std::to_string(h);}return label.c_str();}
+int lab_playback(int i,const char* key){return placements.value(items.at(i).path,json::object()).value("playback",json::object()).value(key,true);}
+int lab_playback_set(int i,const char* key,int enabled){return guarded([&]{const std::set<std::string> keys={"audio","reactive","mouse","parallax","particles"};if(!keys.contains(key))throw std::runtime_error("Opzione non valida");ControllerLock lock;auto profiles=loadPlacements();profiles[items.at(i).path]["playback"][key]=bool(enabled);writeJson(configDir()/"wallpaper_profiles.json",profiles);placements=profiles;});}
+float lab_adjust(int i,const char* key){return placements.value(items.at(i).path,json::object()).value("image",json::object()).value(key,std::string(key)=="brightness"?0.f:1.f);}
+int lab_adjust_set(int i,const char* key,float value,int commit){return guarded([&]{std::string k=key;if(k!="brightness"&&k!="contrast"&&k!="saturation")throw std::runtime_error("Regolazione non valida");if(!std::isfinite(value))throw std::runtime_error("Valore non valido");value=std::clamp(value,k=="brightness"?-1.f:0.f,k=="brightness"?1.f:2.f);auto path=items.at(i).path;placements[path]["image"][k]=value;
+ writeJson(stateDir()/"placement-live.json",{{"path",path},{"image",placements[path]["image"]}});
+ if(commit){ControllerLock lock;auto latest=loadPlacements();latest[path]["image"]=placements[path]["image"];writeJson(configDir()/"wallpaper_profiles.json",latest);placements=latest;}
+});}
 static const json& propertyOverrides(int i){static const json empty=json::object();auto p=placements.find(items.at(i).path);return p!=placements.end()&&p->contains("properties")?p->at("properties"):empty;}
 static std::string propertyKey(int i,int p){return items.at(i).propertyOrder.at(p);}
 static const json& propertySchema(int i,int p){return items.at(i).properties.at(propertyKey(i,p));}
@@ -414,7 +424,8 @@ const char* lab_ws_text(int i,const char* key){static std::string value;try{auto
 double lab_ws_number(int i,const char* key){try{auto& node=i<0?workshopView:workshopView.at("items").at(i);auto v=node.value(key,json(0));return v.is_boolean()?v.get<bool>():v.is_number()?v.get<double>():0;}catch(...){return 0;}}
 const char* lab_ws_download_text(int i,const char* key){static std::string value;try{value=workshopView.at("downloads").at(workshopView["items"].at(i).at("id").get<std::string>()).value(key,std::string());}catch(...){value="";}return value.c_str();}
 double lab_ws_download_progress(int i){try{auto d=workshopView.at("downloads").at(workshopView["items"].at(i).at("id").get<std::string>());return d.value("total",0.)>0?d.value("current",0.)/d.value("total",1.):0;}catch(...){return 0;}}
-void lab_ws_search(const char* text,const char* author,const char* tags,int any,int sort,int page){json list=json::array();std::istringstream input(tags);std::string tag;while(std::getline(input,tag,'|'))if(!tag.empty())list.push_back(tag);workshop::search({{"text",text},{"author",author},{"tags",list},{"any",bool(any)},{"sort",sort},{"page",page},{"mature",settings.value("workshop_mature",false)}});}
+void lab_ws_search(const char* text,const char* author,const char* tags,int any,int sort,int page,int groupMask){json list=json::array();std::istringstream input(tags);std::string tag;while(std::getline(input,tag,'|'))if(!tag.empty())list.push_back(tag);json groupTags=json::array();if(!any)for(int g=0;g<5;g++)if(groupMask&(1<<g)){json grouped=json::array();for(auto it=list.begin();it!=list.end();){std::string t=*it;int kind=t.starts_with("Dual")?1:t.starts_with("Ultrawide")?2:t.starts_with("Triple")?3:t.starts_with("Portrait")?4:0;if(t.find(" x ")!=std::string::npos&&kind==g){grouped.push_back(*it);it=list.erase(it);}else ++it;}if(!grouped.empty())groupTags.push_back(grouped);}
+workshop::search({{"tag_groups",groupTags},{"text",text},{"author",author},{"tags",list},{"any",bool(any)},{"sort",sort},{"page",page},{"page_size",settings.value("page_size",100)},{"mature",settings.value("workshop_mature",false)}});}
 void lab_ws_open(int i,int author){guarded([&]{auto item=workshopView.at("items").at(i);std::string url=author?"https://steamcommunity.com/profiles/"+item.at("owner").get<std::string>():"https://steamcommunity.com/sharedfiles/filedetails/?id="+item.at("id").get<std::string>();capture({"xdg-open",url});});}
 int lab_ws_download(int i){return guarded([&]{workshop::download(workshopView.at("items").at(i).at("id"));});}
 int lab_deleted(){int result=deletedResult;deletedResult=-1;return result;}
@@ -478,6 +489,8 @@ int lab_set_option(const char* key,int value){
     if(k=="ui_theme"||k=="light_theme")return guarded([&]{ControllerLock lock;auto latest=loadSettings();if(k=="light_theme")latest["light_theme"]=value!=0;else latest["ui_theme"]=value==1?0:std::clamp(value,0,10);latest["theme_variants"]=true;writeJson(configDir()/"settings.json",latest);settings=latest;});
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));
     if(k=="carousel_layout")return savePreference(k,std::clamp(value,0,3));
+    if(k=="window_opacity")return savePreference(k,std::clamp(value,70,100));
+    if(k=="page_size")return savePreference(k,value<=50?50:value<=100?100:200);
     if(k=="transition_type")return savePreference(k,std::clamp(value,0,8));
     if(k=="fullscreen_policy")return savePreference(k,std::clamp(value,0,2));
     if(k=="filter_width")return savePreference(k,std::clamp(value,220,600));
