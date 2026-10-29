@@ -1,135 +1,132 @@
-# Provenienza e licenze
+# Provenance and licenses
 
-Wallpaper Lab è un progetto derivato, distribuito con GPL-3.0. Il nome è provvisorio.
+Wallpaper Lab is a derivative application distributed under GPL-3.0. The name is
+provisional. Upstream notices remain in the source tree and release payloads.
+Wallpaper Engine and Workshop content belong to their respective owners and are
+not included in the source repository or application runtime.
 
-- **Almamu/linux-wallpaperengine**, GPL-3.0: renderer nativo, parser PKG/TEX,
-  scene, video, web e integrazione desktop. Il commit è fissato nel submodule
-  `vendor/engine`. Le modifiche locali sono in `patches/engine-integration.patch` e
-  `patches/engine-build-paths.patch` (quoting dei percorsi CMake) e
-  `patches/engine-audio-web.patch` (audio stereo, bridge web/SceneScript, lifecycle
-  CEF e compatibilità OpenGL delle copertine).
-  La calibrazione dei panorami e raccolta in `patches/engine-display-layout.patch`.
-  Il posizionamento per progetto è raccolto in `patches/engine-wallpaper-placement.patch`.
-  Aggiornamenti live e vista ridotta del renderer sono in `patches/engine-live-controls.patch`.
-  Parsing delle scene, shader di clipping e interazione SceneScript sono in
-  `patches/engine-scene-interaction.patch`.
-- **danihek/hellpaper**, copyright 2025 danihek, e fork **Belial02/hellpaper**, MIT:
-  base del selettore Raylib, shader, quattro layout e animazioni. `src/selector.c`
-  è la versione modificata per questa applicazione; l'originale è fissato in
-  `vendor/hellpaper`. Avviso MIT completo in `assets/LICENSE.hellpaper`.
-- **raylib**, Ramon Santamaria e contributori, zlib/libpng: UI e immagini.
-  Versione 5.5 fissata in `vendor/raylib`; licenza in `assets/LICENSE.raylib`.
-  Il decoder GIF usa stb_image vendorizzato da Raylib, con i relativi avvisi nel sorgente.
-- **FreeType** di sistema: rasterizzazione del fallback per i titoli nei font TTC.
-  Fontconfig risolve i font installati e registra le famiglie incluse soltanto
-  nel processo dell’app.
-- **Chromium Embedded Framework** e dipendenze del renderer mantengono le proprie
-  licenze e attribuzioni upstream. Le risorse CEF sono scaricate dal build upstream;
-  la distribuzione locale include i suoi avvisi di licenza.
+## Engine and interface
 
-Gli asset di Wallpaper Engine e i wallpaper degli autori del Workshop restano
-nelle librerie Steam dell'utente. Non sono inclusi nei sorgenti o nel runtime.
-Il runtime locale di sviluppo contiene librerie estratte da pacchetti Arch.
-L’installer beta viene preparato separatamente dai build output con una allowlist:
-app, motore, CEF, kissfft, helper e font; le altre dipendenze sono pacchetti Arch.
-Non include librerie proprietarie Steam o dati della macchina.
+- **Almamu/linux-wallpaperengine**, GPL-3.0: native renderer, PKG/TEX parsing,
+  scenes, video, web and desktop integration. `vendor/engine` pins the upstream
+  commit. All application changes are recorded in the ordered patches listed in
+  `build-manifest.json`.
+- **danihek/hellpaper**, copyright 2025 danihek, and **Belial02/hellpaper**, MIT:
+  selector foundation, shaders, four layouts and animation. `src/selector.c` is
+  modified for Wallpaper Lab; `vendor/hellpaper` pins the original. Full notice:
+  `assets/LICENSE.hellpaper`.
+- **raylib**, Ramon Santamaria and contributors, zlib/libpng: UI and image
+  handling. Version 5.5 is pinned in `vendor/raylib`; license:
+  `assets/LICENSE.raylib`. GIF decoding uses raylib's vendored stb_image with
+  its source notices.
+- **FreeType**, **Fontconfig**, **Pango/Cairo**: system font rendering, discovery,
+  Unicode shaping, bidi and fallback, under their respective upstream licenses.
+  Fontconfig registration of bundled fonts is limited to the application process.
+- **Chromium Embedded Framework** and renderer dependencies retain their upstream
+  licenses and attributions. CEF is downloaded by the upstream build. Beta
+  packages include its notices and `CREDITS.html`.
+- **libcurl**, curl license: bounded HTTPS transfers for static Steam CDN previews,
+  provided as a system dependency resolved through pkg-config.
+- **FFmpeg/ffprobe**: separately installed system tools for media metadata and
+  thumbnails, subject to their package licenses. Imported media are not distributed.
 
-Correzioni coordinate monitor, ritaglio e zoom: `patches/engine-project-controls.patch`.
+## Patch inventory
 
-Compatibilita web e parser legacy: `patches/engine-web-compatibility.patch`.
-Upload delle regioni modificate secondo il contratto OnPaint di CEF:
-https://cef-builds.spotifycdn.com/docs/131.3/classCefRenderHandler.html
+| Patch | Purpose |
+| --- | --- |
+| `engine-integration.patch` | Native engine library integration |
+| `engine-build-paths.patch` | CMake path quoting |
+| `engine-audio-web.patch` | Stereo audio, web/SceneScript bridge, CEF lifecycle and OpenGL cover compatibility |
+| `engine-display-layout.patch` | Physical panorama calibration |
+| `engine-wallpaper-placement.patch` | Per-project placement |
+| `engine-live-controls.patch` | Live controls and reduced renderer feed |
+| `engine-scene-interaction.patch` | Scene parsing, clipping shaders and SceneScript interaction |
+| `engine-project-controls.patch` | Output coordinates, crop and zoom |
+| `engine-web-compatibility.patch` | Web and legacy parser compatibility |
+| `engine-sound-controls.patch` | Scene playback, audio lifecycle and covered outputs |
+| `engine-transitions-media-text.patch` | Transitions, media events and text integration |
+| `engine-stable-transitions-image-controls.patch` | Transition stability and image controls |
+| `engine-custom-animation-image-transform.patch` | Image transforms and shared transition customization |
+| `engine-transition-handoff.patch` | Per-output captures and synchronized controller/renderer handoff |
+| `engine-compositor-transitions.patch` | RGBA composition and antialiased iris |
+| `engine-live-audio-mute.patch` | Live CEF/MPV audio mute |
+| `raylib-app-id.patch` | Application desktop identity |
 
-Riproduzione e controlli delle scene, lifecycle audio e output coperti:
-`patches/engine-sound-controls.patch`.
-Semantica del trasporto secondo la documentazione originale:
-https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/ISoundLayer.html
+Patches live in `patches/`; application-side compositor rules are in
+`src/desktop_surface.hpp`. Pins and SHA-256 hashes are in `build-manifest.json`.
 
+Implementation contracts and reference documentation:
 
-Workshop integrato (0.12):
-- **Steamworks / Valve**: ABI flat minima dichiarata in `src/steam_abi.hpp`,
-  confrontata con gli header Valve esposti da Steamworks.NET (`CodeGen/steam`).
-  ISteamUGC020 e dispatch manuale, con packing Linux a 4 byte. Documentazione:
-  https://partner.steamgames.com/doc/api/ISteamUGC
-  https://partner.steamgames.com/doc/api/steam_api
-- Il redistributable proprietario `libsteam_api.so` non è incluso nei sorgenti.
-  Per la demo locale viene riutilizzata la copia installata con Steamworks.js
-  0.4.0 / WallpaperX. L’installer beta offre il download separato della copia pubblicata con
-  Steamworks.js 0.4.0, con URL e hash fissati in packaging/steam-runtime.json.
-  Il componente Valve mantiene i propri termini e non è incluso nel payload GPL.
-- **libcurl**, licenza curl: trasferimento delle anteprime statiche HTTPS da
-  CDN Steam; libreria di sistema risolta tramite pkg-config.
-- WallpaperX è stato consultato per l'uso delle API UGC (ricerca, tag,
-  sottoscrizione e download). Nessun bundle JavaScript o eseguibile WallpaperX
-  viene avviato dall'app. I download restano nelle librerie Steam dell'utente.
+- [CEF OnPaint](https://cef-builds.spotifycdn.com/docs/131.3/classCefRenderHandler.html)
+- [SceneScript sound transport](https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/ISoundLayer.html)
+- [Media timeline events](https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaTimelineEvent.html)
+- [Media playback events](https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaPlaybackEvent.html)
+- [Adobe transition categories](https://helpx.adobe.com/premiere/desktop/add-video-effects/effects-and-transitions-library/list-of-video-transitions.html),
+  consulted for categories without importing Adobe code or assets.
 
-0.13: Pango/Cairo di sistema per shaping Unicode, bidi e fallback dei font;
-rispettive licenze upstream (LGPL/MPL). Le categorie di transizione sono state
-confrontate con la documentazione Adobe, senza usare codice o asset Adobe:
-https://helpx.adobe.com/premiere/desktop/add-video-effects/effects-and-transitions-library/list-of-video-transitions.html
-Contratto degli eventi multimediali:
-https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaTimelineEvent.html
-https://docs.wallpaperengine.io/en/scene/scenescript/reference/class/MediaPlaybackEvent.html
+## Steam Workshop
 
-0.14: riferimenti cromatici, senza asset grafici o componenti UI importati:
-- Catppuccin Latte/Mocha: https://catppuccin.com/palette/ (palette MIT).
-- Dracula: https://draculatheme.com/contribute (palette MIT).
-- Rosé Pine: https://rosepinetheme.com/palette/ (palette MIT).
-Le varianti sono adattamenti per superfici, contrasto e accenti di Wallpaper Lab;
-non costituiscono port ufficiali approvati dai progetti di riferimento.
+**Steamworks / Valve** provides the native Workshop API. The minimal flat ABI in
+`src/steam_abi.hpp` was compared with Valve headers exposed through
+Steamworks.NET (`CodeGen/steam`): ISteamUGC020, manual dispatch and Linux 4-byte
+packing. References: [ISteamUGC](https://partner.steamgames.com/doc/api/ISteamUGC)
+and [Steam API](https://partner.steamgames.com/doc/api/steam_api).
 
-0.15: temi indipendenti e integrazione opzionale Caelestia.
-- Ispirazione visiva da Midnight e System24 (Discord), senza CSS o asset copiati:
-  https://github.com/refact0r/midnight-discord
-  https://github.com/refact0r/system24
-- Comfy (Spicetify), per il rapporto tra superfici arrotondate e accento menta:
-  https://github.com/Comfy-Themes/Spicetify
-- Catppuccin Latte/Mocha e Rosé Pine/Dawn usano i rispettivi riferimenti cromatici
-  già indicati sopra; gli altri preset sono palette ed effetti originali adattati
-  alla UI. Nessun font o immagine dei temi viene scaricato o distribuito.
-- Caelestia CLI installata separatamente, invocata solo per generare palette con
-  `wallpaper --print`; il file scheme.json segue il contratto della shell installata:
-  https://github.com/caelestia-dots/cli
-  https://github.com/caelestia-dots/shell
-- FFmpeg/ffprobe installati separatamente per metadata e miniature dei media
-  locali, con le rispettive licenze dei pacchetti. I file personali importati non
-  sono distribuiti con il progetto.
+The proprietary `libsteam_api.so` is excluded from GPL source and runtime payloads.
+The beta installer offers a separate download from Steamworks.js 0.4.0, with URL,
+archive and library hashes pinned in `packaging/steam-runtime.json`. The Valve
+component retains its own terms. No npm or JavaScript code is executed by this
+preparation step.
 
+WallpaperX was consulted for UGC query, tag, subscription and download behavior.
+Wallpaper Lab does not launch its JavaScript bundle or executable. Downloads
+remain managed by Steam in its library folders.
 
-0.16: Material You è generato dall'extra Python **materialyoucolor** e Pillow,
-installati separatamente solo su richiesta di attivazione. Algoritmi di riferimento
-Material Color Utilities con licenza Apache-2.0; wrapper Python materialyoucolor
-con licenza MIT. Pillow mantiene la propria licenza MIT-CMU e gli avvisi PIL. Non sono copiati nel repository o nel runtime base:
-https://github.com/T-Dynamos/materialyoucolor-python
-https://github.com/material-foundation/material-color-utilities
-https://python-pillow.org/
-Il helper e la tinta aggiuntiva delle superfici sono codice Wallpaper Lab.
-Il formato pubblicato è compatibile con `Colours.qml` della shell Caelestia;
-nessun file del pacchetto Caelestia viene sovrascritto.
+## Visual references and optional integration
 
-Manipolazioni del fotogramma, durata/direzione/curva transizioni condivise con la
-preview: `patches/engine-custom-animation-image-transform.patch`.
+Historical palette references include [Catppuccin Latte/Mocha](https://catppuccin.com/palette/),
+[Dracula](https://draculatheme.com/contribute) and
+[Rosé Pine](https://rosepinetheme.com/palette/) (MIT palettes). Adaptations are
+independent rather than official ports.
 
-Transizioni per output e passaggio controller/renderer 0.17:
-`patches/engine-transition-handoff.patch`. Separa gli snapshot nativi dai frame
-dell'inspector, identifica richiesta e uscita, e sincronizza l'avvio tramite un
-segnale monotono comune. I pin upstream restano invariati.
+Historical UI references include [Midnight](https://github.com/refact0r/midnight-discord),
+[System24](https://github.com/refact0r/system24) and
+[Comfy](https://github.com/Comfy-Themes/Spicetify). CSS and image assets from those
+projects are not bundled. Current theme drawings, Pixel characters, backgrounds
+and effects are implemented in application code. Additional visual references
+are documented in [Themes](docs/THEMES.md).
 
-Composizione RGBA, iris antialias e namespace desktop dedicato 0.18:
-`patches/engine-compositor-transitions.patch`, applicata dopo la patch handoff.
-Pin invariati. La regola Hyprland è codice applicativo in desktop_surface.hpp;
-i riferimenti visivi dei nuovi temi sono elencati in docs/THEMES.md.
+[Caelestia CLI](https://github.com/caelestia-dots/cli) and
+[Caelestia shell](https://github.com/caelestia-dots/shell) are installed separately.
+The initial integration used `wallpaper --print`; the current helper generates
+Material You palettes directly and publishes a compatible `scheme.json` without
+replacing Caelestia package files.
 
-- **Orbitron**, The Orbitron Project Authors; **Oxanium**, Severin Meyer;
-  **Rajdhani**, Indian Type Foundry: SIL Open Font License 1.1. Originali non
-  modificati scaricati da `google/fonts`, commit e hash nel manifest
-  `assets/fonts/manifest.json`. Licenze complete, descrizioni e font sono inclusi
-  in `assets/fonts/` e installati nella directory `fonts/` del runtime. Nessun
-  font del gioco o dell'anime è stato estratto o ridistribuito.
-- La correzione del mute live CEF/MPV è conservata in
-  `patches/engine-live-audio-mute.patch`; i pin upstream sono invariati.
+The optional Python helper uses [materialyoucolor](https://github.com/T-Dynamos/materialyoucolor-python)
+(MIT), based on [Material Color Utilities](https://github.com/material-foundation/material-color-utilities)
+(Apache-2.0), and [Pillow](https://python-pillow.org/) (MIT-CMU/PIL notices).
+These are prepared separately on feature activation, outside the base runtime.
+The helper and additional surface tint are Wallpaper Lab code.
 
-- **Silkscreen**, The Silkscreen Project Authors / Jason Kottke, SIL OFL 1.1:
-  font pixel originale non modificato, incluso da `google/fonts` allo stesso
-  commit fissato nel manifest. Licenza in `assets/fonts/silkscreen/OFL.txt`.
-  Personaggi, scenari e decorazioni Pixel Theme sono disegnati nel codice dell'app.
+## Bundled fonts
+
+Unmodified originals from Google Fonts are pinned by commit and SHA-256 in
+`assets/fonts/manifest.json`. Full SIL Open Font License 1.1 notices, descriptions
+and font files are under `assets/fonts/`, installed in the runtime's `fonts/`.
+
+| Font | Attribution |
+| --- | --- |
+| Orbitron | The Orbitron Project Authors |
+| Oxanium | Severin Meyer |
+| Rajdhani | Indian Type Foundry |
+| Silkscreen | The Silkscreen Project Authors / Jason Kottke |
+
+No game or anime fonts, images or sprites are extracted or redistributed.
+
+## Packaging boundary
+
+The beta installer uses an allowlist of build outputs: application, engine, CEF,
+kissfft, helpers, fonts and licenses. Other runtime dependencies are Arch system
+packages. Development prefixes, user settings, Workshop assets, Steam account
+data and credentials are excluded. Steamworks remains a separate optional
+download. See [Releasing](docs/RELEASING.md) for source and binary packaging checks.

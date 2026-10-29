@@ -1,27 +1,31 @@
-# Wallpaper Lab (nome provvisorio)
+# Wallpaper Lab contributor instructions
 
-- Conversazione in italiano. Applicazione nuova e separata da caelestia-rice.
-- Obiettivo: unire il selettore animato derivato da Hellpaper al renderer nativo
-  di linux-wallpaperengine, in un'applicazione propria e personalizzabile.
-- Un solo eseguibile applicativo: `wallpaper-lab`. La modalità `--render` usa
-  direttamente la libreria del motore; non avvia gli eseguibili upstream.
-- Conservare i quattro layout e la fluidità del selettore; distinguere anteprima
-  Workshop da rendering della scena completa. Non promettere crossfade desktop
-  o compatibilità con tutti i progetti se non implementati/verificati.
-- Dipendenze upstream fissate nei submodule. Salvare le modifiche a engine/raylib
-  nelle patch e aggiornare i pin solo dopo confronto e test. Non perdere modifiche
-  locali quando si applicano patch o si aggiornano i submodule.
-- Prima di fermare un renderer verificare PID, tempo di avvio ed eseguibile.
-  Conservare il wallpaper precedente se il nuovo non parte.
-- Backup, log, screenshot, build e dati della libreria personale restano in `local/`
-  o nelle directory XDG della macchina. Non committare asset del Workshop.
-- Fare test di catalogo, lifecycle dei processi e prove grafiche mirate; dichiarare
-  limiti e risultati effettivi. Nessun cambio dell'avvio automatico senza backup.
-- Repository pubblica: `scolapvsta/wallpaper-engine-customized`, open beta su richiesta esplicita del 29/10/2026. Preservare la visibilità pubblica.
-- Il progetto Codex di riferimento è Wallpaper Engine Customized (WIP).
-  Il nome definitivo dell'applicazione è ancora da decidere.
-- Su richiesta di Simone (0.13): per ogni versione/modifica completata aggiornare
-  documentazione e risultati dei test, creare il commit e sincronizzare la repo
-  GitHub. Le release beta possono includere il runtime preparato e verificato dal
-  packaging allowlist; non pubblicare asset Workshop, dati personali o build di
-  sviluppo grezze. Documentare esplicitamente funzioni parziali e limiti.
+- Write repository documentation, code comments, release notes and test reports in
+  English. Keep instructions applicable to any contributor and installation.
+- Wallpaper Lab combines the animated selector derived from Hellpaper with the
+  native linux-wallpaperengine renderer in a separate, customizable application.
+  The application name is provisional.
+- Ship one application executable, `wallpaper-lab`. Its `--render` mode links the
+  engine library directly; it must not launch upstream application executables.
+- Preserve all four selector layouts and their animation behavior. Distinguish
+  Workshop thumbnail previews from full scene rendering. Describe desktop
+  transitions and project compatibility only to the extent implemented and tested.
+- Pin upstream dependencies through submodules. Record engine/raylib changes in
+  ordered patches and update pins only after comparison and testing. Preserve
+  existing local changes when applying patches or updating submodules.
+- Before signaling a renderer, verify its PID, start time and executable. Keep
+  the previous wallpaper running if its replacement fails to start.
+- Keep backups, logs, screenshots, builds and library data in `local/` or XDG
+  directories. Never commit Workshop assets, credentials or machine-specific data.
+- Run catalog and process lifecycle tests plus relevant graphical checks. Record
+  actual outcomes and limitations. Back up configuration before autostart changes;
+  enabling autostart or shortcuts requires an explicit user action.
+- Keep the repository public. For each completed change, update documentation and
+  test results, commit intended files and synchronize GitHub within the authorized
+  task scope. Documentation-only changes do not require a new application version
+  or a rebuilt binary release.
+- Beta releases may include the runtime prepared and verified by the packaging
+  allowlist. Exclude Workshop assets, user data and raw development builds.
+  Clearly document partial features and unsupported platforms.
+- Preserve upstream copyright and license notices. Use generic paths and examples
+  in public documentation; retain canonical project links where needed.

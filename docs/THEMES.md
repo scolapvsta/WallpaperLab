@@ -1,144 +1,114 @@
-# Themes, font e switcher — 0.23
+# Themes, fonts and switchers
 
-| Theme | Modalità | Palette | Font suggerito iniziale | Background inclusi |
+| Theme | Mode | Palettes | Initial suggested font | Included backgrounds |
 | --- | --- | ---: | --- | ---: |
-| Default | Scura | 3 | Sans di sistema | 4 |
-| Strawberry core | Chiara | 3 | Sans di sistema | 4 |
-| 2077 | Scura | 11 | Oxanium | 4 |
-| Pixel Theme | Scura | 4 | Silkscreen | 4 |
+| Default | Dark | 3 | System Sans | 4 |
+| Strawberry core | Light | 3 | System Sans | 4 |
+| 2077 | Dark | 11 | Oxanium | 4 |
+| Pixel Theme | Dark | 4 | Silkscreen | 4 |
 
-Themes e Color Palettes sono dropdown. Le palette dipendono dal tema; la modalità
-è stabilita dal tema. La nuova installazione parte da Default/Graphite. Gli ID
-Strawberry e 2077 esistenti restano invariati; palette e background sono ricordati
-separatamente per ciascun tema. I vecchi preset anteriori al rework rimangono nel
-backup locale e nella cronologia, fuori dal catalogo attivo.
+**Themes** and **Color Palettes** are dropdowns. Each theme has its own palettes,
+background and suggested-font selection. Mode is determined by the theme. Fresh
+installations start with Default/Graphite. Existing Strawberry and 2077 palette
+IDs are preserved; superseded presets are outside the active catalog.
 
 ## Default
 
-UI sobria, superfici morbide e bordi discreti. Palette **Graphite**, **Blue Slate**,
-**Forest Ink**. Fondi **Quiet Gradient**, **Blueprint**, **Contour**, **Night Dots**:
-gradiente, piccoli segni a griglia, curve di livello o punti. Font suggeriti:
-Sans, Adwaita Sans e Noto Sans, con fallback di sistema dove necessario.
+Soft surfaces and understated borders. Palettes: **Graphite**, **Blue Slate** and
+**Forest Ink**. Backgrounds: **Quiet Gradient**, **Blueprint**, **Contour** and
+**Night Dots**. Suggested fonts include Sans, Adwaita Sans and Noto Sans, with
+system fallback when needed.
 
 ## Strawberry core
 
-**Strawberry Milk**, **Raspberry Ribbon**, **Vanilla Shortcake**. I quattro sfondi
-ora cambiano composizione: **Strawberry Gingham** a quadretti, **Ribbon Atelier**
-con nastri diagonali e grandi fiocchi, **Strawberry Garden** crema con fragole,
-fiori e coniglietto, **Tea Party Lace** con fasce di pizzo e piccoli centrini.
+Palettes: **Strawberry Milk**, **Raspberry Ribbon** and **Vanilla Shortcake**.
+Backgrounds: **Strawberry Gingham** (checks), **Ribbon Atelier** (diagonal ribbons
+and bows), **Strawberry Garden** (strawberries, flowers and a rabbit) and
+**Tea Party Lace** (lace bands and doilies).
 
-I biscotti sono capsule lisce con estremità interamente arrotondate; tolte le
-piccole smerlature che rendevano irregolare il bordo. Hover con luce e bordo rosa,
-pressione più scura e selezione evidenziata. Icone ridotte per rimanere dentro i
-biscotti e niente anello della stella all'esterno del tasto.
+Cookie-shaped controls use smooth capsules, pink hover feedback, darker pressed
+states and contained icons. Decorations are drawn in application code.
 
 ## 2077
 
-**Violet Afterglow**, **Pink Voltage**, **Electric Blue**, **Night Drive**,
-**Hazard Yellow**, **Crimson Protocol**, più cinque nuove palette: **Toxic Lime**,
-**Amber Circuit**, **Ice Chrome**, **Ultraviolet**, **Copper Sunset**.
+Palettes: **Violet Afterglow**, **Pink Voltage**, **Electric Blue**, **Night Drive**,
+**Hazard Yellow**, **Crimson Protocol**, **Toxic Lime**, **Amber Circuit**,
+**Ice Chrome**, **Ultraviolet** and **Copper Sunset**.
 
-Skyline al neon, pioggia, LED e bit; fondi **Neon District**, **Afterlife Alley**,
-**Binary Rain**, **Edge Signal**. La testata sinistra usa una composizione compatta
-WALLPAPER LAB / CONTROL DECK; il marchio destro 2077 è più grande, con separazione
-cromatica e fasce glitch per circa 0,32 s ogni 1,8 s. Riduci animazioni li ferma.
-L'accento dei pulsanti è un piccolo segno laterale, solo per i controlli di testo:
-nessun segno sui pulsanti con icona, né la vecchia striscia su ogni pannello.
+Backgrounds: **Neon District**, **Afterlife Alley**, **Binary Rain** and
+**Edge Signal**. Neon skylines, rain, LEDs and binary details accompany the
+WALLPAPER LAB / CONTROL DECK header. The 2077 mark uses chromatic separation and
+glitch bands for about 0.32 seconds every 1.8 seconds. Reduced motion stops these
+animations. Small side accents appear on text buttons.
 
 ## Pixel Theme
 
-UI a pixel, pannelli squadrati con ombra a gradini, sprite originali (avventuriero,
-slime, robot e fantasma), nuvole, torce, stelle e piccoli glitch. Non sono sprite
-estratti da videogiochi. Palette **Arcade Berry**, **Dungeon Moss**, **Coin Rush**,
-**CRT Ocean**. Background **Overworld**, **Dungeon**, **Arcade**, **Star Quest**.
-Animazioni rispettano Riduci animazioni. Silkscreen è incluso con licenza SIL OFL,
-provenienza e SHA-256 nel manifest; font alternativi suggeriti Oxanium e DejaVu Sans Mono.
+Stepped panel shadows, original adventurer/slime/robot/ghost sprites, clouds,
+torches and stars. Palettes: **Arcade Berry**, **Dungeon Moss**, **Coin Rush** and
+**CRT Ocean**. Backgrounds: **Overworld**, **Dungeon**, **Arcade** and **Star Quest**.
+Animations respect reduced motion. Sprites are original application drawings.
+Silkscreen is bundled under SIL OFL 1.1; alternative suggested fonts include
+Oxanium and DejaVu Sans Mono.
 
-## Suggested Theme Fonts e General Fonts
+## Suggested Theme Fonts and General Fonts
 
-Subito sotto Themes:
+**Suggested Theme Fonts** selects a font for the current theme and remembers it
+per theme. **General Fonts** stores an independent selection and has an adjacent
+checkbox. Enabling it overrides the suggested font throughout the UI, including
+headers and the switcher; disabling it immediately restores the theme font.
+The stored general selection remains available while the override is disabled.
+Fonts are registered only within the application process.
 
-1. **Suggested Theme Fonts** sceglie il font pertinente al tema, ricordato per tema.
-2. **General Fonts** contiene tutte le famiglie della lista dell'app, più la spunta
-   affiancata. Menu e spunta occupano insieme la stessa colonna degli altri campi.
+2077 suggests Oxanium, Rajdhani and Orbitron. Default and Strawberry suggest Sans,
+Adwaita Sans and Noto Sans. Bundled fonts come from Google Fonts at the commit in
+`assets/fonts/manifest.json`, with SHA-256 hashes and OFL notices. Missing fonts
+and uncovered scripts use Fontconfig/Pango fallback.
 
-La scelta General Fonts è salvata anche quando la spunta è spenta, ma non viene
-applicata. Solo con la spunta attiva sostituisce il font suggerito in tutta la UI,
-comprese le testate e il popup dello switcher. Spegnendola ritorna immediatamente
-il font suggerito. I font personali già salvati rimangono selezionabili nel menu
-General Fonts; il nuovo override è inizialmente spento. Nessuna installazione globale.
-
-2077 suggerisce Oxanium, Rajdhani e Orbitron; Strawberry e Default Sans, Adwaita Sans,
-Noto Sans. Font scaricati dal repository ufficiale Google Fonts al commit fissato in
-`assets/fonts/manifest.json`, con licenze OFL nel runtime. Sono font per l'app, non
-font estratti dal gioco o dall'anime. Font non disponibili e alfabeti non coperti
-usano il fallback Fontconfig/Pango.
-
-- [Silkscreen, fonte ufficiale](https://github.com/google/fonts/tree/main/ofl/silkscreen)
+- [Silkscreen](https://github.com/google/fonts/tree/main/ofl/silkscreen)
 - [Oxanium](https://github.com/google/fonts/tree/main/ofl/oxanium)
 - [Orbitron](https://github.com/google/fonts/tree/main/ofl/orbitron)
 - [Rajdhani](https://github.com/google/fonts/tree/main/ofl/rajdhani)
-- [Edgerunners, riferimento d'atmosfera](https://www.cyberpunk.net/en/edgerunners)
+- [Edgerunners visual reference](https://www.cyberpunk.net/en/edgerunners)
 
-## Switcher coerenti con la UI
+## Themed switchers
 
-**Griglia, Fiume, Verticale e Onda** condividono il disegno fra anteprima e popup
-reale: palette delle cornici, pannello, tagli degli angoli e decorazioni seguono
-il tema. Strawberry aggiunge fiocchi/pizzo; 2077 angoli a taglio e neon; Pixel
-cornici squadrate e sprite; Default una cornice sobria. La scelta General Fonts
-attiva vale anche nel popup. Immagini e preview dei wallpaper conservano i propri
-colori: si modifica la cornice, non si ricolora il contenuto.
+Grid, River, Vertical and Wave use the selected theme's colors, borders and font
+in both the in-app preview and the real popup. The switcher uses wallpaper
+thumbnails; confirming a different wallpaper starts full desktop rendering.
+The main window's imported background is separate from switcher content.
 
-Le forme e gli effetti non cambiano ordine, rotazione, hitbox, dimensionamento o
-logica di commit. Onda conserva il fondo trasparente attorno alle carte. Il fondo
-dello switcher è una versione compatta del tema, non una copia integrale dello
-sfondo personalizzato importato per la finestra principale.
+## Importing an app background
 
-## App background dal PC
+Choose one of four included backgrounds or **Load from PC**. Imported files are
+copied as static PNGs, up to 2048 × 2048, into the XDG data directory under
+`wallpaper-lab/app-backgrounds/`. The original can then be moved or removed.
+**Restore theme** selects the theme's first included background. Invalid images
+retain the previous selection.
 
-Dropdown con quattro fondi inclusi e Carica dal PC, preview vicina e pulsanti
-compatti Carica dal PC / Ripristina tema. Il file viene copiato come PNG statico
-entro 2048 × 2048 nei dati XDG `wallpaper-lab/app-backgrounds/`; l'originale rimane
-intatto e può essere spostato. Ripristina tema torna al primo preset del tema.
-Un'immagine non valida conserva la selezione precedente. Il fondo importato è
-comune ai temi e non viene importato nel catalogo wallpaper desktop. Miniature
-costruite su uno scenario 1280 × 720 per includere anche i decori in basso.
-GIF importate al primo frame; servono zenity/kdialog e FFmpeg come per i media locali.
+The imported image is shared across themes and is separate from the desktop
+wallpaper catalog. Thumbnails use a canonical 1280 × 720 composition before
+scaling. GIFs use their first frame. Import requires Zenity/KDialog and FFmpeg.
+Imported backgrounds are static and center-cropped. Native decorative scenes are
+stylized drawings; they do not provide 3D rendering.
 
-# Archivio: collezioni e palette — 0.18
+## Historical collections (0.18)
 
-La collezione sceglie la famiglia visiva e filtra il menu Temi. La palette scelta
-resta indipendente dalla trasparenza della UI. I preset chiari e scuri hanno nomi
-propri e possono convivere nella stessa famiglia.
+Before the theme redesign, collections grouped 29 palettes: Classics (5), Neon
+(6), Pastel (9), Glass (3), Pixel (3) and LED/RGB (3). These historical options
+are not the current theme menu. Palette selection remained independent of UI
+transparency, and reduced motion stopped decorative effects.
 
-| Collezione | Palette | Stile |
-| --- | ---: | --- |
-| Classici | 5 | superfici sobrie, contorni discreti; Charcoal, Paper, Nord, Frost, Plum Noir |
-| Neon | 6 | accenti luminosi e bordi con alone; Cyber, Sakura, Violet, Lime Circuit, Arcade Violet, Ember |
-| Pastello | 9 | colori smorzati e superfici morbide; Latte/Mocha, Rosé, Sakura Paper, Mint, Lavender, Peach |
-| Vetro | 3 | riflessi fini, gradienti e bordi lucidi; Aurora, Moonstone, Sea Glass |
-| Pixel | 3 | pannelli squadrati, piccoli dettagli a griglia; Orchid, Ocean, Pocket Sage |
-| LED e RGB | 3 | punti LED o bordo cromatico animato; Matrix, Prism, Persimmon |
-
-Pixel cambia il trattamento dei pannelli, senza rendere il testo poco leggibile
-né pixelare le anteprime. Riduci animazioni ferma gli effetti decorativi. Vetro
-non impone trasparenza: lo slider continua a controllare soltanto la UI.
-Gli ID dei 16 preset precedenti restano stabili; la collezione viene ricavata dal
-preset scelto, senza sostituire la palette esistente durante l'aggiornamento.
-
-## Riferimenti Pinterest
+Historical visual references:
 
 - [Pinterest Palette 2026](https://newsroom.pinterest.com/pdf/pinterest-palette-2026-pdf/):
-  contrasto fra toni freddi, accenti vivaci e Plum Noir; quest'ultimo fornisce il
-  riferimento #351E28 per la superficie del preset omonimo.
+  cool tones, vivid accents and the Plum Noir surface reference `#351E28`.
 - [Dark Neon UI](https://in.pinterest.com/pin/ui_neonline--353954851938453965/):
-  superfici scure, contorni luminosi e controlli leggibili.
-- [Lavender Mint](https://in.pinterest.com/pin/696369161170866719/):
-  abbinamenti pastello per Lavender Mist e Mint Sorbet.
+  dark surfaces and luminous outlines.
+- [Lavender Mint](https://in.pinterest.com/pin/696369161170866719/): pastel pairings.
 - [Retro Pixel Art Computer](https://de.pinterest.com/pin/retro-pixel-art-computer--704743041686782481/):
-  riferimento alla famiglia di pannelli retro con dettagli geometrici.
+  geometric retro panels.
 
-Sono riferimenti di palette e linguaggio visivo; effetti, pannelli e shader sono
-realizzati nel codice dell'app. Nessuna immagine o risorsa dei pin viene inclusa
-nell'installer. Alcuni pin consentono soltanto l'anteprima indicizzata senza login;
-la palette ufficiale Pinterest rimane una fonte pubblica consultabile.
+These are palette and visual references. Effects, panels and shaders are
+implemented in application code; reference images are not shipped. Some Pinterest
+references may require login beyond their indexed preview. License and font
+attributions are in [THIRD_PARTY.md](../THIRD_PARTY.md).

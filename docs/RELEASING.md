@@ -1,8 +1,9 @@
 # Publishing a beta
 
-The repository is public at `scolapvsta/wallpaper-engine-customized`, explicitly
-authorized for the open beta on 29 October 2026. Never publish personal library
-assets, settings, credentials, raw development runtimes or logs.
+Keep the repository public. Never publish user library assets, settings,
+credentials, raw development runtimes or logs. Documentation-only changes can be
+committed and pushed without changing the application version or rebuilding
+existing release artifacts.
 
 1. Implement changes; preserve the user's renderer and preferences. Update CMake
    version, build-manifest.json, documentation and actual test results.

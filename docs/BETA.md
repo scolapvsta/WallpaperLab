@@ -1,9 +1,9 @@
 # Open beta — Arch Linux x86_64
 
 Version: **0.24.0-beta.1** (application reports 0.24.0).
-This contains the same native app, patched renderer, web support and themed
-switchers used in the development install; it contains no personal settings,
-wallpapers, Steam account data or credentials.
+The package includes the native app, patched renderer, web support and themed
+switchers. Settings, wallpaper libraries, Steam account data and credentials
+are excluded.
 
 ## Install
 

@@ -71,6 +71,9 @@ for the app plus pinned submodules.
 
 ## Documentation and credits
 
+See [contributor instructions](AGENTS.md) for development conventions, process
+lifecycle requirements and release checks.
+
 [User guide](docs/USER_GUIDE.md) · [Themes](docs/THEMES.md) ·
 [Architecture](docs/ARCHITECTURE.md) · [Tests](tests/RESULTS.md) ·
 [Development history](docs/HISTORY.md) · [Windows port notes](docs/WINDOWS_PORT.md)

@@ -1,230 +1,203 @@
-# Architettura
+# Architecture
 
-- `wallpaper-lab`: shell Raylib e controller C++ con API C. La modalità `--render`
-  incorpora la libreria nativa del motore; non lancia renderer upstream.
-- `catalog`, `project_source`, `project_properties`: catalogo Steam/locale, risoluzione
-  dei preset e proprietà persistenti per progetto.
-- `workshop`: worker serializzato per Steam UGC, callback manuali, trasferimenti
-  HTTPS limitati e interrompibili per le anteprime. Nessun codice remoto eseguito
-  prima del download/importazione.
-- `running.json`: stato con identità PID/start/exe. In modalità singola `outputs`
-  associa ogni uscita a un processo indipendente; il controller sostituisce solo
-  il processo del monitor selezionato. Un cambio globale sostituisce l'intero gruppo.
-- `Transition.h`: postprocess OpenGL per output con snapshot del vecchio wallpaper
-  e fotogramma corrente. Il controller conserva il renderer precedente fino alla
-  readiness del nuovo; fallimenti di avvio non eliminano il precedente.
-- `settings_ui`: menu disegnati alla fine del frame, con selezione differita e
-  blocco degli eventi verso i campi coperti dall'overlay.
-- `shaped_text`: cache limitata di layout Pango/Cairo; shaping Unicode e fallback
-  Fontconfig. Anche ASCII usa Pango/Cairo; FreeType rimane per brand e anteprime font.
-- `i18n`: 367 chiavi in 22 locale; nuove opzioni avanzate 0.16 con fallback inglese
-  dove non ancora revisionate. Nomi dei temi e contenuti degli autori originali.
-- `patches` e `build-manifest.json`: modifiche vendor riproducibili con pin upstream.
+Wallpaper Lab builds one application executable with a raylib UI and a C++
+controller exposed through a C API. Its `--render` mode links the native engine
+library directly. Rendering runs in a separate instance of the same executable,
+so the UI can close while the wallpaper continues.
 
-Test e limiti effettivi sono raccolti in `tests/RESULTS.md`; build, log e dati
-personali rimangono in `local/` o nelle directory XDG.
+## Components
 
-## Rendering e UI 0.14–0.15
+| Component | Responsibility |
+| --- | --- |
+| `catalog`, `project_source`, `project_properties` | Steam/local discovery, preset dependencies and persistent creator properties |
+| `workshop` | Serialized Steam UGC worker, manual callbacks and bounded, cancellable HTTPS thumbnail transfers |
+| `preferences`, controller | XDG settings, locks, profiles, assignments and process lifecycle |
+| `popup`, selector UI | Four animated thumbnail layouts and favorite navigation |
+| `settings_ui` | Deferred menu selection and overlay input blocking |
+| `shaped_text`, `i18n` | Pango/Cairo shaping, bounded text cache, Fontconfig fallback and 22 locales |
+| `local_library.hpp` | Staged media imports and metadata/thumbnail generation |
+| `caelestia_integration.hpp` | Optional asynchronous palette generation and conditional restoration |
+| `Transition.h` and engine patches | Output composition, image tuning and renderer handoff |
+| `build-manifest.json`, `patches/` | Upstream pins, ordered patches and reproducibility metadata |
 
-`Transition.h` risolve il framebuffer corrente in un FBO RGBA8 e lo compone con
-lo snapshot precedente. Il tempo di transizione parte dopo tre frame pronti,
-non dal lancio del processo. Il guard ripristina framebuffer read/draw, viewport,
-program, VAO, texture, active texture, unpack alignment e gli enable modificati.
-Le coordinate dei render target sono bottom-up, quelle degli snapshot top-down.
-Le texture usano clamp-to-edge; il campionamento zoom è limitato al rettangolo.
-Lo shader condiviso applica saturazione, contrasto attorno a 0.5 e luminosità al
-nuovo fotogramma; lo snapshot vecchio contiene già le proprie regolazioni.
+Workshop previews are static images. Remote project code is not executed before
+download/import. Build outputs, captures and runtime data stay in `local/` or XDG
+directories. [Test results](../tests/RESULTS.md) describe the verified scope.
 
-`wallpaper_profiles.json[path].image` conserva brightness, contrast e saturation;
-`.playback` conserva audio, reactive, mouse, parallax e particles. Le opzioni
-negative globali hanno sempre precedenza su quelle locali. Il file live atomico
-contiene path + image oppure path + position; il renderer lo accetta per due
-secondi e poi torna ai valori persistenti. Letture limitate a una ogni 40 ms.
+## Controller and process lifecycle
 
-La UI è composta in RGBA quando è richiesta trasparenza. L'alpha delle superfici
-dipende da `window_transparency` (0…30), mentre media e testo restano opachi.
-La presentazione finale usa alpha premoltiplicato, senza un secondo fattore
-globale che sbiadirebbe anche le immagini. `window_opacity` resta sincronizzata
-come chiave legacy inversa; non è più il controllo esposto all'utente.
-Le texture Pango vengono create/rimosse solo dopo il flush del batch Raylib;
-la cache LRU ospita 1.024 etichette. Le immagini Workshop restano statiche.
+`running.json` records PID, start time and executable identity. In one-monitor
+mode, `outputs` maps each output to an independent renderer, and a change replaces
+only that output. A global change replaces the whole group. The controller starts
+a replacement and waits for readiness before retiring the previous renderer.
+Startup failure preserves the old wallpaper. Concurrent operations are locked.
 
-I gruppi risoluzione sono un OR interno, poi combinato con gli altri criteri
-secondo AND/OR. Sul Workshop AND usa AddRequiredTagGroup oltre ai tag individuali;
-OR usa l'elenco appiattito. Le pagine UI da 50/100/200 corrispondono a 1/2/4 query
-Steam da 50. I cursori sono memorizzati per query (fino a 64 query diverse);
-la navigazione sequenziale può superare il limite delle query numerate. Per
-ricerche autore filtrate si conserva la scansione delle pagine utente e il
-conteggio locale; il precedente limite di 1.000 pagine autore rimane.
+The controller refreshes current-process information after output discovery.
+Selecting an already active project is a no-op; property changes requiring reload
+explicitly request a forced start. Before signaling any process, its identity
+must match the recorded PID/start/executable.
 
-## Catalogo, selezione e integrazioni 0.15
+## Transition capture and handoff
 
-`local_library.hpp` importa media tramite argv, senza shell: verifica estensione e
-dimensioni con ffprobe, copia in uno staging nascosto, genera miniatura e metadata,
-quindi pubblica la directory con rename. Le scansioni ignorano gli staging.
-L'identità è un hash di percorso canonico, dimensione e mtime. Le immagini sono
-progetti web con object-fit cover; i video mantengono il file nativo. L'asset dir
-vuota gestita dall'app permette di renderizzare media locali senza asset Steam.
-Scene locali collocate manualmente possono ancora richiedere gli asset upstream.
-Il catalogo riconosce `lab_origin`, `lab_media_kind`, `lab_width` e `lab_height`;
-in assenza del marker classifica locali i progetti sotto la radice locale.
-Le radici personalizzate sostituiscono la rispettiva radice predefinita, non
-migrano dati. Il source filter partecipa alla stessa combinazione AND/OR.
-Picker, copie e scansioni sono job asincroni; il catalogo viene sostituito sul
-thread UI dopo la conclusione dei worker delle miniature.
+The inspector requests reduced frames through `request.json` and receives
+`frame-OUTPUT.bin`; `frame.bin` remains a compatibility alias. Desktop transitions
+instead use `transition-request.json` with a session token, project path and
+output. The renderer writes an immutable native-resolution
+`snapshot-TOKEN-OUTPUT.bin`. Inspector traffic cannot overwrite it, and another
+output in the same process cannot answer for it. Magic, PID, dimensions and
+payload length are validated. Cleanup removes only files for the current token.
 
-Il controller aggiorna il processo corrente dopo aver scoperto i monitor.
-La selezione interattiva del progetto già corrente è un no-op; i cambi proprietà
-che richiedono ricarica usano esplicitamente il percorso di avvio forzato.
-Lo switcher conserva gli indici nell'ordine di `carousel.json`, parte dal processo
-del monitor scelto e può inserire il corrente non preferito come ancora temporanea.
-La prima pressione apre, le successive avanzano; il commit precoce usa la stessa
-regola. La Griglia anima il contorno, senza un secondo layer ingrandito esterno.
+The new renderer shows the previous snapshot while awaiting readiness and
+handoff. After recording the new state and retiring the old renderer, the
+controller publishes a shared monotonic timestamp in `start.json`. Each output
+uses it for animation timing after three ready frames. An unreadable gate has a
+five-second wait limit. Direct `--render` calls without a start file retain
+standalone timing. If a previous frame is unavailable, switching has no transition.
 
-`theme_catalog.h` definisce 16 preset indipendenti con flag light, palette, raggio
-ed effetto. `theme_catalog=true` marca la migrazione dai vecchi theme_variants;
-`light_theme` è ora una proprietà derivata del preset, non una variante utente.
-Shader e decorazioni native producono luce, LED, riflessi, particelle e bordo RGB.
-Non vengono eseguiti temi CSS esterni né importate risorse dai progetti di riferimento.
+Mirror mode shares the normalized pointer position of the output containing the
+cursor. Panorama and one-monitor mode use output-relative coordinates. Captures
+contain wallpaper framebuffers only, rather than compositor windows.
 
-`caelestia_integration.hpp` usa solo `caelestia wallpaper --print PREVIEW`, valida
-la palette e pubblica atomicamente scheme.json. Non usa wallpaper --file,
-scheme set o apply_colours. Conserva la palette precedente e quella pubblicata
-nello stato dell'app; al disable ripristina solo se nessuno ha cambiato la palette.
-La generazione è asincrona rispetto alla UI. Prima della pubblicazione ricontrolla
-flag e processo corrente sotto ControllerLock, scartando risultati tardivi dopo
-disable o un altro cambio wallpaper. Gli errori vengono separati dallo stato del
-renderer. La palette è unica per la shell e derivata dalla miniatura, non da ogni frame.
+## OpenGL composition and image tuning
 
+`Transition.h` resolves the current framebuffer into an RGBA8 FBO and combines it
+with the previous snapshot. Render targets use bottom-up coordinates; snapshots
+use top-down coordinates. Textures use clamp-to-edge and zoom sampling stays
+inside the source rectangle. The GL guard restores read/draw framebuffer,
+viewport, program, VAO, texture state, unpack alignment, color mask, culling,
+stencil and modified enables.
 
-## Personalizzazione e generatore opzionale 0.16
+The shared shader applies image adjustments to the new frame. The previous
+snapshot already contains its own tuning. Profiles at
+`wallpaper_profiles.json[path].image` store brightness, contrast, saturation, hue,
+temperature, gamma, vignette, rotation and flips. Rotation adapts crop to fill the
+output. Panorama transforms each output separately; scene interaction coordinates
+are independent of this final image transform.
 
-Le preferenze switcher sono interi con unità esplicite (percentuali, pixel,
-millisecondi): dimensione, zoom, entrata/uscita, movimento, inversione e Onda.
-`popup_frame_scaled` riserva spazio per lo zoom e l'ampiezza massima senza far
-crescere il pannello a ogni pressione. Il mouse usa i rettangoli disegnati nel
-canvas, inclusi offset e layer ingranditi; in Griglia hover cambia selezione,
-mentre nelle strisce la geometria resta stabile fino al clic. Il dot bianco è
-comune al selettore e alle card. La demo dentro l'app usa PopupImages e lo stesso
-shader arrotondato, senza lanciare un altro processo.
+Atomic live files contain the project path and image or position payload. The
+renderer accepts recent live values for two seconds, then returns to persisted
+values, with reads limited to once per 40 ms. `lab_adjust_reset` updates the
+image subobject under `ControllerLock` in one write and publishes a live message.
+A full reset uses an empty image object, interpreted as neutral values; selective
+reset removes only advanced keys. Position, zoom, playback and creator properties
+remain separate.
 
-`transition_duration`, `transition_direction`, `transition_curve` e
-`transition_zoom` viaggiano nella configurazione per output e negli uniform della
-preview. Il motore mantiene la readiness a tre frame prima di iniziare il tempo.
-`ImageTuning` estende il profilo con hue, temperature, gamma, vignette, rotation,
-flip_x/flip_y. Il postprocess trasforma le UV della nuova immagine, conserva lo
-snapshot già elaborato del wallpaper precedente e adatta il crop alla rotazione.
-La stessa lettura profilo/live, limitata a 40 ms, aggiorna i parametri senza restart.
+`transition_duration`, `transition_direction`, `transition_curve` and
+`transition_zoom` travel in output configuration and preview uniforms. Iris radius
+is `length(max(origin, 1-origin) * aspect)`, reaching the farthest corner.
+`fwidth`/`smoothstep` antialias the edge; endpoints return the exact old/new image.
+Opt-in traces include RGBA samples, snapshot comparisons, timing and frame counts.
 
-Le icone vengono disegnate in un atlas a 3× con margini e mipmap: cerchi ed ellissi
-sono geometria piena, per evitare linee OpenGL da un pixel non scalabili. Pango/Cairo
-tratta ora anche ASCII con antialiasing grayscale e hinting leggero; il batch viene
-scaricato prima di creare/rimuovere texture. La composizione alpha selettiva della
-0.15 resta invariata.
+## Compositor isolation
 
-L'integrazione Caelestia non chiama più wallpaper --print ereditando lo schema
-corrente. `caelestia_palette.py`, incluso dal componente app dell'installer,
-seleziona esplicitamente uno dei quattro generatori Material You. `--prepare`
-verifica i moduli già presenti o installa materialyoucolor/Pillow in un venv XDG
-privato soltanto quando l'utente abilita la funzione. Registra i preset opzionali
-nel data dir; non installa la shell, non usa sudo e non modifica il pacchetto Caelestia.
+On Hyprland, `desktop_surface.hpp` registers a named Lua runtime layer rule using
+`hyprctl eval` before `app.setup()`. It matches only
+`wallpaper-lab-background` and sets `no_anim=true`, preventing compositor slide/fade
+from adding to application effects. A global handle prevents duplicates. After a
+configuration reload, the next renderer startup recreates it. Sessions without
+`HYPRLAND_INSTANCE_SIGNATURE` skip this step. Popup animation remains separate.
+No desktop configuration file is edited.
 
-Il controller richiede un frame fresco al proprio renderer (PID e path verificati),
-lo scrive temporaneamente in PPM e lo rimuove dopo la generazione. Se non arriva,
-usa la miniatura del progetto. I ruoli surface/background ricevono una tinta
-contenuta dal seed, così i widget mostrano il colore anche con superfici Material
-normalmente poco sature. L'output resta dynamic/default per compatibilità con la
-shell. Il callback di pubblicazione verifica anche variante/modo correnti; una
-modifica in coda causa una nuova generazione. Il ripristino condizionale 0.15
-rimane valido. Il browser statico di Caelestia non viene popolato né riavviato.
+Native framebuffer tests cannot detect compositor-added transforms. Desktop
+pixel regression is therefore separate from shader and readiness checks.
 
-## Passaggio e catture per monitor 0.17
+## UI composition, fonts and menus
 
-L'inspector pubblica `request.json` e riceve un frame ridotto
-`frame-OUTPUT.bin`. Il vecchio `frame.bin` rimane un alias atomico per compatibilità
-con le prove grafiche esistenti. Il controller usa invece
-`transition-request.json` con token di sessione, path del progetto e output.
-Il renderer scrive uno snapshot nativo immutabile
-`snapshot-TOKEN-OUTPUT.bin`: la richiesta dell'inspector non può sostituirlo, né
-un altro monitor con lo stesso PID può rispondere al suo posto. Magic, PID,
-dimensioni e lunghezza vengono verificati prima di accettare il file. Le copie
-temporanee nel feed vengono rimosse dal controller per il solo token corrente.
+The UI composes in RGBA when transparency is needed. `window_transparency` (0–30)
+affects interface surfaces while media and text remain opaque. Final presentation
+uses premultiplied alpha. `window_opacity` remains an inverse legacy key.
 
-Il nuovo renderer continua a mostrare lo snapshot mentre attende readiness e
-passaggio. Dopo aver registrato lo stato e ritirato il renderer precedente, il
-controller pubblica un `start.json` comune, con timestamp monotono. I monitor
-usano quel timestamp per la durata, anziché iniziare ciascuno durante l'avvio.
-Tre frame pronti restano necessari. Se il segnale non è leggibile, un limite di
-attesa di cinque secondi evita uno snapshot bloccato indefinitamente. Le prove
-dirette `--render` senza start_file mantengono il comportamento autonomo.
-La palette Caelestia viene campionata dopo la durata della transizione.
+Pango/Cairo shapes ASCII and Unicode with grayscale antialiasing and light
+hinting. The LRU cache holds 1,024 labels. Texture creation and destruction happen
+after flushing queued raylib draws; CPU measurement does not create textures.
+FreeType remains for branding and font previews. Fontconfig registers bundled
+families within the process. Icons use a 3× atlas with padding and mipmaps;
+filled geometry avoids unscalable one-pixel OpenGL outlines.
 
-In modalità duplicata l'origine dell'iris è la posizione normalizzata del mouse
-sul monitor che lo contiene, condivisa fra le uscite. Panorama e monitor singolo
-mantengono coordinate relative alla propria uscita.
+Menus draw after other fields and defer selection until drawing finishes. Their
+overlays block input to covered controls. `Choice` uses `ToggleChoice` for exactly
+two alternatives; `BoolChoice`, switches and creator booleans share toggle
+components. Two nonboolean options preserve their original value/index. Creator
+labels are copied before drawing because the C API reuses a static buffer.
+Two-value multi-select fields retain independent toggles. Larger sets use menus.
 
-`lab_adjust_reset` aggiorna in un'unica scrittura il sotto-oggetto image del
-profilo corrente, sotto ControllerLock; pubblica anche il messaggio live. Il
-ripristino selettivo rimuove soltanto sette chiavi avanzate. Posizione, zoom,
-creator e riproduzione rimangono indipendenti. Il reset completo usa image vuoto,
-che il renderer interpreta con i valori neutri.
+The translation catalog uses Italian lookup keys and translated values for the
+other 21 locales. These are internal identifiers, separate from the English
+repository documentation. RTL text is shaped, but panels remain left-to-right.
+Backend diagnostics and creator content are not fully localized.
 
-Il catalogo contiene 368 messaggi e 22 locale. La verifica Pango copre ogni
-messaggio e controlla i glifi mancanti; le schermate native verificano cambio e
-persistenza della lingua. L'arabo e l'urdu usano shaping e direzione del testo
-Pango, ma la disposizione dei pannelli resta da sinistra a destra. I messaggi
-tecnici grezzi del backend e i contenuti degli autori non fanno parte del catalogo
-tradotto. Queste prove non sostituiscono una revisione linguistica madrelingua.
+## Catalog, filters and imports
 
-## Isolamento dal compositor e verifiche dei pixel 0.18
+Resolution groups match with an internal OR and then combine with other criteria
+using AND/OR. Workshop AND uses `AddRequiredTagGroup` plus individual tags; OR uses
+a flattened list. UI pages of 50/100/200 use 1/2/4 Steam queries of 50. Sequential
+cursor navigation can exceed numbered-query limits; cursors are cached for up to
+64 queries. Filtered author searches scan author pages and count locally, with
+the historical 1,000-page author limit.
 
-Il frame letto dal motore può essere corretto mentre Hyprland trasforma la
-superficie finale: layersIn/layersOut slide e fadeLayers si sommavano al nostro
-shader. La superficie ha ora namespace wallpaper-lab-background. Prima di
-app.setup(), desktop_surface.hpp registra tramite hyprctl eval una regola Lua
-runtime nominata, no_anim=true, con match esatto di quel namespace. Il relativo
-handle globale evita duplicazioni; dopo un reload della configurazione viene
-ricreato al prossimo avvio del renderer. Nessun file del DE o autostart viene
-modificato. Il popup rimane una finestra separata e conserva le sue animazioni.
-Su sessioni senza HYPRLAND_INSTANCE_SIGNATURE il passaggio viene saltato.
-Riferimento API: https://wiki.hypr.land/configuring/core/rules/layer-rules/.
+`local_library.hpp` uses argv-based subprocesses for ffprobe/FFmpeg. It validates
+extensions and dimensions, copies to hidden staging, generates metadata and a
+thumbnail, then publishes with rename. Scans ignore staging. Import identity
+hashes canonical path, size and modification time. Images become managed web
+projects with `object-fit: cover`; videos keep native media files. An app-managed
+empty asset directory permits local media without Steam assets. Manually placed
+scene projects may still need upstream assets.
 
-CWallpaper abilita le scritture RGBA nella composizione finale. TransitionFrame
-isola anche color mask, culling e stencil, poi ripristina lo stato. Il test GL
-con alpha mascherata riproduce RGBA 180,30,60,0 prima e 180,30,60,255 dopo. Questo
-è un difetto separato: il controllo A/B con scene native senza quella difesa
-passava già, quindi non viene usato come spiegazione unica del video.
+Catalog metadata includes `lab_origin`, `lab_media_kind`, `lab_width` and
+`lab_height`; without markers, projects under the local root are classified as
+local. Custom roots replace defaults without migrating files. Pickers, copies
+and scans run asynchronously. Catalog replacement happens on the UI thread after
+thumbnail workers finish.
 
-Il raggio degli iris è length(max(origin,1-origin)*aspect), non la diagonale
-intera indipendente dal mouse. I bordi usano fwidth/smoothstep e gli estremi
-restituiscono esattamente vecchio/nuovo. Le tracce opt-in includono ora campioni
-RGBA, confronto con il pixel dello snapshot e tempi/frame durante l'effetto.
+## Switcher and themes
 
-Il loader del popup include anche popupAnchor, prima escluso se non preferito.
-La rotazione distingue lo slot temporaneo dai preferiti: la prima pressione
-seleziona l'attivo, le successive saltano quello slot anche dopo il wrap. Il
-mouse può selezionare una card e ribasare il contatore senza cambiare i preferiti.
+Switcher navigation follows `carousel.json`, starting from the selected output's
+active wallpaper. A nonfavorite active item is a temporary anchor shown on opening
+and skipped on subsequent wraps. Confirmation of the active item is a no-op.
+Mouse input uses the actual drawn rectangles, including offsets and enlarged
+layers. Grid hover changes selection; strips keep geometry stable until click.
+The active dot is shared by cards and selector.
 
-LabTheme conserva gli ID e aggiunge collection; la preferenza è derivata dal
-preset corrente. Cambiare collezione seleziona il primo preset della famiglia;
-cambiare tema aggiorna anche la collezione. Il margine interno del corpo settings
-include ora i bordi luminosi del primo controllo. Il reset immagine usa una sola
-scrittura atomica già disponibile, esposta da un solo pulsante DangerButton.
+Switcher preferences use explicit percent, pixel and millisecond units.
+`popup_frame_scaled` reserves room for maximum zoom and Wave amplitude without
+growing the surface on each advance. The in-app demo uses `PopupImages` and the
+same rounded shader without starting another process.
 
-## Controlli binari 0.19
+The current theme catalog provides four designs, 21 palettes and 16 native
+backgrounds. Suggested fonts are remembered per theme; General Fonts is an
+independent opt-in override. Historical collection/migration markers preserve
+older preferences. Native shaders and drawings implement effects; external theme
+CSS and reference-image assets are not executed or bundled.
 
-Choice sceglie ToggleChoice quando count è esattamente due, anche per valori
-dinamici come le varianti di un wallpaper. BoolChoice usa lo stesso componente;
-SwitchToggle e le proprietà bool del creator condividono ToggleRow. Per coppie
-non booleane la UI mostra il valore selezionato e restituisce il suo indice,
-conservando il valore originale del progetto tramite le API esistenti. I testi
-delle due opzioni del creator vengono copiati prima di disegnare, perché la
-funzione CAPI delle etichette riutilizza un buffer statico.
+## Playback and media
 
-Le coppie multi-select producono due toggle indipendenti: non vengono ridotte a
-un'esclusione reciproca che perderebbe stati validi. I campi con tre o più voci
-mantengono gli overlay precedenti. ToggleChoice chiude un eventuale menu dello
-stesso ID e rispetta inputClip, modali e stato disabilitato durante applicazione.
-La geometria test distingue tipo del controllo e valore per verificare i clic
-senza affidarsi soltanto all'aspetto del cursore. Nessun cambiamento al renderer
-o al formato delle preferenze.
+Profiles store audio, music reaction, mouse, parallax and particles separately.
+Global disables take precedence over local enables. Live audio gates are reread
+every 100 ms; CEF host mute is applied before its message loop, including when
+visual rendering is paused. MPV updates volume on changes and SDL uses the same
+live volume policy. Audio capture for reactive effects is independent of mute.
+Other playback changes can reload the project.
+
+MPRIS metadata and timelines are forwarded to scene/web scripts, including those
+initialized after metadata arrives. Timeline units are converted to seconds and
+require a known duration. Creator audio playlists are separate from system media.
+
+## Optional Caelestia palette generation
+
+`caelestia_palette.py` selects one of four Material You generators. `--prepare`
+uses existing Python modules or installs materialyoucolor/Pillow in an XDG venv
+only when the feature is enabled. Presets are registered in the data directory;
+the shell is installed separately.
+
+The controller requests a fresh frame from its own verified renderer, writes a
+temporary PPM and removes it after generation. If unavailable, it uses the project
+thumbnail. Surface/background roles get a restrained seed tint. Publication uses
+`dynamic/default` for shell compatibility; it does not populate the static
+wallpaper browser or change Caelestia package files.
+
+Before publishing `scheme.json`, the callback rechecks enablement, active project,
+variant and brightness mode under `ControllerLock`. Late results are discarded
+or regenerated. Generation runs off the UI thread and errors are independent of
+renderer status. Disabling restores the previous palette only when the current
+file still matches the app's last publication. Palette state is global and sampled
+after transitions or committed adjustments, rather than continuously per frame.

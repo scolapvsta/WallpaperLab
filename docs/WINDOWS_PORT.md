@@ -1,43 +1,35 @@
-# Versione Windows — valutazione 0.17
+# Windows port assessment
 
-Questa è una stima progettuale, non una versione Windows già disponibile né un
-impegno di calendario. Il codice attuale è verificato su Arch Linux/Hyprland;
-non basta ricompilarlo per Windows o avviarlo con Wine.
+Wallpaper Lab is currently verified on Arch Linux with Hyprland. A Windows build
+requires a dedicated port. No Windows build or release has been verified.
 
-## Stima indicativa
+## Reusable components
 
-Con una persona a tempo pieno, una macchina Windows reale e test continui:
+The catalog, profiles, translations, parts of the raylib UI, scene parsing and
+shaders can be reused. The application currently depends on POSIX processes,
+`/proc`, signals, file locks, XDG paths, shared objects, Hyprland and Linux output
+selection. Windows-related CEF build conditions in the upstream engine do not
+provide a complete Windows desktop backend for this application.
 
-- **4–6 settimane** per un prototipo con interfaccia, libreria, importazione di
-  immagini/video e applicazione desktop di base.
-- **3–5 mesi complessivi** per una beta ampia con più monitor, scene/web,
-  audio reattivo, media correnti, transizioni, Workshop e installer, avvicinandosi
-  alle funzioni Linux attuali. Le compatibilità dei progetti restano da verificare.
+## Required work
 
-I tempi includono sviluppo e prove, non una pubblicazione immediata. Driver,
-rendering CEF/mpv e comportamento di Explorer possono allungarli; non è stata
-ancora eseguita una compilazione Windows del progetto.
+Platform adapters are needed for desktop wallpaper hosting and Explorer restart
+recovery, process lifecycle, global shortcuts, file selection, mixed-DPI monitors,
+dependency loading and packaging. System audio capture needs a Windows mechanism
+such as [WASAPI loopback](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording).
+Monitor support must account for
+[process DPI awareness](https://learn.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process)
+and [mixed-DPI window hosting](https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows).
+Media metadata and Steam integration also need Windows implementation and testing.
+Caelestia integration would remain a Linux option.
 
-## Parti riutilizzabili e lavoro necessario
+The practical starting point is to separate OS APIs, build the UI with image/video
+rendering, then add scene support and platform integrations.
 
-Catalogo, profili, traduzioni, parte della UI Raylib, parsing delle scene e
-shader possono essere riutilizzati. Il progetto applicativo è invece collegato
-a processi POSIX, `/proc`, segnali, lock, percorsi XDG, librerie `.so`, Hyprland e
-alla selezione delle uscite Linux. Il motore ha alcune condizioni CMake Windows
-per CEF, ma manca un backend desktop Windows completo in questa integrazione.
+## Historical planning estimate
 
-Servono adattatori per hosting dello sfondo e ripristino dopo il riavvio di
-Explorer, processi/lifecycle, scorciatoie globali, selezione dei file, monitor e
-DPI differenti, caricamento delle dipendenze e packaging. L'audio di sistema
-richiede un percorso Windows come
-[WASAPI loopback](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording);
-la gestione dei monitor deve rispettare la
-[consapevolezza DPI del processo](https://learn.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process)
-e i vincoli di
-[hosting di finestre con DPI differenti](https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows).
-Anche metadati dei player e integrazione Steam richiedono implementazione e prove
-su Windows. Caelestia rimarrebbe un extra Linux.
-
-La priorità iniziale ragionevole è separare le API del sistema operativo, fare
-compilare la UI con un renderer immagini/video e aggiungere poi le scene. Nessun
-port Windows è stato avviato nella 0.17: la richiesta era una valutazione dei tempi.
+The 0.17 assessment estimated 4–6 weeks for an image/video prototype and 3–5 months
+in total for a broader beta approaching the Linux feature set, assuming one
+full-time developer, Windows hardware and continuous testing. These are unverified
+planning estimates, not a release schedule. Driver behavior, CEF/mpv rendering,
+Explorer integration and project compatibility can substantially change the work.
