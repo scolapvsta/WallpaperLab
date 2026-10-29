@@ -1151,3 +1151,39 @@ Evidenze installazione: `local/ui18/install/`. App riaperta per il feedback.
 Installazione 0.19 completata con backup del runtime e delle preferenze correnti.
 Confronto di tutti i file di configurazione: identici al backup; wallpaper attivo
 ripristinato e vecchio PID ritirato. Evidenza: `local/ui19/install/`.
+
+## 0.20 — Themes come UI, Strawberry core — 29 ottobre 2026
+
+- Build Release completata. CTest: **11/11 superati**, inclusi catalogo,
+  preferenze, locking, proprietà dei progetti e copertura delle 22 lingue.
+- Preferenze: migrazione degli ID precedenti preservata; design indipendente da
+  palette e modalità. Verificate le 32 palette nei due modi nel resolver e la
+  persistenza di Strawberry scuro al riavvio.
+- `tests/theme_rework_integration.py` sul desktop Hyprland, con directory XDG e
+  libreria sintetica isolate: cambio della UI, ritorno a Originale con palette
+  precedente, ripristino della combinazione Strawberry e selezione di tutte le
+  29 palette archiviate superati. Le tre palette nuove sono state selezionate.
+- Screenshot locali ispezionati per Strawberry Milk chiaro/scuro, libreria e
+  anteprime Griglia/Onda; acquisiti anche Raspberry Ribbon, Vanilla Shortcake,
+  Fiume e Verticale. Tasti smerlati, pizzi, fiocchi, fondo vichy e coniglietti
+  disegnati nel codice, senza asset delle immagini di riferimento.
+- Anteprime dei quattro layout aperte e chiuse correttamente con un solo item
+  sintetico: prova grafica di base, non benchmark della fluidità su grandi
+  collezioni. Il renderer e la compatibilità dei progetti non cambiano.
+- I primi tentativi dell'integrazione hanno incontrato una libreria condivisa
+  mancante nel percorso di test e problemi di focus/coordinate del compositor.
+  Risolti con runtime locale, finestra di test flottante e coordinate assolute
+  esplicite; la suite completa è poi passata. Lo stato del renderer personale
+  prima e dopo l'integrazione è identico.
+- Backup locale dei sorgenti 0.19, delle preferenze e del vecchio eseguibile in
+  `local/backups/themes-0.19/`. Nessun backup, screenshot, log o media nel commit.
+- Installata 0.20.0. La sostituzione atomica del binario ha reso il renderer 0.19
+  ancora vivo non riconoscibile dal nuovo controller (executable con suffisso
+  deleted). Avviato con successo lo stesso wallpaper nella 0.20 prima di chiudere
+  il vecchio PID, verificando tempo di avvio, eseguibile e argomento --render.
+  Nuovo renderer vivo e stesso percorso del wallpaper verificati. Nessuna modifica
+  all'avvio automatico. Attivata Strawberry Milk Light, conservando la precedente
+  palette Arcade Violet scura nella scelta Originale.
+- Limiti: il popup transitorio riceve i colori, conservando la geometria esistente;
+  non ha i decori della finestra principale. Le modalità opposte dei preset
+  storici sono derivate dal colore d'accento. Le decorazioni sono statiche.

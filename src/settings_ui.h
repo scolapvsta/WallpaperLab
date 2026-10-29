@@ -11,7 +11,7 @@ static bool ToggleRow(Rectangle row,const char* label,const char* state,bool val
  int labelLines=UiMeasure(label,13)>row.width-76?2:1;int h=TextLines(label,row.x,row.y+(state?0:(row.height-labelLines*20)/2),row.width-76,13,2,ink);
  if(state&&*state)TextLines(state,row.x,row.y+h+1,row.width-76,12,2,enabled?muted:Fade(muted,.4f));
  Rectangle track={row.x+row.width-54,row.y+(row.height-24)/2,48,24};
- ThemePanel(track,1,16,enabled?(value?AppTheme.border:hot?controlHover:control):Fade(control,.45f));
+ if(StrawberryTheme())BerryCookie(track,enabled?(value?AppTheme.border:hot?controlHover:control):Fade(control,.45f));else ThemePanel(track,1,16,enabled?(value?AppTheme.border:hot?controlHover:control):Fade(control,.45f));
  DrawCircleV((Vector2){track.x+(value?36:12),track.y+12},9,value?(lab_option("light_theme")?WHITE:(Color){24,31,37,255}):ink);
  if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)?!value:value;
 }

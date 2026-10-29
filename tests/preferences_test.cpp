@@ -19,6 +19,14 @@ int main(){
         writeJson(configDir()/"settings.json",{{"ui_theme",5},{"light_theme",false}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==5,"legacy pastel migration failed");
         writeJson(configDir()/"settings.json",{{"ui_theme",1}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==1,"legacy light migration failed");
         writeJson(configDir()/"settings.json",{{"ui_theme",4},{"light_theme",true},{"theme_variants",true}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==12,"legacy light pink did not migrate to independent Sakura Paper");
+        writeJson(configDir()/"settings.json",{{"theme_catalog",true},{"theme_ui_v2",true},{"ui_design",1},{"ui_theme",29},{"light_theme",false}});
+        require(loadSettings()["light_theme"]==false&&loadSettings()["ui_design"]==1&&loadSettings()["ui_theme"]==29,"independent dark strawberry mode lost on reload");
+        writeJson(configDir()/"settings.json",{{"theme_catalog",true},{"ui_theme",4}});
+        require(loadSettings()["ui_design"]==0&&loadSettings()["light_theme"]==false,"legacy appearance changed on migration");
+        for(int i=0;i<LAB_THEME_COUNT;i++)for(int light=0;light<2;light++){
+            auto colors=LabResolvedPalette(i,light);require(colors.light==light,"palette mode ignored");
+            require(colors.bg!=colors.text&&colors.surface!=colors.accent,"palette lost contrast");
+        }
         require(loadCarousel().empty(),"new carousel is not empty");
         std::vector<Item> items={{"1","One","scene","","/one",""},{"2","Two","scene","","/two",""},{"3","Broken","preset","","/three","unsupported"}};
         changeCarousel("/two",0);changeCarousel("/one",0);changeCarousel("/three",0);

@@ -69,7 +69,7 @@ static float ScrollInput(Rectangle area){
 }
 static bool Button(Rectangle r,const char* label,bool active,bool enabled){
     bool hot=Hot(r,enabled);Color bg=active?AppTheme.border:hot?controlHover:control;if(active)bg.a=control.a;
-    ThemePanel(r,0.22f,12,enabled?bg:Fade(bg,0.45f));
+    ThemeButton(r,enabled?bg:Fade(bg,0.45f));
     Color ink=active?(lab_option("light_theme")?WHITE:(Color){17,30,25,255}):AppTheme.text;
     char shown[512];snprintf(shown,sizeof(shown),"%s",label);bool complex=ComplexText(label);float measured=complex?UiMeasure(label,15):MeasureTextEx(buttonFont,label,15,0).x;float fontSize=Clamp(15*(r.width-16)/fmaxf(1,measured),12,15);
     while(strlen(shown)>3&&(complex?UiMeasure(shown,fontSize):MeasureTextEx(buttonFont,shown,fontSize,0).x)>r.width-16){int len=strlen(shown);if(len>=3&&!strcmp(shown+len-3,"..."))shown[len-=3]=0;len--;while(len>0&&((unsigned char)shown[len]&0xc0)==0x80)len--;shown[len]=0;strcat(shown,"...");}
@@ -132,15 +132,15 @@ static void InitIconAtlas(void){iconAtlasTarget=LoadRenderTexture(40*3*(UI_RIGHT
 static void Icon(UiIcon icon,Vector2 c,Color ink,bool fill){if(!iconAtlas.id){IconRaw(icon,c,ink,fill);return;}DrawTexturePro(iconAtlas,(Rectangle){icon*120,fill?0:120,120,-120},(Rectangle){c.x-20,c.y-20,40,40},(Vector2){0},0,ink);}
 static bool GlyphButton(Rectangle r,UiIcon icon,bool active,bool enabled,const char* label){
     bool hot=Hot(r,enabled);bool star=icon==UI_STAR;
-    Color bg=star?(Color){31,35,41,255}:hot?controlHover:control;if(icon==UI_KEY&&active&&recordingKey)bg=(Color){26,89,55,255};
-    ThemePanel(r,0.24f,12,enabled?bg:Fade(bg,0.5f));
-    Color ink=icon==UI_TRASH?(Color){236,105,115,255}:star?WHITE:AppTheme.text;
+    Color bg=star&&!StrawberryTheme()?(Color){31,35,41,255}:hot?controlHover:control;if(icon==UI_KEY&&active&&recordingKey)bg=(Color){26,89,55,255};
+    ThemeButton(r,enabled?bg:Fade(bg,0.5f));
+    Color ink=icon==UI_TRASH?(Color){236,105,115,255}:star&&!StrawberryTheme()?WHITE:AppTheme.text;
     if(!enabled)ink=Fade(ink,0.35f);
     Vector2 center={r.x+(label&&*label?23:r.width/2),r.y+r.height/2};
     int index=iconIndex>=0?iconIndex:selected_index;
     if(star&&index>=0){float p=starPulse[index];if(p<=0)Icon(UI_STAR,center,ink,active);else StarIcon(center,10+3*sinf(p*PI),ink,active);if(p>0)DrawCircleLines(center.x,center.y,12+(1-p)*8,Fade(ink,p*0.4f));}
     else Icon(icon,center,ink,active);
-    if(label&&*label)ButtonText(label,r.x+44,r.y+(r.height-15)/2-1,enabled?(star?WHITE:AppTheme.text):Fade(star?WHITE:AppTheme.text,0.35f));
+    if(label&&*label)ButtonText(label,r.x+44,r.y+(r.height-15)/2-1,enabled?(star&&!StrawberryTheme()?WHITE:AppTheme.text):Fade(star&&!StrawberryTheme()?WHITE:AppTheme.text,0.35f));
     if(active&&!star)DrawRectangleRoundedLinesEx(r,0.24f,12,1.2f,Fade(AppTheme.border,0.8f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
@@ -227,6 +227,7 @@ static float CompactGlyphWidth(const char* label);
 #include "transition_ui.h"
 static float opacityDraft=0;
 static void SettingsBody(Rectangle area){
+    if(StrawberryTheme())ThemePanel((Rectangle){area.x+148,area.y,area.width-156,area.height},.025f,12,surface);
     int x=area.x+16,y=area.y+12,w=area.width-32;
     const char* tabs[]={lab_tr("Display"),lab_tr("Riproduzione"),lab_tr("Carousel"),lab_tr("Aspetto"),lab_tr("Generali"),"Workshop",lab_tr("Librerie"),lab_tr("Integrazioni")};
     const int order[]={4,6,0,1,2,3,7,5};for(int slot=0;slot<8;slot++){int i=order[slot];settingsTabs[i]=(Rectangle){x,y+slot*43,122,36};if(Button(settingsTabs[i],tabs[i],settingsTab==i,!applying)){settingsTab=i;settingsScroll=settingsScrollDraw=0;choiceOpen=-1;displayDragging=-1;SetRecording(false);}}
@@ -247,9 +248,10 @@ static void SettingsBody(Rectangle area){
         UiText(lab_tr("Shortcut del carousel"),x,y,18,AppTheme.text);y+=30;ShortcutInline(x,y,w);y+=50;
         int current=lab_shortcut_enabled();int value=BoolChoice(21,x,&y,w,lab_tr("Shortcut attivo"),current);if(value!=current)lab_set_shortcut(lab_shortcut(),value);
     }else if(settingsTab==3){
-        const char* groups[LAB_COLLECTION_COUNT];for(int n=0;n<LAB_COLLECTION_COUNT;n++)groups[n]=lab_tr(labCollections[n]);int family=lab_option("theme_collection");int group=Choice(38,x,&y,w,lab_tr("Collezione"),groups,LAB_COLLECTION_COUNT,family);if(group!=family)lab_set_option("theme_collection",group);
-        const char* themes[LAB_THEME_COUNT];int ids[LAB_THEME_COUNT],n=0,at=0;for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==lab_option("theme_collection")){ids[n]=i;themes[n]=labThemes[i].name;if(i==lab_option("ui_theme"))at=n;n++;}
-        int value=Choice(30,x,&y,w,lab_tr("Temi"),themes,n,at);if(value!=at)lab_set_option("ui_theme",ids[value]);
+        const char* designs[]={lab_tr("Originale (backup)"),"Strawberry core"};int design=lab_option("ui_design");int value=Choice(38,x,&y,w,"Themes",designs,2,design);if(value!=design)lab_set_option("ui_design",value);
+        const char* palettes[LAB_THEME_COUNT];for(int i=0;i<LAB_THEME_COUNT;i++)palettes[i]=labThemes[i].name;
+        int palette=lab_option("ui_theme");value=Choice(30,x,&y,w,"Color Palettes",palettes,LAB_THEME_COUNT,palette);if(value!=palette)lab_set_option("ui_theme",value);
+        const char* modes[]={"Dark","Light"};int light=lab_option("light_theme");value=Choice(31,x,&y,w,"Mode",modes,2,light);if(value!=light)lab_set_option("light_theme",value);
         if(uiSliderDrag!=0)opacityDraft=lab_option("window_transparency")/100.f;
         if(EntrySlider(x,&y,w,lab_tr("Trasparenza della UI"),&opacityDraft))lab_set_option("window_transparency",roundf(opacityDraft*100));
         y+=TextLines(lab_tr("0% · opaca · immagini e scene restano opache"),x,y,w,12,2,muted)+14;
@@ -343,7 +345,11 @@ static void SearchBar(Rectangle r){
 #include "workshop_ui.h"
 static void Header(int sw,int top,int count){
     DrawRectangle(0,0,sw,top,AppTheme.bg);
-    Icon(UI_LOGO,(Vector2){44,40},AppTheme.text,false);
+    if(StrawberryTheme()){
+        for(int x=0;x<sw;x+=32)DrawRectangle(x,0,16,top,Fade(AppTheme.border,.035f));
+        BerryLace(0,top-11,sw);BerryBunny(42,41,.65f);
+        if(sw>1160){BerryBow(sw-144,29,.8f);BerryFruit(sw-80,37,20);BerryBunny(sw-42,125,1.1f);}
+    }else Icon(UI_LOGO,(Vector2){44,40},AppTheme.text,false);
     DrawTextEx(brandFont,"Wallpaper Lab",(Vector2){72,21},27,0,AppTheme.text);
     float navX=fmaxf(285,72+MeasureTextEx(brandFont,"Wallpaper Lab",27,0).x+30);const char* navNames[]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop"};UiIcon navIcons[]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD};
     for(int i=0;i<3;i++){int navPage=i==2?3:i;float width=MeasureTextEx(buttonFont,lab_tr(navNames[i]),15,0).x+62;if(i==0)headerLibrary=(Rectangle){navX,22,width,38};else if(i==1)headerCarousel=(Rectangle){navX,22,width,38};else headerWorkshop=(Rectangle){navX,22,width,38};if(GlyphButton((Rectangle){navX,22,width,38},navIcons[i],page==navPage,!applying,lab_tr(navNames[i])))ChangePage(navPage);navX+=width+8;}
@@ -367,6 +373,7 @@ static void Header(int sw,int top,int count){
         if(hint)UiText(lab_tr(hint),search.x+search.width-UiMeasure(lab_tr(hint),12),142,12,muted);
 
     }
+    if(StrawberryTheme())UiText("strawberry core · made with sweetness",72,54,11,muted);
     DrawLine(28,top-1,sw-28,top-1,lineColor);
 }
 static void Grid(Rectangle area,int count,int* indices,float dt){
@@ -690,7 +697,7 @@ int selector_main(int argc,char**argv){
         Header(sw,top,count);StatusBar(sw,sh);ThemeWindowTrim(sw,sh);Modals(sw,sh);TransitionPreview();SwitcherPreview();AnimationCustomization();ChoiceOverlay();EndBlendMode();if(uiCanvasActive){EndTextureMode();ClearBackground(BLANK);BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);DrawTexturePro(uiCanvas.texture,(Rectangle){0,0,sw,-sh},(Rectangle){0,0,sw,sh},(Vector2){0},0,WHITE);EndBlendMode();}EndDrawing();
         // Opt-in state evidence for isolated desktop interaction tests.
         stateClock+=dt;const char* stateOutput=getenv("WALLPAPER_LAB_UI_STATE");
-        if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"transition_preview\":%s,\"switcher_preview\":%s,\"customize\":%d,\"transparency\":%d,",transitionPreview?"true":"false",switcherPreview?"true":"false",animationCustomize,lab_option("window_transparency"));fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"theme\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
+        if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"transition_preview\":%s,\"switcher_preview\":%s,\"customize\":%d,\"transparency\":%d,",transitionPreview?"true":"false",switcherPreview?"true":"false",animationCustomize,lab_option("window_transparency"));fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"theme\":%d,\"design\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("ui_design"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
             for(int n=0;n<6;n++)fprintf(geometry,"%s\"%d\":[%.1f,%.1f]",n?",":"",n,resolutionHeaders[n].x+resolutionHeaders[n].width/2,resolutionHeaders[n].y+18);
             fprintf(geometry,"},\"resolutions\":{");bool comma=false;
             for(int n=0;n<64;n++)if(resolutionRows[n].width>0){fprintf(geometry,"%s\"%d\":[%.1f,%.1f]",comma?",":"",n,resolutionRows[n].x+resolutionRows[n].width/2,resolutionRows[n].y+25);comma=true;}

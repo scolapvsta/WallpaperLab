@@ -1,5 +1,5 @@
 #pragma once
-// Independent presets. Light/dark is a property of a preset, never a variant toggle.
+// Stable legacy palette IDs; UI design and light/dark mode are independent.
 typedef struct LabTheme {const char* name;int light,effect;unsigned int bg,surface,text,muted,accent;float radius;int collection;} LabTheme;
 static const LabTheme labThemes[]={
  {"Charcoal",0,0,0x101216,0x1a1d23,0xe7e9f1,0xa6afbf,0x99d8c3,1,0},
@@ -30,8 +30,29 @@ static const LabTheme labThemes[]={
  {"Pixel Ocean",0,11,0x101f2a,0x1d3341,0xe0f7fb,0x99c2cc,0x69d6e0,0,4},
  {"Pocket Sage",1,11,0xe3e9d5,0xf0f4e5,0x374535,0x6c7961,0x627e45,0,4},
  {"Plum Noir",0,0,0x24171e,0x351e28,0xf6e8ec,0xc4a5b3,0xe6a0b5,1,0},
- {"Persimmon LED",0,6,0x180e0b,0x291d16,0xffefe5,0xc0a58f,0xff8450,.2f,5}
+ {"Persimmon LED",0,6,0x180e0b,0x291d16,0xffefe5,0xc0a58f,0xff8450,.2f,5},
+ {"Strawberry Milk",1,0,0xfbe4e9,0xfff7ef,0x683a48,0x8e5868,0xb64264,1.7f,2},
+ {"Raspberry Ribbon",1,0,0xf5dce7,0xfff2f7,0x663347,0x8b536a,0xac315b,1.7f,2},
+ {"Vanilla Shortcake",1,0,0xf9eddf,0xfffaf0,0x70483e,0x926358,0xb64759,1.7f,2}
 };
 #define LAB_THEME_COUNT ((int)(sizeof(labThemes)/sizeof(labThemes[0])))
 #define LAB_COLLECTION_COUNT 6
 static const char* labCollections[]={"Classici","Neon","Pastello","Vetro","Pixel","LED e RGB"};
+
+#define LAB_LEGACY_PALETTE_COUNT 29
+#define LAB_STRAWBERRY_PALETTE 29
+static unsigned int LabMixHex(unsigned int a,unsigned int b,float t){
+ unsigned int out=0;for(int shift=0;shift<=16;shift+=8)out|=(unsigned int)(((a>>shift)&255)*(1-t)+((b>>shift)&255)*t)<<shift;return out;
+}
+static LabTheme LabResolvedPalette(int id,int light){
+ if(id<0||id>=LAB_THEME_COUNT)id=0;LabTheme t=labThemes[id];
+ if(t.light!=light){
+  unsigned int accent=t.accent;
+  t.bg=LabMixHex(light?0xfff8f4:0x1b1219,accent,light?.07f:.09f);
+  t.surface=LabMixHex(light?0xfffdfa:0x2c2028,accent,light?.025f:.06f);
+  t.text=LabMixHex(light?0x30212b:0xffeff5,accent,.12f);
+  t.muted=LabMixHex(t.text,t.surface,.28f);
+  t.accent=LabMixHex(light?0x60243e:0xffc5d8,accent,light?.42f:.25f);
+ }
+ t.light=light;return t;
+}

@@ -129,20 +129,18 @@ lo sfondo senza transizione. Le immagini temporanee rimangono nello stato XDG lo
 
 ## Aspetto e lingue
 
-Collezione ora filtra per stile: **Classici, Neon, Pastello, Vetro, Pixel, LED e
-RGB**. Sotto, Temi mostra soltanto le palette della famiglia selezionata. Ci sono
-29 preset; chiari e scuri mantengono nomi e palette propri, senza varianti forzate.
-
-Neon usa contorni luminosi, Pastello toni smorzati, Vetro riflessi morbidi, Pixel
-pannelli squadrati e dettagli a griglia, LED/RGB una trama luminosa o un bordo
-cromatico. Il testo e le miniature restano leggibili. Riduci animazioni ferma gli
-effetti decorativi. [Elenco e riferimenti Pinterest](THEMES.md).
+**Themes** sceglie la UI: Originale (backup) conserva gli stili precedenti;
+Strawberry core aggiunge sfondo vichy, fragole, coniglietti, fiocchi, pizzi e
+pulsanti a biscotto. **Color Palettes** propone 32 abbinamenti; **Mode** passa
+tra Dark e Light mantenendo tema e palette. Ogni tema ricorda la propria ultima
+combinazione. Il primo avvio dopo l'aggiornamento conserva l'aspetto precedente.
+[Dettagli, backup e limiti](THEMES.md).
 
 La Trasparenza della UI è indipendente dal tema: 0% è opaco, 30% è il massimo.
 Il cursore occupa la stessa colonna degli altri campi. Varia soltanto le superfici
 dell'interfaccia; miniature, immagini Workshop e scene live restano opache,
 così come il testo. Il renderer desktop non viene alterato. Le preferenze
-precedenti vengono migrate al tema indipendente più vicino.
+precedenti mantengono palette e modalità nel tema Originale.
 
 Le 22 lingue comprendono italiano, inglese, tedesco, spagnolo, francese, portoghese,
 olandese, polacco, romeno, svedese, cinese semplificato/tradizionale, giapponese,
