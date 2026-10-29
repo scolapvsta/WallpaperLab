@@ -1123,3 +1123,31 @@ derivata dal tema esistente. UI finale verificata in `local/ui18/gui-final/`;
 un tentativo iniziale aveva perso il focus verso un'altra finestra, quindi il
 test ora controlla nuovamente il PID in focus prima di ogni clic.
 Evidenze installazione: `local/ui18/install/`. App riaperta per il feedback.
+
+## Versione 0.19 — toggle per ogni scelta binaria
+
+- Build UI riuscita, CTest **11/11**, coverage i18n passata. Nessuna nuova stringa
+  o modifica al renderer e alle patch engine; versione del manifest aggiornata.
+- `ui19_integration.py`, XDG e progetto web privati: automatico/unica variante
+  risoluzione commuta senza menu e salva/rimuove il valore esatto. Tutti e cinque
+  i controlli di riproduzione nella preview sono toggle e persistono nel profilo.
+- Proprietà creator bool e combo a due opzioni: verificati true e passaggio
+  a→b→a con valori stringa, senza cambiare il combo a tre opzioni. Screenshot
+  conferma anche che l'etichetta della seconda opzione non sostituisce la prima.
+- Generali e riproduzione: toggle per Riduci animazioni, cinque opzioni globali
+  e filtro AND/OR. Verificata la polarità delle preferenze globali disable_*.
+  Misurazione display a due stati e inversione switcher provati; shortcut e
+  integrazione verificati come toggle senza attivare binding o installare extra.
+- Filtri libreria e impostazioni condividono filter_any; Workshop usa lo stesso
+  toggle AND/OR. Categorie, ordinamento e altri menu con più di due opzioni
+  restano dropdown. Contenuti per adulti persistenti nel solo XDG del test.
+- Test UI in modalità read-only per evitare riavvii dei renderer alle modifiche
+  delle proprietà; nessun download Steam, nessuna attivazione di shortcut o
+  integrazione Caelestia. Stato personale verificato invariato.
+  Evidenza finale: `local/ui19/gui-verified/`. Primo tentativo interrotto dalla
+  perdita di focus; la prova successiva con controllo del PID prima dei clic è
+  passata. Screenshot delle schermate principali ispezionati.
+
+Installazione 0.19 completata con backup del runtime e delle preferenze correnti.
+Confronto di tutti i file di configurazione: identici al backup; wallpaper attivo
+ripristinato e vecchio PID ritirato. Evidenza: `local/ui19/install/`.

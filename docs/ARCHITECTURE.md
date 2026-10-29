@@ -210,3 +210,21 @@ preset corrente. Cambiare collezione seleziona il primo preset della famiglia;
 cambiare tema aggiorna anche la collezione. Il margine interno del corpo settings
 include ora i bordi luminosi del primo controllo. Il reset immagine usa una sola
 scrittura atomica già disponibile, esposta da un solo pulsante DangerButton.
+
+## Controlli binari 0.19
+
+Choice sceglie ToggleChoice quando count è esattamente due, anche per valori
+dinamici come le varianti di un wallpaper. BoolChoice usa lo stesso componente;
+SwitchToggle e le proprietà bool del creator condividono ToggleRow. Per coppie
+non booleane la UI mostra il valore selezionato e restituisce il suo indice,
+conservando il valore originale del progetto tramite le API esistenti. I testi
+delle due opzioni del creator vengono copiati prima di disegnare, perché la
+funzione CAPI delle etichette riutilizza un buffer statico.
+
+Le coppie multi-select producono due toggle indipendenti: non vengono ridotte a
+un'esclusione reciproca che perderebbe stati validi. I campi con tre o più voci
+mantengono gli overlay precedenti. ToggleChoice chiude un eventuale menu dello
+stesso ID e rispetta inputClip, modali e stato disabilitato durante applicazione.
+La geometria test distingue tipo del controllo e valore per verificare i clic
+senza affidarsi soltanto all'aspetto del cursore. Nessun cambiamento al renderer
+o al formato delle preferenze.

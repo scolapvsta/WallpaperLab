@@ -4,7 +4,32 @@ static int choiceScroll=0,choicePending=-1,choiceValue=-1;
 static Rectangle choiceControls[96],choiceRows[96][96];static int choiceCounts[96];
 static bool choiceWheel=false,choiceMulti=false;static bool* choiceChecks=NULL;
 static char choiceLabels[96][256];static int choiceSelected=0;static Rectangle choiceList,choiceThumb;
+// Shared toggles: boolean switches and arbitrary pairs retain their real values.
+static bool choiceToggle[96];static int choiceToggleValue[96];
+static bool ToggleRow(Rectangle row,const char* label,const char* state,bool value,bool enabled){
+ bool hot=Hot(row,enabled);Color ink=enabled?AppTheme.text:Fade(AppTheme.text,.4f);
+ int labelLines=UiMeasure(label,13)>row.width-76?2:1;int h=TextLines(label,row.x,row.y+(state?0:(row.height-labelLines*20)/2),row.width-76,13,2,ink);
+ if(state&&*state)TextLines(state,row.x,row.y+h+1,row.width-76,12,2,enabled?muted:Fade(muted,.4f));
+ Rectangle track={row.x+row.width-54,row.y+(row.height-24)/2,48,24};
+ ThemePanel(track,1,16,enabled?(value?AppTheme.border:hot?controlHover:control):Fade(control,.45f));
+ DrawCircleV((Vector2){track.x+(value?36:12),track.y+12},9,value?(lab_option("light_theme")?WHITE:(Color){24,31,37,255}):ink);
+ if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)?!value:value;
+}
+static bool SwitchToggle(Rectangle row,const char* label,bool value){return ToggleRow(row,label,NULL,value,!applying);}
+static int ToggleHeight(const char* label,const char** options,int w){
+ int lines=UiMeasure(label,13)>w-76?2:1,stateLines=options?(fmaxf(UiMeasure(options[0],12),UiMeasure(options[1],12))>w-76?2:1):0;return options?fmaxf(40,lines*20+stateLines*19+3):40;
+}
+static int ToggleChoice(int id,int x,int* y,int w,const char* label,const char** options,int selected){
+ int height=ToggleHeight(label,options,w);Rectangle row={x,*y,w,height};
+ choiceControls[id]=(Rectangle){x+w-54,*y+(height-24)/2,48,24};choiceCounts[id]=2;choiceToggle[id]=true;choiceToggleValue[id]=selected;memset(choiceRows[id],0,sizeof(choiceRows[id]));
+ if(choiceOpen==id)choiceOpen=-1;
+ const char* state=options?(selected>=0&&selected<2?options[selected]:"—"):NULL;
+ bool value=selected==1,next=ToggleRow(row,label,state,value,!applying&&choiceEnabled);*y+=height+3;
+ return next!=value?(selected<0?0:1-selected):selected;
+}
 static int Choice(int id,int x,int* py,int w,const char* label,const char** options,int count,int selected){
+ if(count==2)return ToggleChoice(id,x,py,w,label,options,selected);
+ choiceToggle[id]=false;
  int result=selected;if(choicePending==id){result=choiceValue;choicePending=-1;}
  int y=*py;int cw=fminf(292,w*.60f);TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
  choiceRegistering=choiceOpen<0||choiceOpen==id||!CheckCollisionPointRec(GetMousePosition(),choiceList);if(!choiceEnabled&&choiceOpen==id)choiceOpen=-1;bool clicked=Button(box,selected>=0&&selected<count?options[selected]:"—",choiceOpen==id,!applying&&choiceEnabled);choiceRegistering=false;
@@ -13,6 +38,8 @@ static int Choice(int id,int x,int* py,int w,const char* label,const char** opti
  DrawLineEx((Vector2){box.x+box.width-15,y+14},(Vector2){box.x+box.width-10,y+19},1.5f,muted);return result;
 }
 static void MultiChoice(int id,int x,int* y,int w,const char* label,const char** options,int count,bool* selected){
+ // Multi-select pairs are independent flags, not a single exclusive switch.
+ if(count==2){if(choiceOpen==id)choiceOpen=-1;choiceControls[id].width=0;UiText(label,x,*y,13,AppTheme.text);*y+=24;for(int n=0;n<2;n++){selected[n]=SwitchToggle((Rectangle){x,*y,w,40},options[n],selected[n]);*y+=43;}return;}
  if(choicePending==id){selected[choiceValue]=!selected[choiceValue];choicePending=-1;}
  int number=0;for(int n=0;n<count;n++)number+=selected[n];const char* summary=number?TextFormat(lab_tr("%d selezionate"),number):lab_tr("Tutti");
  // Reuse field geometry and overlay lifecycle without borrowing stack pointers.
@@ -35,12 +62,7 @@ static void ChoiceOverlay(void){
  if(IsKeyPressed(KEY_ESCAPE)||(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),choiceList)&&!CheckCollisionPointRec(GetMousePosition(),box)))choiceOpen=-1;
  choiceRendering=false;modalDrawing=modal;inputClip=old;
 }
-static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){const char* names[]={lab_tr("Disattivo"),lab_tr("Attivo")};return Choice(id,x,y,w,label,names,2,value);}
-
-// Direct two-state controls for per-wallpaper image mirroring.
-static bool SwitchToggle(Rectangle row,const char* label,bool value){
- bool hot=Hot(row,!applying);TextLines(label,row.x,row.y+7,row.width-76,14,2,AppTheme.text);Rectangle track={row.x+row.width-54,row.y+6,48,24};ThemePanel(track,1,16,value?AppTheme.border:hot?controlHover:control);DrawCircleV((Vector2){track.x+(value?36:12),track.y+12},9,value?(lab_option("light_theme")?WHITE:(Color){24,31,37,255}):AppTheme.text);if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)?!value:value;
-}
+static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){return ToggleChoice(id,x,y,w,label,NULL,value);}
 
 // A shared compact slider. Drafts belong to the caller until mouse release.
 static Rectangle numberTracks[160];

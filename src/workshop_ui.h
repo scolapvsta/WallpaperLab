@@ -52,7 +52,7 @@ static void WorkshopFilters(Rectangle area){
  if(Hot(area,true)&&choiceOpen<60)wsFilterScroll=fmaxf(0,wsFilterScroll-ScrollInput(area)*48);wsFilterDraw=SmoothScroll(wsFilterDraw,wsFilterScroll);
  BeginScissorMode(area.x,area.y,area.width,area.height);int x=area.x+16,y=area.y+16-wsFilterDraw,w=area.width-32;
  UiText(lab_tr("Filtri Workshop"),x,y,19,AppTheme.text);y+=32;
- wsLogicControl=(Rectangle){x,y,w,34};if(Button(wsLogicControl,lab_tr(wsAny?"Almeno un tag (OR)":"Tutti i tag (AND)"),true,true)){wsAny=!wsAny;wsFiltersDirty=true;}y+=42;
+ const char* logic[]={lab_tr("Tutti i tag (AND)"),lab_tr("Almeno un tag (OR)")};int any=Choice(59,x,&y,w,"AND / OR",logic,2,wsAny);wsLogicControl=choiceControls[59];if(any!=wsAny){wsAny=any;wsFiltersDirty=true;}
  y+=TextLines(lab_tr(wsAny?"Basta uno dei tag. Nome e autore restringono sempre la ricerca.":"Lo sfondo deve avere tutti i tag selezionati."),x,y,w,13,3,muted)+14;
  UiText(lab_tr("Autore"),x,y,14,muted);y+=24;wsAuthorControl=(Rectangle){x,y,w,34};bool hot=Hot(wsAuthorControl,true);ThemePanel(wsAuthorControl,.2f,8,wsAuthorEditing?controlHover:control);
  if(hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){wsAuthorEditing=true;isSearching=false;EditFocus(&wsAuthorEdit,wsAuthor,true);}if(hot)SetMouseCursor(MOUSE_CURSOR_IBEAM);

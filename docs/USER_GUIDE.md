@@ -1,4 +1,4 @@
-# Wallpaper Lab — guida 0.18
+# Wallpaper Lab — guida 0.19
 
 ## Libreria e monitor
 
@@ -12,6 +12,13 @@ wallpaper cliccato viene applicato a quell'uscita. Il pannello dello sfondo most
 la destinazione senza aggiungere un secondo selettore. In panorama/duplicato il
 target è il gruppo dei display. Cliccare il wallpaper già attivo non riavvia il
 renderer e non anima una transizione; le modifiche alle proprietà restano effettive.
+
+Le scelte con due sole opzioni usano un toggle: impostazioni generali e locali,
+shortcut, inversione dello switcher, contenuti maturi, integrazione e proprietà
+del creator. Il colore del tema indica lo stato attivo. Per alternative come
+AND/OR, misurazione e risoluzione viene mostrato anche il nome della scelta
+corrente. Con più di due opzioni resta il menu; le selezioni multiple mantengono
+la possibilità di combinare più valori.
 
 I menu si aprono sopra gli altri campi, con scrollbar trascinabile quando serve.
 Le risoluzioni sono l'ultima sezione del pannello, raggruppate per monitor singolo,

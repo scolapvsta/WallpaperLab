@@ -10,7 +10,11 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Versione attuale: 0.18
+## Versione attuale: 0.19
+
+Le scelte con esattamente due opzioni sono toggle in tutta l'interfaccia,
+compresa la preview e le proprietà del creator. Le alternative conservano il
+proprio nome; i menu con più opzioni restano dropdown.
 
 La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
 versionate successive conservano anche la storia delle implementazioni.
