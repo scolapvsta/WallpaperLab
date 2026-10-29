@@ -8,6 +8,8 @@
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
+#include "audio_policy.hpp"
+#include <chrono>
 #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
 #include "WallpaperEngine/Render/Helpers/WallpaperPlacement.h"
 static volatile sig_atomic_t stopRequested=0;
@@ -42,8 +44,13 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         std::signal(SIGTERM,stopHandler);std::signal(SIGINT,stopHandler);
         lab::prepareDesktopSurface();
         app.setup();
-        int frames=0;bool reportedReady=false;
+        int frames=0;bool reportedReady=false;auto lastAudio=std::chrono::steady_clock::time_point{};
+        auto audioSettings=std::filesystem::path(profileFile).parent_path()/"settings.json";
         while(context.state.general.keepRunning && !stopRequested) {
+            auto now=std::chrono::steady_clock::now();
+            if(!profileFile.empty()&&!project.empty()&&now-lastAudio>=std::chrono::milliseconds(100)){
+                lastAudio=now;if(auto enabled=lab::savedAudioEnabled(audioSettings,profileFile,project))context.state.audio.volume=context.settings.audio.enabled&&*enabled?100:0;
+            }
             app.render();
             if(++frames>=3 && !reportedReady && app.isReady() && context.state.general.keepRunning && !stopRequested && !ready.empty()) { std::ofstream f(ready);f<<getpid()<<'\n';reportedReady=true; }
         }

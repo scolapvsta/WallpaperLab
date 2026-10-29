@@ -1,0 +1,69 @@
+--- a/src/WallpaperEngine/Render/Wallpapers/CWeb.cpp
++++ b/src/WallpaperEngine/Render/Wallpapers/CWeb.cpp
+@@ -100,6 +100,15 @@
+     this->m_browser->GetHost ()->WasResized ();
+ }
+ 
++void CWeb::syncAudio () {
++    // Browser output bypasses SDL. Enforce both audio gates for media elements,
++    // Web Audio and iframes, including while visual rendering is paused.
++    const auto& audio = this->getContext ().getApp ().getContext ().state.audio;
++    const bool muted = !audio.enabled || audio.volume == 0;
++    if (this->m_browser && this->m_browser->GetHost ()->IsAudioMuted () != muted)
++        this->m_browser->GetHost ()->SetAudioMuted (muted);
++}
++
+ void CWeb::renderFrame (const glm::ivec4& viewport) {
+     // ensure the viewport matches the window size, and resize if needed
+     if (viewport.z != this->getWidth () || viewport.w != this->getHeight ()) {
+--- a/src/WallpaperEngine/Render/Wallpapers/CWeb.h
++++ b/src/WallpaperEngine/Render/Wallpapers/CWeb.h
+@@ -37,6 +37,7 @@
+ 
+     bool isReady () const override;
+     void setSize (int width, int height);
++    void syncAudio ();
+ 
+ protected:
+     void renderFrame (const glm::ivec4& viewport) override;
+--- a/src/WallpaperEngine/Render/Wallpapers/CVideo.cpp
++++ b/src/WallpaperEngine/Render/Wallpapers/CVideo.cpp
+@@ -36,6 +36,9 @@
+ CVideo::~CVideo () { this->m_player->decrementUsageCount (); }
+ 
+ void CVideo::renderFrame (const glm::ivec4& viewport) {
++    const auto& audio = this->getContext ().getApp ().getContext ().state.audio;
++    const int volume = audio.enabled ? audio.volume : 0;
++    if (volume != this->m_lastVolume) { this->m_player->setVolume (volume * 100.0 / 128.0); this->m_lastVolume = volume; }
+     // ensure the video's audio follows audio detection rules
+     if (this->getContext ().getApp ().getContext ().settings.audio.enabled
+ 	&& this->m_muted != this->getAudioContext ().getDriver ().getAudioDetector ().anythingPlaying ()) {
+--- a/src/WallpaperEngine/Render/Wallpapers/CVideo.h
++++ b/src/WallpaperEngine/Render/Wallpapers/CVideo.h
+@@ -31,6 +31,7 @@
+ private:
+     GLPlayerUniquePtr m_player;
+ 
++    int m_lastVolume = -1;
+     bool m_muted = false;
+ };
+ } // namespace WallpaperEngine::Render::Wallpapers
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -10,6 +10,7 @@
+ #include "WallpaperEngine/Logging/Log.h"
+ #include "WallpaperEngine/Render/Drivers/VideoFactories.h"
+ #include "WallpaperEngine/Render/RenderContext.h"
++#include "WallpaperEngine/Render/Wallpapers/CWeb.h"
+ 
+ #include "WallpaperEngine/Data/Dumpers/StringPrinter.h"
+ #include "WallpaperEngine/Data/Parsers/ProjectParser.h"
+@@ -865,6 +866,8 @@
+ }
+ 
+ void WallpaperApplication::render () {
++    if (m_renderContext) for (auto& [_, wallpaper] : m_renderContext->getWallpapers ())
++        if (auto* web = dynamic_cast<WallpaperEngine::Render::Wallpapers::CWeb*> (wallpaper.get ())) web->syncAudio ();
+     if (m_browserContext) CefDoMessageLoopWork ();
+     static time_t seconds;
+     static struct tm* timeinfo;

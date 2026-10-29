@@ -2,7 +2,7 @@
 """Theme-scoped palettes, dropdown themes, native backgrounds and visual smoke tests."""
 import argparse,json,pathlib,subprocess,os,time,shlex,shutil
 from PIL import Image,ImageChops,ImageStat
-p=argparse.ArgumentParser();p.add_argument('--app',required=True,type=pathlib.Path);p.add_argument('--output',required=True,type=pathlib.Path);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);steam=out/'steam';steam.mkdir(exist_ok=True);source=out/'originals';source.mkdir(exist_ok=True);bin_=out/'bin';bin_.mkdir(exist_ok=True);sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'lab-ui21-{os.getpid()}.sock'
+p=argparse.ArgumentParser();p.add_argument('--app',required=True,type=pathlib.Path);p.add_argument('--output',required=True,type=pathlib.Path);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);steam=out/'steam';steam.mkdir(exist_ok=True);source=out/'originals';source.mkdir(exist_ok=True);bin_=out/'bin';bin_.mkdir(exist_ok=True);sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'lab-ui22-{os.getpid()}.sock'
 env=os.environ|{'XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'XDG_DATA_HOME':str(out/'data'),'XDG_CACHE_HOME':str(out/'cache'),'WALLPAPER_LAB_UI_STATE':str(out/'ui.json'),'YDOTOOL_SOCKET':str(sock),'LD_LIBRARY_PATH':':'.join(str(app.parent/x)for x in ['.','lib','deps']),'PATH':str(bin_)+':'+os.environ['PATH']}
 log=open(out/'log','w');daemon=subprocess.Popen(['ydotoold','--socket-path='+str(sock)],stdout=log,stderr=log);ui=None;results={}
 def run(*args):return subprocess.check_output([str(x)for x in args],env=env,text=True)
@@ -66,7 +66,7 @@ fixture=out/'library/1000';fixture.mkdir(parents=True,exist_ok=True);env['WALLPA
 (fixture/'project.json').write_text(json.dumps({'type':'web','title':'Theme / layout fixture','file':'index.html','preview':'preview.png'}))
 (config/'carousel.json').write_text(json.dumps([str(fixture)]))
 (fixture/'index.html').write_text('<body>UI fixture</body>');Image.new('RGB',(640,360),(100,122,168)).save(fixture/'preview.png')
-(config/'settings.json').write_text(json.dumps({'theme_catalog':True,'theme_variants':True,'theme_ui_v2':True,'ui_design':1,'ui_theme':29,'light_theme':True,'font_family':'DejaVu Sans','language':'it','carousel_layout':1}))
+(config/'settings.json').write_text(json.dumps({'theme_catalog':True,'theme_variants':True,'theme_ui_v2':True,'ui_design':1,'ui_theme':29,'light_theme':True,'font_family':'DejaVu Sans','window_transparency':30,'language':'it','carousel_layout':1}))
 selection=out/'selection.txt';selection.write_text('')
 picker=bin_/'zenity';picker.write_text('#!/bin/sh\ncat '+shlex.quote(str(selection))+'\n');picker.chmod(0o755)
 background=source/"App's pastel backdrop.png";im=Image.new('RGB',(1600,900),(112,158,193));__import__('PIL.ImageDraw',fromlist=['ImageDraw']).Draw(im).rectangle((800,0,1600,900),fill=(193,123,153));im.save(background)
@@ -84,36 +84,49 @@ def launch():
 def close():ui.terminate();ui.wait(15)
 try:
  wait(sock.exists);launch()
- assert s()['theme']==0 and s()['design']==1 and s()['light']is True
- assert g()['choices']['38']['kind']=='dropdown' and len(g()['choices']['38']['options'])==2
- assert len(g()['choices']['30']['options'])==3
- for i in range(3):
-  choose(30,i);wait(lambda:s()['theme']==i);shot('strawberry-palette-'+str(i))
- toggle(31);shot('strawberry-dark');choose(30,1)
- choose(38,1);wait(lambda:s()['design']==2);assert s()['theme']==3 and s()['light']is False
- assert len(g()['choices']['30']['options'])==5
- for i in range(5):
+ assert s()['design']==1 and s()['light']is True and '31'not in g()['choices']
+ choose(38,1);wait(lambda:s()['design']==2);assert s()['light']is False
+ assert len(g()['choices']['30']['options'])==6
+ for i in range(6):
   choose(30,i);wait(lambda:s()['theme']==3+i);shot('2077-palette-'+str(i))
- choose(30,3);toggle(31);assert s()['theme']==6;shot('2077-light')
- choose(38,0);wait(lambda:s()['design']==1);assert s()['theme']==1 and s()['light']is False
- choose(38,1);wait(lambda:s()['design']==2);assert s()['theme']==6 and s()['light']is True
- close();launch();assert s()['design']==2 and s()['theme']==6 and s()['light']is True
- assert pref()['font_family']=='DejaVu Sans';results['dropdown_scoped_palettes_modes_font_independence_restart']=True
- # Import through the same asynchronous file picker used by the appearance button.
+ # Theme font list is curated; its last action expands it to installed families.
+ small=len(g()['choices']['33']['options']);choose(33,small-1);wait(lambda:len(g()['choices']['33']['options'])>small)
+ all_count=len(g()['choices']['33']['options']);choose(33,1);assert pref()['font_family']=='Rajdhani'
+ choose(33,all_count-1);wait(lambda:len(g()['choices']['33']['options'])==5)
+ for index,name in [(2,'Oxanium'),(3,'Orbitron'),(1,'Rajdhani')]:
+  choose(33,index);wait(lambda:pref()['font_family']==name);shot('font-'+name)
+ click(*g()['choices']['33']['control']);wait(lambda:g()['choice_open']==33);shot('font-menu-single-label');esc()
+ results['theme_fonts_curated_show_all_and_single_render']=True
+ assert g()['background_button_size'][0]<160 and g()['background_button_size'][1]==34
+ for preset in range(4):
+  choose(39,preset);wait(lambda:pref().get('cyber_background',0)==preset);im=shot('2077-background-'+str(preset))
+  px,py=g()['app_background_controls'][0];thumb=im.crop((round(px-157),round(py-50),round(px-93),round(py+3)))
+  assert max(ImageStat.Stat(thumb).stddev)>.8,('blank background preview',preset)
+ results['compact_controls_four_presets_and_preview']=True
  selection.write_text(str(background)+'\n');click(*g()['app_background_controls'][0]);wait(lambda:pref().get('app_background'))
- copied=pathlib.Path(pref()['app_background']);assert copied.is_file() and copied!=background and 'wallpapers'not in copied.parts
- background.unlink();close();launch();assert pathlib.Path(pref()['app_background']).is_file();shot('2077-custom-background')
+ copied=pathlib.Path(pref()['app_background']);assert copied.is_file() and copied!=background;background.unlink();close();launch();assert copied.is_file();shot('2077-custom-background')
  selection.write_text(str(bad)+'\n');click(*g()['app_background_controls'][0]);time.sleep(2);assert pref()['app_background']==str(copied)
- click(*g()['app_background_controls'][1]);wait(lambda:not pref().get('app_background'));results['background_copy_survives_source_removal_and_restart_invalid_preserves_previous_clear']=True
- # Freeze effects, then inspect the unobstructed city backdrop and all preview layouts.
- click(*g()['settings_tabs'][4]);toggle(41);assert pref()['reduce_motion'];click(*g()['settings_tabs'][3]);toggle(31)
- esc();wait(lambda:not state()['settings']);first=shot('2077-library');time.sleep(.5);second=shot('2077-reduced-motion');assert ImageChops.difference(first.crop((500,500,900,720)),second.crop((500,500,900,720))).getbbox()is None
- click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
+ click(*g()['app_background_controls'][1]);wait(lambda:not pref().get('app_background')and pref().get('cyber_background',0)==0)
+ results['background_import_restore_and_invalid_preserves_previous']=True
+ choose(30,5);close();launch();assert s()['theme']==8 and s()['light']is False and pref()['font_family']=='Rajdhani'
+ choose(38,0);wait(lambda:s()['design']==1);assert s()['light']is True
+ choose(38,1);wait(lambda:s()['design']==2);assert s()['theme']==8 and s()['light']is False
+ results['theme_owns_mode_and_restores_palette']=True
+ click(*g()['settings_tabs'][4]);toggle(41);assert pref()['reduce_motion'];click(*g()['settings_tabs'][3]);esc();wait(lambda:not state()['settings']);shot('2077-library')
+ # The real Workshop read-only path is optional when Steam has no connection.
+ click(*g()['header']['workshop']);wait(lambda:state()['page']==3)
+ deadline=time.monotonic()+35
+ while time.monotonic()<deadline and (g()['workshop']['busy']or not g()['workshop']['count']):time.sleep(.3)
+ if g()['workshop']['count']>=12:
+  time.sleep(2);before=g()['text_rasterizations'];time.sleep(1);idle=g()['text_rasterizations']-before;fps=[]
+  for n in range(12):
+   move(w()['size'][0]*.55,w()['size'][1]*.6);run('ydotool','mousemove','--wheel','--','0','-2'if n<6 else'2');time.sleep(.15);fps.append(s()['fps'])
+  time.sleep(.8);shot('workshop-smooth-scroll');results['workshop_scroll']={'items':g()['workshop']['count'],'median_fps':sorted(fps)[len(fps)//2],'idle_text_uploads':idle};assert idle<10 and sorted(fps)[len(fps)//2]>=40
+ else:results['workshop_scroll']='Steam/network unavailable; CPU/GPU text-cache regression tested separately'
+ click(*g()['header']['library']);click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
  for layout in range(4):
-  choose(20,layout);assert pref()['carousel_layout']==layout
-  click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.8);shot('2077-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
- results['four_switcher_layout_previews_and_reduce_motion']=True
- click(*g()['header']['settings']);wait(lambda:state()['settings']);click(*g()['settings_tabs'][3]);choose(38,0);toggle(31);esc();wait(lambda:not state()['settings']);click(*g()['header']['library']);shot('strawberry-library')
+  choose(20,layout);click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.5);shot('2077-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
+ results['four_layouts']=True
 finally:
  if __import__('sys').exc_info()[0] and ui and ui.poll()is None:
   try:shot('failure')

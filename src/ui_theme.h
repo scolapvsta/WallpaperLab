@@ -61,6 +61,19 @@ static bool DrawAppBackground(int w,int h){
  DrawTexturePro(appBackgroundTexture,(Rectangle){0,0,appBackgroundTexture.width,appBackgroundTexture.height},dst,(Vector2){0},0,Fade(WHITE,uiSurfaceAlpha));
  DrawRectangle(0,0,w,h,Fade(AppTheme.bg,lab_option("light_theme")?.12f:.25f));return true;
 }
+static RenderTexture2D backgroundPreview;
+static int previewTheme=-1,previewDesign=-1,previewPreset=-1;static char previewPath[4096]="";
+static void DrawBackgroundPreview(Rectangle r){
+ const char* path=lab_app_background();int preset=lab_option("app_background_preset"),design=lab_option("ui_design");
+ if(!backgroundPreview.id||previewTheme!=themeId||previewDesign!=design||previewPreset!=preset||strcmp(path,previewPath)){
+  if(!backgroundPreview.id)backgroundPreview=LoadRenderTexture(320,180);
+  rlDisableScissorTest();BeginTextureMode(backgroundPreview);ClearBackground(AppTheme.bg);
+  if(!DrawAppBackground(320,180)){if(CyberTheme())CyberCityArtwork(320,180);else BerryBackdrop(320,180);}
+  EndTextureMode();if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);BeginScissorMode(inputClip.x,inputClip.y,inputClip.width,inputClip.height);
+  previewTheme=themeId;previewDesign=design;previewPreset=preset;snprintf(previewPath,sizeof(previewPath),"%s",path);
+ }
+ ThemePanel(r,.1f,8,control);DrawTexturePro(backgroundPreview.texture,(Rectangle){0,0,320,-180},(Rectangle){r.x+2,r.y+2,r.width-4,r.height-4},(Vector2){0},0,WHITE);
+}
 static void DrawBackdrop(int width,int height){
  if(DrawAppBackground(width,height))return;
  if(CyberTheme()){CyberBackdrop(width,height);return;}

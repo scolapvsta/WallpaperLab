@@ -1,6 +1,7 @@
 #include "preferences.hpp"
 #include "theme_catalog.h"
 #include "shortcuts.hpp"
+#include "audio_policy.hpp"
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
@@ -15,7 +16,7 @@ int main(){
         for(int design=1;design<=2;design++)for(int palette=0;palette<LAB_THEME_COUNT;palette++){
             writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",design},{"ui_theme",palette},{"light_theme",false}});
             auto loaded=loadSettings();require(labThemes[loaded["ui_theme"].get<int>()].collection==design,"cross-theme palette accepted");
-            require(loaded["light_theme"]==false,"independent mode changed");
+            require(loaded["light_theme"]==(design==1),"mode must follow theme");
         }
         for(int old=0;old<32;old++){
             writeJson(configDir()/"settings.json",{{"theme_ui_v2",true},{"ui_theme",old},{"light_theme",true},{"ui_design",old<29?0:1},{"font_family","Noto Sans"}});
@@ -26,6 +27,13 @@ int main(){
             auto colors=LabResolvedPalette(i,light);require(colors.light==light,"palette mode ignored");
             require(colors.bg!=colors.text&&colors.surface!=colors.accent,"palette lost contrast");
         }
+        auto audioSettings=configDir()/"audio.json",audioProfiles=configDir()/"audio-profiles.json";
+        writeJson(audioSettings,{{"muted",true}});writeJson(audioProfiles,{{"/web",{{"playback",{{"audio",true}}}}}});
+        require(savedAudioEnabled(audioSettings,audioProfiles,"/web")==false,"global mute ignored");
+        writeJson(audioSettings,{{"muted",false}});writeJson(audioProfiles,{{"/web",{{"playback",{{"audio",false}}}}}});
+        require(savedAudioEnabled(audioSettings,audioProfiles,"/web")==false,"local mute ignored");
+        writeJson(audioProfiles,json::object());require(savedAudioEnabled(audioSettings,audioProfiles,"/web")==true,"unmute failed");
+        writeJson(audioSettings,json::array());require(!savedAudioEnabled(audioSettings,audioProfiles,"/web").has_value(),"invalid policy unexpectedly unmuted");
         require(loadCarousel().empty(),"new carousel is not empty");
         std::vector<Item> items={{"1","One","scene","","/one",""},{"2","Two","scene","","/two",""},{"3","Broken","preset","","/three","unsupported"}};
         changeCarousel("/two",0);changeCarousel("/one",0);changeCarousel("/three",0);

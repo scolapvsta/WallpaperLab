@@ -1,5 +1,5 @@
 #pragma once
-// Stable legacy palette IDs; UI design and light/dark mode are independent.
+// Stable palette IDs. Each UI determines its own light/dark mode.
 typedef struct LabTheme {const char* name;int light,effect;unsigned int bg,surface,text,muted,accent;float radius;int collection;} LabTheme;
 // Each active palette belongs to exactly one UI. Historical palettes live in Git/backup.
 static const LabTheme labThemes[]={
@@ -10,7 +10,8 @@ static const LabTheme labThemes[]={
  {"Pink Voltage",0,12,0x160a1b,0x281329,0xffe9fa,0xd1a5c9,0xff69c6,.15f,2},
  {"Electric Blue",0,12,0x06131f,0x102332,0xe5faff,0x9dbfce,0x49dfff,.15f,2},
  {"Night Drive",0,12,0x0a1021,0x172039,0xedf0ff,0xadb8d9,0xf989cf,.15f,2},
- {"Hazard Yellow",0,12,0x14160e,0x23271c,0xf5f8df,0xb6bca0,0xf4ef54,.15f,2}
+ {"Hazard Yellow",0,12,0x14160e,0x23271c,0xf5f8df,0xb6bca0,0xf4ef54,.15f,2},
+ {"Crimson Protocol",0,12,0x16090f,0x28131c,0xffedf0,0xd2a6b1,0xff5267,.15f,2}
 };
 #define LAB_THEME_COUNT ((int)(sizeof(labThemes)/sizeof(labThemes[0])))
 #define LAB_STRAWBERRY_PALETTE 0

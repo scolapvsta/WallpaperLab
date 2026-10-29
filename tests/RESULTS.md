@@ -1228,3 +1228,63 @@ ripristinato e vecchio PID ritirato. Evidenza: `local/ui19/install/`.
   argomento --render; nuovo stato vivo e stessi percorsi wallpaper. Avvio automatico
   invariato. Aperto 2077/Violet Afterglow scuro; salvata la precedente combinazione
   Strawberry, senza modificare il font personale.
+
+## 0.22 — 2077, font, sfondi e mute web — 29 ottobre 2026
+
+- Build Release dell'app e del motore completate. CTest: **11/11 superati**.
+  Verificata la serie patch completa in una copia temporanea e confrontati tutti
+  gli SHA-256 del manifest; pin upstream invariati. I file vendor preesistenti
+  restano intatti oltre alle modifiche registrate nella nuova patch audio.
+- Font Orbitron, Oxanium e Rajdhani scaricati dal repository ufficiale Google
+  Fonts, commit fissato e hash in `assets/fonts/manifest.json`; licenze OFL incluse.
+  Registrazione Fontconfig locale al processo, senza installazione globale.
+- Dropdown font: rimossa la seconda passata di disegno che sovrapponeva l'anteprima
+  alla normale etichetta. Il menu usa una sola caption per riga e superfici opache,
+  anche con trasparenza finestra al 30%. Theme Font spostato sotto Themes, filtro
+  contestuale e azioni Mostra tutti i font/Solo font del tema verificati.
+- Rimossa la selezione Mode: 2077 è scuro, Strawberry è chiaro. Aggiunti Crimson
+  Protocol, marchio Orbitron, barcode, bit binari e glitch decorativi. Quattro
+  preset di sfondo per tema, preview adiacente e pulsanti compatti nella colonna
+  dei controlli. Corretto lo scissor nella texture di preview, verificando anche
+  che il suo contenuto non sia una superficie uniforme.
+- `theme_rework_integration.py`: selezionate le sei palette 2077, tre font inclusi,
+  menu completo/filtrato, quattro sfondi e importazione da PC. Verificati riavvio,
+  ripristino, rifiuto dei file invalidi e quattro layout del carousel. Superato.
+- Workshop reale con **100 risultati**: prova di scroll, mediana **90 FPS** e zero
+  nuove rasterizzazioni di testo a schermo fermo. Sono misure della sessione locale,
+  non una garanzia su ogni macchina/rete. Separata la misura Pango CPU dalla
+  creazione delle texture; cache testuale indicizzata, niente ricarica degli atlas
+  all'arrivo dei nomi Workshop, un upload thumbnail per frame entro 640 px e retry
+  limitato per file non validi. Target di scroll clampato prima dell'interpolazione.
+  Aumentato lo spazio sotto i titoli Workshop per separare due righe e autore.
+- `text-cache-graphics-test`: 3000 misure non creano texture. Per 1100 etichette
+  su una cache da 1024 voci, disegno normale e flush per etichetta producono
+  **0 pixel differenti**, 187909 pixel di testo. Eviction preserva i draw in coda.
+- Mute: il controllo generale prima richiedeva una nuova applicazione e CEF
+  riceveva il mute soltanto alla creazione. Il renderer ora rilegge le due porte
+  audio ogni 100 ms e CEF applica il mute host prima del message loop, anche
+  quando la resa visiva è in pausa. Il toggle locale audio non riavvia il renderer.
+  MPV aggiorna il volume quando cambia lo stato, SDL usa lo stesso volume live.
+- `web_mute_integration.py`: pagina sintetica con HTML audio, Web Audio e iframe,
+  uscita PulseAudio null sink isolata. Segnale RMS **0.0** con mute globale, locale,
+  dopo reload e dopo un tentativo JavaScript di unmute del media. Con entrambe le
+  porte aperte RMS circa **0.15**; tutti i cambi sono avvenuti nello stesso PID.
+  Nessuna modifica al dispositivo audio predefinito o all'audio di altre app.
+- Lo sfondo personale è stato silenziato subito con backup delle preferenze,
+  confermando stesso progetto attivo e volume 0. I suoi contenuti non sono stati
+  copiati nella fixture o nel repository. Log, screenshot, copie e misure in local/.
+- Limiti: prova del mute browser su fixture sintetica; non sono stati certificati
+  tutti i web wallpaper esistenti. Il test di pausa non forza un fullscreen sul
+  desktop personale; l'aggiornamento host è collocato prima del ramo di pausa.
+  Background importati statici; font con fallback Unicode Pango; scene UI native
+  stilizzate, non asset estratti dal gioco o dall'anime.
+- Verifica finale ripetuta dopo il fix della preview e lo spazio autore/titoli:
+  `local/ui22-final-test/` passa tutte le prove, Workshop reale ancora 100 risultati,
+  mediana 90 FPS e zero upload testuali a riposo. Suite audio finale in
+  `local/web-mute-verified/`: mute sempre RMS 0.0, audio aperto RMS 0.152–0.158.
+- Installati binario 0.22.0, nuova libreria motore e tre font con licenze. Avviato
+  con successo lo stesso wallpaper prima di chiudere il renderer precedente,
+  verificando PID/start time/executable. Confermati nuovo renderer vivo, volume 0
+  e preferenza globale muted=true. Aperta UI con Oxanium, Crimson Protocol ed
+  Edge Signal; le vecchie finestre UI sono state chiuse solo dopo verifica di
+  identità e avvio della sostituta. Nessuna modifica all'avvio automatico.

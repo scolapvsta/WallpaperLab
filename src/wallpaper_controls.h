@@ -15,6 +15,6 @@ static int ImageControls(int i,int x,int y,int w){
 static int WallpaperPlayback(int i,int x,int y,int w){int start=y;
  const char* keys[]={"audio","reactive","mouse","parallax","particles"},*global[]={"muted","disable_audio_processing","disable_mouse","disable_parallax","disable_particles"};
  const char* labels[]={"Audio dello sfondo","Reazione alla musica","Interazione con il mouse","Parallasse","Particelle"};
- for(int n=0;n<5;n++){int at=lab_playback(i,keys[n]),value=BoolChoice(64+n,x,&y,w,lab_tr(labels[n]),at);if(at!=value&&lab_playback_set(i,keys[n],value)&&!uiSmoke&&lab_current()==i)applying=lab_start(i,0);if(lab_option(global[n])){y+=TextLines(lab_tr("Disattivato dalle impostazioni generali"),x,y-5,w,12,2,muted)+7;}}
+ for(int n=0;n<5;n++){int at=lab_playback(i,keys[n]),value=BoolChoice(64+n,x,&y,w,lab_tr(labels[n]),at);if(at!=value&&lab_playback_set(i,keys[n],value)&&!uiSmoke&&lab_current()==i&&n!=0)applying=lab_start(i,0);if(lab_option(global[n])){y+=TextLines(lab_tr("Disattivato dalle impostazioni generali"),x,y-5,w,12,2,muted)+7;}}
  y+=TextLines(lab_tr("Le opzioni generali hanno precedenza. Queste preferenze restano salvate per questo sfondo."),x,y,w,12,3,muted)+16;return y-start;
 }

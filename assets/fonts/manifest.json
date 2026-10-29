@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "commit": "6157dfaa640ca5738b4d1a7070fe389c3036d7fc",
+  "files": {
+    "assets/fonts/orbitron/DESCRIPTION.en_us.html": "cc54854cf017858f9124fa63fbfa606323ea3350c2d3b92f1cd7d012c9648f4c",
+    "assets/fonts/orbitron/OFL.txt": "ab609b0e110d622435ff337cdf233288556e011bbf9bd0550be98846c0630819",
+    "assets/fonts/orbitron/Orbitron[wght].ttf": "f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd",
+    "assets/fonts/rajdhani/DESCRIPTION.en_us.html": "d53953662f0045ecd6c6f0b39f46948feaa07c02b514b246c79606227f7581e6",
+    "assets/fonts/rajdhani/OFL.txt": "f62ef357d3a1c3d27edd35a6e1ba350e8a8d13499797964eeadefbf0b3b15d1f",
+    "assets/fonts/rajdhani/Rajdhani-SemiBold.ttf": "94bbd25a18ca665999feb05a537de9fd2b860dcfb78bbe9ca00270825bf235da",
+    "assets/fonts/oxanium/DESCRIPTION.en_us.html": "6973a6ada413b78457a755d74a08b9ccac7c7364e2ea78a660f4be2e06370f1c",
+    "assets/fonts/oxanium/OFL.txt": "fe17c0f2581d71b4e1ea7e636e7f4877c29223e11bb1dd1a871e8c3f2a86336b",
+    "assets/fonts/oxanium/Oxanium[wght].ttf": "2ce01d946e1e1ffc8d7eecfffbda8623bedd63eaf811a20488c4b69af45babb0"
+  }
+}

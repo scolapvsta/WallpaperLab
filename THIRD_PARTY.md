@@ -21,7 +21,8 @@ Wallpaper Lab è un progetto derivato, distribuito con GPL-3.0. Il nome è provv
   Versione 5.5 fissata in `vendor/raylib`; licenza in `assets/LICENSE.raylib`.
   Il decoder GIF usa stb_image vendorizzato da Raylib, con i relativi avvisi nel sorgente.
 - **FreeType** di sistema: rasterizzazione del fallback per i titoli nei font TTC.
-  Fontconfig risolve i font installati; i file dei font restano sulla macchina.
+  Fontconfig risolve i font installati e registra le famiglie incluse soltanto
+  nel processo dell’app.
 - **Chromium Embedded Framework** e dipendenze del renderer mantengono le proprie
   licenze e attribuzioni upstream. Le risorse CEF sono scaricate dal build upstream;
   la distribuzione locale include i suoi avvisi di licenza.
@@ -115,3 +116,12 @@ Composizione RGBA, iris antialias e namespace desktop dedicato 0.18:
 `patches/engine-compositor-transitions.patch`, applicata dopo la patch handoff.
 Pin invariati. La regola Hyprland è codice applicativo in desktop_surface.hpp;
 i riferimenti visivi dei nuovi temi sono elencati in docs/THEMES.md.
+
+- **Orbitron**, The Orbitron Project Authors; **Oxanium**, Severin Meyer;
+  **Rajdhani**, Indian Type Foundry: SIL Open Font License 1.1. Originali non
+  modificati scaricati da `google/fonts`, commit e hash nel manifest
+  `assets/fonts/manifest.json`. Licenze complete, descrizioni e font sono inclusi
+  in `assets/fonts/` e installati nella directory `fonts/` del runtime. Nessun
+  font del gioco o dell'anime è stato estratto o ridistribuito.
+- La correzione del mute live CEF/MPV è conservata in
+  `patches/engine-live-audio-mute.patch`; i pin upstream sono invariati.

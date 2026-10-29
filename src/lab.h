@@ -5,6 +5,7 @@ extern "C" {
 const char* lab_tr(const char* key);
 int lab_language_count(void);
 const char* lab_language_name(int i);
+const char* lab_font_family(void);
 int lab_font_count(void);
 const char* lab_font_preview_path(int i);
 const char* lab_font_name(int i);

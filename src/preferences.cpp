@@ -59,7 +59,7 @@ json loadSettings() {
     }
     int design=std::clamp(prefs.value("ui_design",1),1,2);prefs["ui_design"]=design;
     prefs["ui_theme"]=LabPaletteForDesign(prefs.value("ui_theme",LabDefaultPalette(design)),design);
-    prefs["light_theme"]=prefs.value("light_theme",design==1);
+    prefs["light_theme"]=design==1;
     prefs["window_transparency"]=std::clamp(prefs.value("window_transparency",100-prefs.value("window_opacity",100)),0,30);prefs["window_opacity"]=100-prefs["window_transparency"].get<int>();
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
     const std::pair<const char*,int> animationDefaults[]={{"switcher_size",100},{"switcher_zoom",132},{"switcher_fade_in",140},{"switcher_fade_out",140},{"switcher_motion",350},{"switcher_reverse",0},{"wave_speed",100},{"wave_height",24},{"transition_duration",700},{"transition_direction",0},{"transition_curve",0},{"transition_zoom",30},{"caelestia_palette",0},{"caelestia_mode",0}};

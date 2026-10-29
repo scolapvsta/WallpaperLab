@@ -1,24 +1,25 @@
-# Themes e palette dedicate — 0.21
+# Themes e palette dedicate — 0.22
 
 **Themes** è sempre una dropdown, anche con due sole voci. I temi attivi sono
 Strawberry core e **2077**. **Color Palettes** contiene esclusivamente le palette
-del tema selezionato; **Mode** cambia Dark/Light. Ciascun tema ricorda la propria
-palette e modalità. La scelta del font e del peso resta indipendente dal tema.
+del tema selezionato. La modalità appartiene al tema: Strawberry è chiaro,
+2077 è scuro. Il controllo Mode è rimosso, incluse le varianti opposte. Ogni tema
+ricorda la propria palette; il peso del testo resta configurabile.
 
 Le 29 palette storiche e Originale sono stati rimossi dal catalogo attivo, su
 richiesta dell'utente. Il backup locale `local/backups/themes-0.20/` e il commit
 0.20 (`78bc1ec`) ne conservano l'implementazione. Le vecchie preferenze Strawberry
 Milk/Raspberry Ribbon/Vanilla Shortcake migrano mantenendo la selezione; gli altri
-preset passano a Strawberry Milk. La modalità e il font salvati vengono conservati.
+preset passano a Strawberry Milk. Le palette salvate vengono conservate; la modalità viene normalizzata a quella del tema.
 
 ## Strawberry core
 
 Tre palette: **Strawberry Milk**, **Raspberry Ribbon**, **Vanilla Shortcake**.
 Fondo vichy, fragole, fiocchi e pizzi. Pulsanti a biscotto giallo miele con estremità
 arrotondate, incisione interna e piccoli puntini; il testo sui biscotti rimane
-marrone per il contrasto anche in modalità scura. Coniglietti interi con orecchio
+marrone per il contrasto. Coniglietti interi con orecchio
 piegato, occhi lucidi, guance rosa, grande fiocco a quadretti e biscottino in mano.
-Il font non viene modificato o reso corsivo dal tema.
+Il font può essere scelto in Theme Font, senza corsivo forzato.
 
 ## 2077
 
@@ -29,6 +30,7 @@ Il font non viene modificato o reso corsivo dal tema.
 | Electric Blue | Ciano | Blu elettrico e rosa |
 | Night Drive | Rosa | Blu notte e neon rosa/ciano |
 | Hazard Yellow | Giallo | Segnaletica gialla e arancio |
+| Crimson Protocol | Rosso | Rosso segnale, ambra e superfici scure |
 
 Scena urbana originale disegnata in raylib e memorizzata in una texture: skyline
 su tre livelli, finestre pixel, insegne geometriche ispirate al katakana,
@@ -36,14 +38,48 @@ cartelloni, cavi e prospettiva della strada con riflessi. Pannelli con angoli
 smussati a taglio, contorni luminosi, pioggia animata, trama a scansione, LED in
 movimento e brevi glitch discreti confinati allo sfondo. Riduci animazioni ferma
 pioggia e LED e disabilita i glitch. I contenuti e i testi restano stabili.
-La variante Light usa colori derivati dall'accento per mantenere leggibilità.
+La variante Light è stata rimossa. Il marchio 2077 usa Orbitron, taglio grafico,
+codici binari, barcode, separazione cromatica breve e dettagli LED. I glitch
+dell’interfaccia rimangono sui bordi e nella testata: i testi dei controlli non saltano.
 
 I riferimenti allegati ispirano l'atmosfera e le forme. Non sono incorporati
 come fotografie né copiati come asset; le illustrazioni sono vettoriali originali.
 
+## Theme Font
+
+Subito sotto Themes, **Theme Font** mostra Predefinito e i font pertinenti, più
+l'eventuale font personale già selezionato. Per 2077 sono inclusi **Oxanium**
+(predefinito per l'interfaccia), **Rajdhani** e **Orbitron**; il titolo 2077 usa
+Orbitron anche se viene scelto un altro font per i controlli. **Mostra tutti i font**
+espande la stessa dropdown alle famiglie disponibili; **Solo font del tema**
+ripristina il filtro. La selezione duplicata in fondo ad Aspetto è stata rimossa.
+
+Font scaricati dal repository ufficiale Google Fonts, commit e SHA-256 registrati
+in `assets/fonts/manifest.json`, licenze SIL OFL incluse nel pacchetto. Sono
+registrati soltanto nel processo dell'app, senza installazioni globali né download
+al successivo avvio. Le famiglie mancanti negli alfabeti non coperti usano il
+fallback Pango. La dropdown disegna una sola etichetta per riga e usa superfici
+opache per evitare il testo sovrapposto visto con trasparenza al 30%.
+
+- [Oxanium: descrizione ufficiale](https://github.com/google/fonts/blob/main/ofl/oxanium/DESCRIPTION.en_us.html)
+- [Orbitron: descrizione ufficiale](https://github.com/google/fonts/blob/main/ofl/orbitron/DESCRIPTION.en_us.html)
+- [Rajdhani: descrizione ufficiale](https://github.com/google/fonts/blob/main/ofl/rajdhani/DESCRIPTION.en_us.html)
+- [Edgerunners: riferimento ufficiale](https://www.cyberpunk.net/en/edgerunners)
+
+## Sfondi inclusi e preview
+
+Il campo Sfondo dell’app ha la stessa larghezza e altezza degli altri menu. A fianco
+c'è una preview del fondo selezionato; sotto, due pulsanti compatti nella stessa
+colonna: Carica dal PC e Ripristina tema. Per 2077 sono disponibili **Neon District**,
+**Afterlife Alley**, **Binary Rain** e **Edge Signal**: skyline con strada, vicoli
+più fitti, colonne binarie o città con segnale geometrico acido. La scelta del
+preset è ricordata separatamente per tema. Ripristina tema torna al primo preset.
+Strawberry mantiene quattro variazioni procedurali di vichy, righe, giardino e pizzi.
+Le illustrazioni sono originali: non includono immagini o personaggi dell'anime.
+
 ## Sfondo dell'app dal PC
 
-Aspetto → **Sfondo dell’app → Carica dal PC** apre il selettore di immagini.
+Aspetto → **Sfondo dell’app → Carica dal PC** (nel menu o nel pulsante) apre il selettore di immagini.
 L'immagine viene decodificata e salvata come PNG entro 2048 × 2048 pixel nei dati
 XDG `wallpaper-lab/app-backgrounds/`; il file originale rimane intatto e non è
 necessario conservarlo nello stesso percorso. L'importazione è asincrona. Un file

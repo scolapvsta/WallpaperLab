@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 0.21.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 0.22.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 set(ENGINE_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/build-engine" CACHE PATH "Built engine tree")
@@ -15,6 +15,7 @@ find_package(PkgConfig REQUIRED)
 find_package(Freetype REQUIRED)
 pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 pkg_check_modules(PANGO REQUIRED IMPORTED_TARGET pangocairo)
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(TRANSLATIONS_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/translations_data.h")
 add_custom_command(OUTPUT "${TRANSLATIONS_HEADER}"
@@ -26,11 +27,11 @@ set_target_properties(engine PROPERTIES IMPORTED_LOCATION "${ENGINE_BUILD}/outpu
 add_library(cef SHARED IMPORTED)
 set_target_properties(cef PROPERTIES IMPORTED_LOCATION "${ENGINE_BUILD}/output/libcef.so")
 add_executable(wallpaper-lab "${TRANSLATIONS_HEADER}" src/app.cpp src/workshop.cpp src/i18n.cpp src/displays.cpp src/catalog.cpp src/preferences.cpp src/shortcuts.cpp src/popup.cpp src/engine_entry.cpp src/selector.c src/gif.c)
-target_compile_definitions(wallpaper-lab PRIVATE _GNU_SOURCE WALLPAPER_LAB_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(wallpaper-lab PRIVATE WALLPAPER_LAB_SOURCE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets" _GNU_SOURCE WALLPAPER_LAB_VERSION="${PROJECT_VERSION}")
 target_include_directories(wallpaper-lab PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" src vendor/engine/src vendor/engine/src/External/kissfft vendor/engine/src/External/json/include ${CEF_ROOT} ${SDL2_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/include")
 # Chromium's close() interposer uses RTLD_NEXT. Keep CEF before libc in the
 # executable's direct dependencies, even though only the engine calls its API.
-target_link_libraries(wallpaper-lab PRIVATE raylib Freetype::Freetype engine "-Wl,--no-as-needed" cef "-Wl,--as-needed" pthread PkgConfig::CURL PkgConfig::PANGO dl)
+target_link_libraries(wallpaper-lab PRIVATE raylib Freetype::Freetype engine "-Wl,--no-as-needed" cef "-Wl,--as-needed" pthread PkgConfig::CURL PkgConfig::PANGO PkgConfig::FONTCONFIG dl)
 target_link_options(wallpaper-lab PRIVATE "-Wl,-rpath-link,${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/lib" "-Wl,-rpath-link,${ENGINE_BUILD}/output")
 set_target_properties(wallpaper-lab PROPERTIES BUILD_RPATH "${ENGINE_BUILD}/output;${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/lib" INSTALL_RPATH "$ORIGIN;$ORIGIN/lib;$ORIGIN/deps")
 enable_testing()
@@ -43,6 +44,7 @@ target_link_libraries(gif-test PRIVATE m)
 add_test(NAME gif-timing COMMAND gif-test)
 
 install(TARGETS wallpaper-lab RUNTIME DESTINATION . COMPONENT app)
+install(DIRECTORY assets/fonts DESTINATION . COMPONENT app)
 install(FILES assets/caelestia_palette.py DESTINATION . COMPONENT app)
 
 add_executable(preferences-test tests/preferences_test.cpp src/preferences.cpp src/shortcuts.cpp src/catalog.cpp)

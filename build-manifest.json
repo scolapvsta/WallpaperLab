@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "date": "2026-10-29",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -23,7 +23,8 @@
     "patches/engine-stable-transitions-image-controls.patch": "8e30b95ca1219e51dfb15df534510b7a65744aca289ea27b614710e0233b7472",
     "patches/engine-custom-animation-image-transform.patch": "9de1189154abc10be7c0c5cfc4661de89db559673390bcf7964b802b81af790f",
     "patches/engine-transition-handoff.patch": "1a91cab052bfcab607184a407400e69fe4a01743a47f3caec1233ed241bc3c12",
-    "patches/engine-compositor-transitions.patch": "f40c38ceb859e8d9ab7e73f44231a48ce121825eff13aa01614cd6f277725c28"
+    "patches/engine-compositor-transitions.patch": "f40c38ceb859e8d9ab7e73f44231a48ce121825eff13aa01614cd6f277725c28",
+    "patches/engine-live-audio-mute.patch": "67ae4c069fd75e53c68282ce7e8f4e1e9dc04a39cb69b85bdd413ebf117c0986"
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",

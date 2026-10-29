@@ -12,6 +12,7 @@
 #include "app_background.hpp"
 #include "caelestia_integration.hpp"
 #include "theme_catalog.h"
+#include "theme_fonts.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -85,11 +86,13 @@ void syncCaelestia(const Item& item,const json& prefs,bool alreadyLocked=false){
 
 
 void resolveFonts(bool discover=false){
+    registerThemeFonts();
     if(discover){
         auto list=capture({"fc-list",":lang=en","-f","%{family[0]}\n"});
         if(!list.empty()){std::set<std::string> families;std::istringstream lines(list[0]);std::string family;
             while(std::getline(lines,family))if(!family.empty()&&family.size()<100&&family.find("Symbols")==std::string::npos&&family.find("Emoji")==std::string::npos&&family.find("Math")==std::string::npos&&family.find("Rotated")==std::string::npos)families.insert(family);
-            fontFamilies={"Default"};for(auto& name:families){
+            fontFamilies={"Default","Rajdhani","Oxanium","Orbitron"};for(auto& name:families){
+                if(name=="Rajdhani"||name=="Oxanium"||name=="Orbitron")continue;
                 if(name.find("Nerd Font")!=std::string::npos&&(name.ends_with(" Mono")||name.ends_with(" Propo")||name.find("MonoNL")!=std::string::npos))continue;
                 if(name.find("CJK ")!=std::string::npos&&!name.ends_with(" SC"))continue;
                 if(fontFamilies.size()>=96)break;fontFamilies.push_back(name);
@@ -97,13 +100,13 @@ void resolveFonts(bool discover=false){
             auto selected=settings.value("font_family",std::string());if(!selected.empty()&&std::find(fontFamilies.begin(),fontFamilies.end(),selected)==fontFamilies.end()&&families.contains(selected)){if(fontFamilies.size()>=96)fontFamilies.pop_back();fontFamilies.push_back(selected);}
         }
     }
-    std::string family=settings.value("font_family",std::string());
-    auto match=[](const std::string& name){auto result=capture({"fc-match","-f","%{index}|%{file}",name});if(result.empty())return std::string();auto split=result[0].find('|');if(split==std::string::npos)return result[0];return "@"+result[0].substr(0,split)+":"+result[0].substr(split+1);};
+    std::string family=settings.value("font_family",std::string());if(family.empty())family=settings.value("ui_design",1)==2?"Oxanium":"Sans";
+    auto match=[](const std::string& name){auto colon=name.find(':');auto bundled=bundledFont(name.substr(0,colon));if(!bundled.empty())return bundled;auto result=capture({"fc-match","-f","%{index}|%{file}",name});if(result.empty())return std::string();auto split=result[0].find('|');if(split==std::string::npos)return result[0];return "@"+result[0].substr(0,split)+":"+result[0].substr(split+1);};
     std::string weight=settings.value("font_weight",1)==0?"medium":settings.value("font_weight",1)==2?"bold":"demibold";
     fontPath=match((family.empty()?"Adwaita Sans":family)+":weight="+weight);
     buttonFontPath=match(family.empty()?"DejaVu Sans:style=Bold":family+":weight=demibold");
     brandFontPath=match((family.empty()?"Noto Serif":family)+":weight="+weight);
-    fallbackFontPath=match("Noto Sans CJK SC");appliedFamily=family;appliedWeight=settings.value("font_weight",1);fontRevision++;
+    fallbackFontPath=match("Noto Sans CJK SC");appliedFamily=settings.value("font_family",std::string());appliedWeight=settings.value("font_weight",1);fontRevision++;
 }
 std::string executable() {return fs::read_symlink("/proc/self/exe").string();}
 std::string startTime(pid_t pid) {
@@ -289,6 +292,7 @@ int find(const std::string& id) {for(size_t i=0;i<items.size();++i)if(items[i].i
 extern "C" {
 int lab_language_count(){return languageCount();}
 const char* lab_language_name(int i){return languageName(i);}
+const char* lab_font_family(){static std::string family;family=settings.value("font_family",std::string());if(family.empty())family=settings.value("ui_design",1)==2?"Oxanium":"Sans";return family.c_str();}
 int lab_font_count(){return fontFamilies.size();}
 const char* lab_font_name(int i){return fontFamilies.at(i).c_str();}
 const char* lab_font_preview_path(int i){static std::map<std::string,std::string> cache;auto family=i?fontFamilies.at(i):"Adwaita Sans";auto name=family+":weight="+(settings.value("font_weight",1)==0?"medium":settings.value("font_weight",1)==2?"bold":"demibold");if(!cache.contains(name)){auto v=capture({"fc-match","-f","%{index}|%{file}",name});if(v.empty())cache[name]="";else{auto split=v[0].find('|');cache[name]="@"+v[0].substr(0,split)+":"+v[0].substr(split+1);}}return cache[name].c_str();}
@@ -301,7 +305,7 @@ const char* lab_files_notice(){return lab_tr(fileNotice.c_str());}
 const char* lab_library_path(int local){static std::string value;if(local)value=localLibrary(settings).string();else{value=settings.value("workshop_path",std::string());if(value.empty())for(auto p:steamLibraries())if(fs::is_directory(p/"steamapps/workshop/content/431960")){value=(p/"steamapps/workshop/content/431960").string();break;}}return value.c_str();}
 int lab_files_start(int action){if(fileJob.valid()||pending.valid()||catalogScan.valid())return 0;fileNotice.clear();std::string title=lab_tr(action==3?"Sfondo dell’app":action==0?"Importa immagini o video":action==1?"Workshop Steam":"Sfondi locali");auto prefs=loadSettings();fileJob=std::async(std::launch::async,[action,title,prefs]{auto files=chooseLocalFiles(action==1||action==2,title,action==3);if(files.empty())return json{{"cancelled",true}};if(action==3){auto image=importAppBackground(files.front());ControllerLock lock;auto latest=loadSettings();latest["app_background"]=image.string();writeJson(configDir()/"settings.json",latest);return json{{"background",true}};}if(action!=0){auto directory=fs::canonical(files.front());if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");ControllerLock lock;auto latest=loadSettings();latest[action==1?"workshop_path":"local_path"]=directory.string();writeJson(configDir()/"settings.json",latest);return json{{"changed",true}};}int count=0;for(auto& file:files){importLocalMedia(file,localLibrary(prefs));count++;}return json{{"imported",count}};});return 1;}
 const char* lab_app_background(){static std::string path;path=settings.value("app_background",std::string());return path.c_str();}
-int lab_clear_app_background(){return savePreference("app_background","");}
+int lab_clear_app_background(){return lab_set_option("app_background_preset",0);}
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
 int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return result.value("background",false)?2:1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
 int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
@@ -542,27 +546,27 @@ int lab_monitor_count(){return monitors.size();}
 const char* lab_monitor(int i){return monitorLabels.at(i).c_str();}
 int lab_mode(){auto m=settings.value("mode",std::string("span"));return m=="span"?0:m=="mirror"?1:2;}
 int lab_screen(){return settings.value("screen",0);}
-int lab_option(const char* key){if(std::string(key)=="light_theme")return settings.value("light_theme",false);if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
+int lab_option(const char* key){if(std::string(key)=="app_background_preset")return settings.value(settings.value("ui_design",1)==2?"cyber_background":"strawberry_background",0);if(std::string(key)=="light_theme")return settings.value("ui_design",1)==1;if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
 int lab_set_mode(int mode){return savePreference("mode",mode==0?"span":mode==1?"mirror":"single");}
 int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 0;int ok=savePreference("screen",screen);refreshRunning();return ok;}
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
-    if(k=="ui_theme"||k=="light_theme"||k=="ui_design")return guarded([&]{
+    if(k=="ui_theme"||k=="ui_design")return guarded([&]{
         ControllerLock lock;auto latest=loadSettings();int old=latest.value("ui_design",1);
-        if(k=="light_theme")latest[k]=bool(value);
-        else if(k=="ui_design"){
+        if(k=="ui_design"){
             int design=std::clamp(value,1,2);
             if(design!=old){
                 latest[old==1?"strawberry_palette":"cyber_palette"]=latest["ui_theme"];
                 latest[old==1?"strawberry_light":"cyber_light"]=latest["light_theme"];
                 latest["ui_theme"]=LabPaletteForDesign(latest.value(design==1?"strawberry_palette":"cyber_palette",LabDefaultPalette(design)),design);
-                latest["light_theme"]=latest.value(design==1?"strawberry_light":"cyber_light",design==1);
+                latest["light_theme"]=design==1;
                 latest[k]=design;
             }
         }else latest[k]=LabPaletteForDesign(value,old);
-        writeJson(configDir()/"settings.json",latest);settings=latest;
+        writeJson(configDir()/"settings.json",latest);settings=latest;if(k=="ui_design")resolveFonts();
     });
+    if(k=="app_background_preset")return guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[latest.value("ui_design",1)==2?"cyber_background":"strawberry_background"]=std::clamp(value,0,3);latest["app_background"]="";writeJson(configDir()/"settings.json",latest);settings=latest;});
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));
     if(k=="carousel_layout")return savePreference(k,std::clamp(value,0,3));
     if(k=="window_opacity"||k=="window_transparency")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int t=std::clamp(k=="window_opacity"?100-value:value,0,30);latest["window_transparency"]=t;latest["window_opacity"]=100-t;writeJson(configDir()/"settings.json",latest);settings=latest;});

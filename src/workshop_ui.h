@@ -6,7 +6,7 @@ static bool wsStarted=false,wsAny=false,wsAuthorEditing=false,wsFiltersDirty=fal
 static char wsAuthor[256]="",librarySearch[256]="",workshopSearch[256]="";
 static TextEdit wsAuthorEdit;
 static float wsScroll=0,wsScrollDraw=0,wsDetailScroll=0,wsDetailDraw=0,wsFilterScroll=0,wsFilterDraw=0;
-static Texture2D wsTextures[200];static char wsTextureIDs[200][80],wsTexturePaths[200][4096];
+static double wsTextureAttempt[200];static Texture2D wsTextures[200];static char wsTextureIDs[200][80],wsTexturePaths[200][4096];
 static Rectangle wsSearchButton,wsAuthorControl,wsDownloadButton,wsPrevButton,wsNextButton,wsResultCards[200],wsTagRows[96],wsLogicControl;
 static const char* wsTags[]={
  "Scene","Video","Web","Application",
@@ -32,17 +32,18 @@ static const char* WsBytes(double bytes){if(bytes>=1024*1024*1024)return TextFor
 static const char* WsDate(double stamp){time_t t=(time_t)stamp;struct tm* v=localtime(&t);static char value[32];if(v)strftime(value,sizeof(value),"%d/%m/%Y",v);else value[0]=0;return value;}
 static void WorkshopTick(void){
  if(page==3&&wsFiltersDirty){wsFiltersDirty=false;wsDirtyAt=GetTime();}if(page==3&&wsDirtyAt>0&&GetTime()-wsDirtyAt>.45){wsDirtyAt=0;bool edit=wsAuthorEditing,searching=isSearching;WorkshopSearch(1);wsAuthorEditing=edit;isSearching=searching;}
- static double lastTick=0;if(GetTime()-lastTick>.1){lab_ws_tick();lastTick=GetTime();}int revision=lab_ws_number(-1,"revision");if(revision!=wsSeenRevision){wsSeenRevision=revision;wsSelected=-1;wsScroll=wsScrollDraw=wsDetailScroll=wsDetailDraw=0;memset(wsResultCards,0,sizeof(wsResultCards));if(lab_ws_count())ReloadUiFonts();}
- int namesRevision=lab_ws_number(-1,"names_revision");if(namesRevision!=wsNamesRevision){wsNamesRevision=namesRevision;wsNamesChanged=GetTime();}if(wsNamesChanged>0&&GetTime()-wsNamesChanged>.5&&!lab_ws_number(-1,"busy")){wsNamesChanged=0;if(lab_ws_count())ReloadUiFonts();}
+ static double lastTick=0;if(GetTime()-lastTick>.1){lab_ws_tick();lastTick=GetTime();}int revision=lab_ws_number(-1,"revision");if(revision!=wsSeenRevision){wsSeenRevision=revision;wsSelected=-1;wsScroll=wsScrollDraw=wsDetailScroll=wsDetailDraw=0;memset(wsResultCards,0,sizeof(wsResultCards));}
+ int namesRevision=lab_ws_number(-1,"names_revision");if(namesRevision!=wsNamesRevision){wsNamesRevision=namesRevision;wsNamesChanged=GetTime();}if(wsNamesChanged>0&&GetTime()-wsNamesChanged>.5&&!lab_ws_number(-1,"busy")){wsNamesChanged=0;}
  int loaded=0;
  for(int i=0;i<200;i++){
   char id[80]="",path[4096]="";if(i<lab_ws_count()){snprintf(id,sizeof(id),"%s",lab_ws_text(i,"id"));snprintf(path,sizeof(path),"%s",lab_ws_text(i,"thumbnail"));}
   if(strcmp(id,wsTextureIDs[i])||strcmp(path,wsTexturePaths[i])){
    if(wsTextures[i].id)UnloadTexture(wsTextures[i]);wsTextures[i]=(Texture2D){0};
-   snprintf(wsTextureIDs[i],sizeof(wsTextureIDs[i]),"%s",id);wsTexturePaths[i][0]=0;
+   snprintf(wsTextureIDs[i],sizeof(wsTextureIDs[i]),"%s",id);snprintf(wsTexturePaths[i],sizeof(wsTexturePaths[i]),"%s",path);wsTextureAttempt[i]=-10;
   }
-  if(*path&&!wsTextures[i].id&&loaded<2){
-   int bytes=0;unsigned char* data=LoadFileData(path,&bytes);if(data){Image image=LoadImageFromMemory(".png",data,bytes);UnloadFileData(data);if(image.data){if(image.width>1200)ImageResize(&image,1200,1200*(float)image.height/image.width);wsTextures[i]=LoadTextureFromImage(image);SetTextureFilter(wsTextures[i],TEXTURE_FILTER_BILINEAR);UnloadImage(image);}}snprintf(wsTexturePaths[i],sizeof(wsTexturePaths[i]),"%s",path);loaded++;
+  if(*path&&!wsTextures[i].id&&loaded<1&&GetTime()-wsTextureAttempt[i]>5){
+   wsTextureAttempt[i]=GetTime();
+   int bytes=0;unsigned char* data=LoadFileData(path,&bytes);if(data){Image image=LoadImageFromMemory(".png",data,bytes);UnloadFileData(data);if(image.data){if(image.width>640||image.height>640){float scale=fminf(640.f/image.width,640.f/image.height);ImageResize(&image,fmaxf(1,image.width*scale),fmaxf(1,image.height*scale));}wsTextures[i]=LoadTextureFromImage(image);SetTextureFilter(wsTextures[i],TEXTURE_FILTER_BILINEAR);UnloadImage(image);}}snprintf(wsTexturePaths[i],sizeof(wsTexturePaths[i]),"%s",path);loaded++;
   }
  }
  if(wsAuthorEditing&&!inputBlocked){if(EditInput(&wsAuthorEdit,wsAuthor,sizeof(wsAuthor)))wsFiltersDirty=true;if(IsKeyPressed(KEY_ENTER))WorkshopSearch(1);}
@@ -75,9 +76,9 @@ static void WorkshopGrid(Rectangle area){
  const char* error=lab_ws_text(-1,"error");if(*error){TextLines(error,area.x+24,area.y+24,area.width-48,18,6,(Color){236,133,140,255});if(Button((Rectangle){area.x+24,area.y+184,170,36},lab_tr("Riprova"),false,!busy))WorkshopSearch(wsPage);inputClip=saved;return;}
  int count=lab_ws_count();if(!count){UiText(lab_tr(busy?"Ricerca su Steam...":"Nessun risultato. Prova altri filtri."),area.x+24,area.y+28,18,muted);inputClip=saved;return;}
  float footer=54;Rectangle viewport={area.x,area.y,area.width,area.height-footer};
- if(Hot(viewport,true))wsScroll=fmaxf(0,wsScroll-ScrollInput(viewport)*64);wsScrollDraw=SmoothScroll(wsScrollDraw,wsScroll);
- LibraryGridLayout layout=library_grid_layout(area.width,246);int columns=layout.columns;float tile=layout.tile,gap=12,rowHeight=tile*.5625f+84;float total=ceilf(count/(float)columns)*rowHeight+24;
- wsScroll=Clamp(wsScroll,0,fmaxf(0,total-viewport.height));BeginScissorMode(viewport.x,viewport.y,viewport.width,viewport.height);
+ if(Hot(viewport,true))wsScroll=fmaxf(0,wsScroll-ScrollInput(viewport)*64);
+ LibraryGridLayout layout=library_grid_layout(area.width,246);int columns=layout.columns;float tile=layout.tile,gap=12,rowHeight=tile*.5625f+106;float total=ceilf(count/(float)columns)*rowHeight+24;
+ wsScroll=Clamp(wsScroll,0,fmaxf(0,total-viewport.height));wsScrollDraw=SmoothScroll(wsScrollDraw,wsScroll);BeginScissorMode(viewport.x,viewport.y,viewport.width,viewport.height);
  for(int i=0;i<count&&i<200;i++){
   int col=i%columns,row=i/columns;Rectangle card={area.x+16+col*(tile+gap),area.y+14+row*rowHeight-wsScrollDraw,tile,rowHeight-gap};wsResultCards[i]=card;
   if(card.y+card.height<viewport.y||card.y>viewport.y+viewport.height)continue;

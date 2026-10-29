@@ -57,9 +57,10 @@ static void BerryLace(float x,float y,float width){
 }
 static void BerryBackdrop(int width,int height){
  DrawRectangle(0,0,width,height,AppTheme.bg);
- Color check=Fade(AppTheme.border,lab_option("light_theme")?.045f:.065f);
- for(int x=0;x<width;x+=48)DrawRectangle(x,0,24,height,check);
- for(int y=0;y<height;y+=48)DrawRectangle(0,y,width,24,check);
+ int preset=lab_option("app_background_preset");Color check=Fade(AppTheme.border,preset==2?.02f:.045f);
+ if(preset!=1)for(int x=0;x<width;x+=48)DrawRectangle(x,0,24,height,check);
+ for(int y=0;y<height;y+=preset==1?36:48)DrawRectangle(0,y,width,preset==1?4:24,check);
+ if(preset==3)for(int y=20;y<height;y+=90)BerryLace(0,y,width);
  for(int row=0,y=195;y<height;y+=144,row++)for(int x=35+(row%2)*95;x<width;x+=190){
   if((x/190+row)%3==0)BerryBow(x,y,.46f);else if((x/190+row)%3==1)BerryFruit(x,y,10);
   else {DrawCircle(x,y,2,Fade(AppTheme.border,.23f));DrawCircle(x+12,y+14,1,Fade(AppTheme.border,.2f));}

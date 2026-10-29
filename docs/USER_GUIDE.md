@@ -130,18 +130,22 @@ lo sfondo senza transizione. Le immagini temporanee rimangono nello stato XDG lo
 ## Aspetto e lingue
 
 **Themes** è una dropdown con Strawberry core e **2077**. **Color Palettes**
-mostra solo le tre palette Strawberry o le cinque palette cyberpunk del tema
-selezionato. **Mode** cambia Dark/Light; ogni tema ricorda la propria combinazione.
+mostra solo le tre palette Strawberry o le sei palette cyberpunk del tema
+selezionato, inclusa Crimson Protocol rossa. La modalità è decisa dal tema:
+Strawberry chiaro, 2077 scuro; il controllo Mode non è più presente.
 I vecchi preset sono rimossi dalla scelta attiva e conservati nei backup.
-Font e peso del testo restano impostazioni indipendenti.
+**Theme Font**, subito sotto Themes, offre i font pertinenti e “Mostra tutti i font”.
+2077 include Oxanium, Rajdhani e Orbitron; il peso del testo resta separato.
 
 Strawberry usa biscotti giallo miele arrotondati e coniglietti con fiocco; 2077 ha
 una città al neon, pannelli a taglio, LED, pioggia e glitch sullo sfondo.
 Riduci animazioni ferma gli effetti decorativi in movimento.
 
-**Sfondo dell’app → Carica dal PC** permette di sostituire il fondo illustrato
+**Sfondo dell’app** propone quattro fondi inclusi con una preview vicina. I due
+pulsanti sottostanti hanno dimensioni compatte nella stessa colonna degli altri
+controlli. **Carica dal PC** permette di sostituire il fondo illustrato
 con una tua immagine. L'app ne conserva una copia nei dati XDG, indipendente dal
-file originale. **Ripristina tema** torna allo sfondo del tema. Il caricamento
+file originale. **Ripristina tema** torna al primo fondo incluso del tema. Il caricamento
 non importa un wallpaper desktop e non cambia i progetti della libreria.
 [Dettagli, backup e limiti](THEMES.md).
 
@@ -257,3 +261,16 @@ applicata in memoria a ogni avvio del renderer e non cambia animazioni delle
 altre finestre né file di configurazione. Le prove grafiche native da sole non
 rilevano queste animazioni aggiunte dal compositor: la regressione usa anche
 campioni del desktop con un'immagine a fasce, prima e dopo il passaggio.
+
+
+## Mute immediato, anche per i progetti web — 0.22
+
+**Audio dello sfondo** nelle impostazioni generali e nel pannello del wallpaper
+sono due interruttori in serie: basta spegnerne uno per silenziare il wallpaper
+attuale. La modifica viene recepita dal renderer senza riavviarlo; gli altri
+controlli di riproduzione conservano il comportamento indicato nel pannello.
+Il browser applica il mute a elementi audio/video, Web Audio e iframe, anche se
+la pagina prova a riattivare il proprio player o viene ricaricata. Il mute non
+disabilita la cattura per gli effetti che reagiscono alla musica. La preferenza
+locale resta salvata per quel progetto; riattivare solo il controllo globale non
+supera un mute locale.

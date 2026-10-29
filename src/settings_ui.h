@@ -1,9 +1,9 @@
 // Deferred overlay menus: opening a choice never changes document geometry.
 static int choiceReserve=0;static bool choiceEnabled=true;
 static int choiceScroll=0,choicePending=-1,choiceValue=-1;
-static Rectangle choiceControls[96],choiceRows[96][96];static int choiceCounts[96];
+static Rectangle choiceControls[96],choiceRows[96][128];static int choiceCounts[96];
 static bool choiceWheel=false,choiceMulti=false;static bool* choiceChecks=NULL;
-static char choiceLabels[96][256];static int choiceSelected=0;static Rectangle choiceList,choiceThumb;
+static char choiceLabels[128][256];static int choiceSelected=0;static Rectangle choiceList,choiceThumb;
 // Shared toggles: boolean switches and arbitrary pairs retain their real values.
 static bool choiceToggle[96];static int choiceToggleValue[96];
 static bool ToggleRow(Rectangle row,const char* label,const char* state,bool value,bool enabled){
@@ -34,7 +34,7 @@ static int Choice(int id,int x,int* py,int w,const char* label,const char** opti
  int y=*py;int cw=*label?fminf(292,w*.60f):w;TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
  choiceRegistering=choiceOpen<0||choiceOpen==id||!CheckCollisionPointRec(GetMousePosition(),choiceList);if(!choiceEnabled&&choiceOpen==id)choiceOpen=-1;buttonTrailing=24;bool clicked=Button(box,selected>=0&&selected<count?options[selected]:"—",choiceOpen==id,!applying&&choiceEnabled);buttonTrailing=0;choiceRegistering=false;
  if(clicked){choiceOpen=choiceOpen==id?-1:id;choiceScroll=Clamp(selected-2,0,fmaxf(0,count-7));}
- if(choiceOpen==id){choiceSelected=result;choiceMulti=false;choiceChecks=NULL;for(int n=0;n<count&&n<96;n++)snprintf(choiceLabels[n],256,"%s",options[n]);}
+ if(choiceOpen==id){choiceSelected=result;choiceMulti=false;choiceChecks=NULL;for(int n=0;n<count&&n<128;n++)snprintf(choiceLabels[n],256,"%s",options[n]);}
  DrawLineEx((Vector2){box.x+box.width-15,y+14},(Vector2){box.x+box.width-10,y+19},1.5f,muted);return result;
 }
 static void MultiChoice(int id,int x,int* y,int w,const char* label,const char** options,int count,bool* selected){
@@ -50,17 +50,18 @@ static void MultiChoice(int id,int x,int* y,int w,const char* label,const char**
 static void ChoiceOverlay(void){
  if(choiceOpen<0)return;int id=choiceOpen,count=choiceCounts[id],visible=fminf(7,count);Rectangle box=choiceControls[id];
  choiceList=(Rectangle){box.x,box.y+box.height+4,fmaxf(box.width,240),visible*34+8};choiceList.x=Clamp(choiceList.x,8,GetScreenWidth()-choiceList.width-8);if(choiceList.y+choiceList.height>GetScreenHeight()-12)choiceList.y=box.y-choiceList.height-4;
+ Color oldSurface=surface,oldControl=control,oldHover=controlHover,oldLine=lineColor;surface.a=control.a=controlHover.a=lineColor.a=255;
  Rectangle old=inputClip;inputClip=(Rectangle){0,0,GetScreenWidth(),GetScreenHeight()};bool modal=modalDrawing;modalDrawing=true;choiceRendering=true;
  ThemePanel((Rectangle){choiceList.x-3,choiceList.y-3,choiceList.width+6,choiceList.height+6},.06f,8,lineColor);ThemePanel(choiceList,.06f,8,surface);
  if(CheckCollisionPointRec(GetMousePosition(),choiceList)){static float wheelRest=0;wheelRest+=ScrollInput(choiceList);int steps=truncf(wheelRest);wheelRest-=steps;choiceScroll=Clamp(choiceScroll-steps,0,fmaxf(0,count-visible));}
  memset(choiceRows[id],0,sizeof(choiceRows[id]));for(int n=0;n<visible;n++){int i=n+choiceScroll;Rectangle row={choiceList.x+4,choiceList.y+4+n*34,choiceList.width-20,32};choiceRows[id][i]=row;
   if(Button(row,choiceLabels[i],!choiceMulti&&i==choiceSelected,true)){choicePending=id;choiceValue=i;if(!choiceMulti)choiceOpen=-1;}
-  if(id==33){if(!fontPreview[i].texture.id){rlDrawRenderBatchActive();int glyphs[224];for(int n=0;n<224;n++)glyphs[n]=n+32;fontPreview[i]=LoadSystemFont(lab_font_preview_path(i),32,glyphs,224);}ThemePanel(row,.15f,8,control);DrawTextEx(fontPreview[i],choiceLabels[i],(Vector2){row.x+10,row.y+7},17,0,AppTheme.text);}
+
 
  }
  if(count>visible){static bool dragging=false;static float grab=0;float track=choiceList.height-8,h=fmaxf(22,track*visible/count);Rectangle thumb={choiceList.x+choiceList.width-10,choiceList.y+4+(track-h)*choiceScroll/(count-visible),6,h};choiceThumb=thumb;Rectangle hit={thumb.x-4,thumb.y,14,h};if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&CheckCollisionPointRec(GetMousePosition(),hit)){dragging=true;grab=GetMouseY()-thumb.y;}if(dragging){if(IsMouseButtonDown(MOUSE_BUTTON_LEFT))choiceScroll=Clamp(roundf((GetMouseY()-choiceList.y-4-grab)/(track-h)*(count-visible)),0,count-visible);else dragging=false;}ThemePanel(thumb,1,6,dragging?AppTheme.border:muted);}
  if(IsKeyPressed(KEY_ESCAPE)||(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),choiceList)&&!CheckCollisionPointRec(GetMousePosition(),box)))choiceOpen=-1;
- choiceRendering=false;modalDrawing=modal;inputClip=old;
+ choiceRendering=false;modalDrawing=modal;inputClip=old;surface=oldSurface;control=oldControl;controlHover=oldHover;lineColor=oldLine;
 }
 static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){return ToggleChoice(id,x,y,w,label,NULL,value);}
 
