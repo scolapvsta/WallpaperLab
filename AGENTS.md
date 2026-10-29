@@ -17,10 +17,11 @@
   o nelle directory XDG della macchina. Non committare asset del Workshop.
 - Fare test di catalogo, lifecycle dei processi e prove grafiche mirate; dichiarare
   limiti e risultati effettivi. Nessun cambio dell'avvio automatico senza backup.
-- Repository privata: `scolapvsta/wallpaper-engine-customized`. Non cambiarne la visibilità.
+- Repository pubblica: `scolapvsta/wallpaper-engine-customized`, open beta su richiesta esplicita del 29/10/2026. Preservare la visibilità pubblica.
 - Il progetto Codex di riferimento è Wallpaper Engine Customized (WIP).
   Il nome definitivo dell'applicazione è ancora da decidere.
 - Su richiesta di Simone (0.13): per ogni versione/modifica completata aggiornare
   documentazione e risultati dei test, creare il commit e sincronizzare la repo
-  privata GitHub. Non pubblicare asset Workshop, dati personali o build locali;
-  non cambiare la visibilità. Documentare esplicitamente funzioni parziali e limiti.
+  GitHub. Le release beta possono includere il runtime preparato e verificato dal
+  packaging allowlist; non pubblicare asset Workshop, dati personali o build di
+  sviluppo grezze. Documentare esplicitamente funzioni parziali e limiti.

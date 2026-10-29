@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "date": "2026-10-29",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -30,5 +30,7 @@
   "portable_dependencies": "local development prefix, not committed",
   "workshop": "Native Steam UGC020 via locally installed libsteam_api.so; HTTPS static preview cache via libcurl",
   "local_media": "Managed image/web and native video imports; ffprobe metadata and ffmpeg thumbnails; configurable local and Steam scan roots",
-  "caelestia": "Optional on-demand Material You helper; rendered frame preferred, thumbnail fallback; chromatic shell palettes and conditional restore"
+  "caelestia": "Optional on-demand Material You helper; rendered frame preferred, thumbnail fallback; chromatic shell palettes and conditional restore",
+  "channel": "open-beta",
+  "distribution": "Arch Linux x86_64 self-extracting installer; system dependencies from pacman; separate optional Steamworks download"
 }

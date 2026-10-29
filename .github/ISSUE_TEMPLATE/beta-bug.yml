@@ -1,0 +1,41 @@
+name: Open beta bug report
+description: Report a reproducible Wallpaper Lab beta issue.
+title: "[Beta] "
+body:
+  - type: markdown
+    attributes:
+      value: "Please remove personal paths/account data from logs. Do not upload private wallpapers."
+  - type: input
+    id: version
+    attributes:
+      label: Wallpaper Lab version
+      placeholder: "0.24.0-beta.1"
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System and desktop
+      description: Arch/derivative, compositor + version, GPU + driver, Wayland/X11, monitor layout.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: input
+    id: project
+    attributes:
+      label: Public Workshop ID / local media type (if relevant)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Reviewed logs and screenshots (optional)

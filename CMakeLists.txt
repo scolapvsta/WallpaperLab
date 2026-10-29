@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 0.23.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 0.24.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 set(ENGINE_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/build-engine" CACHE PATH "Built engine tree")
@@ -94,3 +94,5 @@ find_package(GLEW REQUIRED)
 add_executable(transition-state-graphics-test tests/transition_state_graphics_test.cpp)
 target_include_directories(transition-state-graphics-test PRIVATE vendor/engine/src vendor/engine/src/External/json/include)
 target_link_libraries(transition-state-graphics-test PRIVATE raylib GLEW::GLEW)
+
+add_test(NAME beta-installer COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/beta_installer_test.py")

@@ -1,0 +1,9 @@
+{
+  "version": "0.4.0",
+  "url": "https://registry.npmjs.org/steamworks.js/-/steamworks.js-0.4.0.tgz",
+  "archive_sha256": "877815e99217ff4ffa560476bc1bd27fc5f7bfebd6319e7d21f3cd601b131943",
+  "member": "package/dist/linux64/libsteam_api.so",
+  "library_sha256": "0ed3199107e021fa27e19a642148514ca5337563569c48fc094c27f907dd47a7",
+  "notice": "Valve Steamworks runtime, downloaded separately from steamworks.js; not covered by the project GPL license.",
+  "terms": "https://partner.steamgames.com/doc/sdk/api"
+}

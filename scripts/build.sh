@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-git submodule update --init --recursive
+if [[ -f .source-release.json ]]; then
+    test -f vendor/engine/CMakeLists.txt && test -f vendor/raylib/CMakeLists.txt
+else
+    git submodule update --init --recursive
+fi
 apply_patch_if_needed() {
     local directory="$1" patch_file="$2"
     if git -C "$directory" apply --check "$PWD/$patch_file" 2>/dev/null; then

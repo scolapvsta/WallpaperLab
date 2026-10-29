@@ -3,7 +3,7 @@
 import argparse,array,json,math,os,pathlib,signal,socket,struct,subprocess,time,wave
 p=argparse.ArgumentParser();p.add_argument('--app',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
 config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);project=out/'fixture';project.mkdir(exist_ok=True);settings=config/'settings.json';profiles=config/'wallpaper_profiles.json';child=None;module=None;result={}
-sink='lab_web_mute_'+str(os.getpid());env=os.environ|{'PULSE_SINK':sink,'WALLPAPER_LAB_AUDIO_MONITOR':sink+'.monitor','XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'LD_LIBRARY_PATH':':'.join(str(app.parent/x)for x in ['.','lib','deps'])}
+sink='lab_web_mute_'+str(os.getpid());env=os.environ|{'PULSE_SINK':sink,'WALLPAPER_LAB_AUDIO_MONITOR':sink+'.monitor','XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'LD_LIBRARY_PATH':':'.join(str(app.parent/x)for x in ['.','lib','deps'])+(':'+os.environ['LD_LIBRARY_PATH'] if os.environ.get('LD_LIBRARY_PATH') else '')}
 with socket.socket()as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
 def run(*args,**kwargs):return subprocess.check_output([str(x)for x in args],text=True,timeout=25,**kwargs).strip()
 def write(file,value):

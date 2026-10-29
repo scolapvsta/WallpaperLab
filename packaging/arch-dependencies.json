@@ -1,0 +1,6 @@
+{
+  "packages": ["glibc", "gcc-libs", "freetype2", "fontconfig", "pango", "cairo", "curl", "glfw", "glew", "lz4", "sdl2-compat", "ffmpeg", "mpv", "libpulse", "wayland", "libglvnd", "libx11", "libxrandr", "nss", "nspr", "at-spi2-core", "cups", "libxcomposite", "libxdamage", "libxfixes", "libxkbcommon", "alsa-lib", "dbus", "libnotify", "zenity", "ttf-dejavu", "noto-fonts", "noto-fonts-cjk"],
+  "required_commands": ["ffmpeg", "ffprobe", "fc-match", "zenity"],
+  "minimum_glibc": "2.44",
+  "desktop": "Full desktop rendering and integrated shortcuts verified on Hyprland; other desktops are not certified. Steam and Wallpaper Engine are required for Workshop projects."
+}

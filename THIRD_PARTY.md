@@ -29,8 +29,10 @@ Wallpaper Lab è un progetto derivato, distribuito con GPL-3.0. Il nome è provv
 
 Gli asset di Wallpaper Engine e i wallpaper degli autori del Workshop restano
 nelle librerie Steam dell'utente. Non sono inclusi nei sorgenti o nel runtime.
-Il runtime locale di sviluppo contiene librerie di sistema estratte da pacchetti
-Arch già presenti: non è un pacchetto portabile pronto alla distribuzione pubblica.
+Il runtime locale di sviluppo contiene librerie estratte da pacchetti Arch.
+L’installer beta viene preparato separatamente dai build output con una allowlist:
+app, motore, CEF, kissfft, helper e font; le altre dipendenze sono pacchetti Arch.
+Non include librerie proprietarie Steam o dati della macchina.
 
 Correzioni coordinate monitor, ritaglio e zoom: `patches/engine-project-controls.patch`.
 
@@ -52,8 +54,9 @@ Workshop integrato (0.12):
   https://partner.steamgames.com/doc/api/steam_api
 - Il redistributable proprietario `libsteam_api.so` non è incluso nei sorgenti.
   Per la demo locale viene riutilizzata la copia installata con Steamworks.js
-  0.4.0 / WallpaperX. Qualunque distribuzione pubblica del runtime richiede una
-  verifica dei termini Valve e delle licenze applicabili.
+  0.4.0 / WallpaperX. L’installer beta offre il download separato della copia pubblicata con
+  Steamworks.js 0.4.0, con URL e hash fissati in packaging/steam-runtime.json.
+  Il componente Valve mantiene i propri termini e non è incluso nel payload GPL.
 - **libcurl**, licenza curl: trasferimento delle anteprime statiche HTTPS da
   CDN Steam; libreria di sistema risolta tramite pkg-config.
 - WallpaperX è stato consultato per l'uso delle API UGC (ricerca, tag,

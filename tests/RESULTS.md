@@ -1328,3 +1328,53 @@ ripristinato e vecchio PID ritirato. Evidenza: `local/ui19/install/`.
   e readiness. Libreria motore 0.22 conservata. Confermato renderer vivo dopo il
   passaggio; aperta la nuova UI su Pixel Theme prima di chiudere le vecchie
   finestre identificate. Preferenze audio e avvio automatico non modificati.
+
+## 0.24 — Open beta e installer Arch — 29 ottobre 2026
+
+- Su richiesta esplicita, preparata l'apertura pubblica della repository e la
+  release prerelease `v0.24.0-beta.1`. App 0.24.0, stesse funzioni native della
+  0.23; pin e patch del motore invariati. README pubblico, guida beta, modulo
+  bug report e procedura di pubblicazione aggiornati. Note storiche spostate in
+  `docs/HISTORY.md`, senza riscrivere la cronologia Git.
+- Audit di tutti i 448 blob della cronologia precedente: nessun match nei pattern
+  di credenziali cercati, nessun binario inatteso oltre ai font e nessun percorso
+  di asset personali/Workshop. È un controllo automatico mirato, non una prova
+  assoluta di assenza di ogni possibile dato sensibile. Evidenze in local/.
+- Installer `.run` di circa 135 MiB costruito da allowlist di build output:
+  eseguibile, libreria motore, CEF e risorse/locales, kissfft, helper, font e
+  licenze (incluso CEF CREDITS.html). CMake riscrive RPATH relativi; verificata
+  l'assenza di riferimenti RPATH alla directory di sviluppo. Nessuna copia del
+  runtime personale, di configurazioni o media utente nel payload.
+- Dipendenze Arch elencate e controllate, installazione proposta tramite pacman;
+  glibc minimo 2.44. Versioni glibc/FFmpeg/mpv confrontate con le pagine ufficiali
+  Arch. Driver GPU e librerie di sistema restano dell'host. Steamworks non è
+  redistribuito nel payload: download separato opzionale da steamworks.js 0.4.0,
+  archive/library SHA-256 fissati, controllo dei simboli ABI, nessun npm/JS eseguito.
+- **12/12 CTest passati**, inclusi sette test contrattuali dell'installer: integrità,
+  duplicati/tamper, entry inattese, traversal, identità processo, scrittura atomica
+  e rollback di launcher/stato/menu con restore fallito senza fermare il vecchio
+  renderer.
+- `beta_install_integration.py`: installazione reale in HOME/XDG isolati, CLI,
+  download/checksum Steamworks e ricerca Workshop reale, aggiornamento conservando
+  preferenze/backup, modalità check e disinstallazione conservando i dati: passati.
+  Test attivo con immagine sintetica: nuovo renderer pronto sullo stesso progetto
+  prima della chiusura del precedente. Test di restore fallito su progetto assente:
+  vecchio renderer ancora vivo e launcher/menu/receipt/config ripristinati intatti.
+  Stato del renderer personale confrontato prima/dopo e invariato.
+- Limite dell'ambiente: non una VM Arch pulita. HOME/XDG sono nuovi; librerie Arch
+  mancanti nel database locale sono le copie estratte degli stessi pacchetti di
+  sistema usate dalla build. Nel test solo `pacman -Q` è simulato; nessun vero
+  `sudo pacman -S` è stato eseguito sul PC. Loader, app, rete Steam, renderer,
+  filesystem e handoff sono reali. Test su altri PC/driver ancora demandati alla beta.
+- Sul binario estratto dall'installer: suite temi completa passata (quattro temi,
+  16 background distinti, override font, hover biscotti, Pixel/Riduci movimento,
+  16 preview e 16 popup reali); import immagini/video e metadati/deduplica passati.
+  Test web mute su sink audio isolato: RMS 0.0 per mute globale/locale e dopo reload,
+  circa 0.153 con entrambe le porte aperte, stesso PID durante tutti i toggle.
+- Nessuna modifica all'avvio automatico, alle scorciatoie o alle preferenze del
+  desktop personale. Hyprland/Arch x86_64 è il riferimento verificato; nessuna
+  certificazione di altri compositor, Windows/macOS o ogni progetto Workshop.
+- Archivio sorgenti completo verificato senza `.git`: 12239 entry, percorsi sicuri,
+  submodule ai pin originali e patch applicabili autonomamente; 107 input modificati
+  confrontati byte per byte con il worktree usato per compilare. Escluso soltanto
+  il corpus opzionale upstream test262 non inizializzato, non richiesto dalla build.
