@@ -31,3 +31,19 @@ static inline float popup_distance(int index,float phase,int count) {
 static inline float popup_focus(float distance) {
     float t=fmaxf(0,1-fabsf(distance));return t*t*(3-2*t);
 }
+
+// Slot zero is a temporary current wallpaper, selectable once at opening.
+// Keyboard rotation then visits favorites only; mouse selection rebases it.
+static inline int popup_rotation_selection(int count,int base,int steps,int stepBase,int transient){
+ if(count<=0)return -1;int advance=steps>stepBase?steps-stepBase:0;
+ if(!transient)return ((base>=0?base:0)+(long long)advance)%count;
+ if(!advance)return base>=0?base:0;
+ if(count<=1)return 0;
+ return 1+((base>0?base-1:-1)+(long long)advance)%(count-1);
+}
+static inline float popup_rotation_distance(int count,int position,int advance,int transient){
+ if(!transient||count<=1)return advance;
+ // Traverse the extra visual slot on wrap, but never select it again.
+ int offset=position>0?position-1:-1;
+ return advance+(offset+advance)/(count-1);
+}

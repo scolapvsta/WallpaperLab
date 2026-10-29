@@ -175,3 +175,38 @@ persistenza della lingua. L'arabo e l'urdu usano shaping e direzione del testo
 Pango, ma la disposizione dei pannelli resta da sinistra a destra. I messaggi
 tecnici grezzi del backend e i contenuti degli autori non fanno parte del catalogo
 tradotto. Queste prove non sostituiscono una revisione linguistica madrelingua.
+
+## Isolamento dal compositor e verifiche dei pixel 0.18
+
+Il frame letto dal motore può essere corretto mentre Hyprland trasforma la
+superficie finale: layersIn/layersOut slide e fadeLayers si sommavano al nostro
+shader. La superficie ha ora namespace wallpaper-lab-background. Prima di
+app.setup(), desktop_surface.hpp registra tramite hyprctl eval una regola Lua
+runtime nominata, no_anim=true, con match esatto di quel namespace. Il relativo
+handle globale evita duplicazioni; dopo un reload della configurazione viene
+ricreato al prossimo avvio del renderer. Nessun file del DE o autostart viene
+modificato. Il popup rimane una finestra separata e conserva le sue animazioni.
+Su sessioni senza HYPRLAND_INSTANCE_SIGNATURE il passaggio viene saltato.
+Riferimento API: https://wiki.hypr.land/configuring/core/rules/layer-rules/.
+
+CWallpaper abilita le scritture RGBA nella composizione finale. TransitionFrame
+isola anche color mask, culling e stencil, poi ripristina lo stato. Il test GL
+con alpha mascherata riproduce RGBA 180,30,60,0 prima e 180,30,60,255 dopo. Questo
+è un difetto separato: il controllo A/B con scene native senza quella difesa
+passava già, quindi non viene usato come spiegazione unica del video.
+
+Il raggio degli iris è length(max(origin,1-origin)*aspect), non la diagonale
+intera indipendente dal mouse. I bordi usano fwidth/smoothstep e gli estremi
+restituiscono esattamente vecchio/nuovo. Le tracce opt-in includono ora campioni
+RGBA, confronto con il pixel dello snapshot e tempi/frame durante l'effetto.
+
+Il loader del popup include anche popupAnchor, prima escluso se non preferito.
+La rotazione distingue lo slot temporaneo dai preferiti: la prima pressione
+seleziona l'attivo, le successive saltano quello slot anche dopo il wrap. Il
+mouse può selezionare una card e ribasare il contatore senza cambiare i preferiti.
+
+LabTheme conserva gli ID e aggiunge collection; la preferenza è derivata dal
+preset corrente. Cambiare collezione seleziona il primo preset della famiglia;
+cambiare tema aggiorna anche la collezione. Il margine interno del corpo settings
+include ora i bordi luminosi del primo controllo. Il reset immagine usa una sola
+scrittura atomica già disponibile, esposta da un solo pulsante DangerButton.

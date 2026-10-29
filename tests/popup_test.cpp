@@ -75,6 +75,14 @@ int main(){
         check(popupSelection(3,0,1)==0&&popupSelection(3,0,4)==0&&popupSelection(3,-1,1)==0,"wrap/initial selection");
         check(popupSelection(3,2,1)==2&&popupSelection(3,2,2)==0&&popupSelection(3,2,3)==1,"open on active and advance in saved order");
         check(popupSelection(0,-1,10)==-1&&popupSelection(1,0,100)==0,"empty/single list");
+        for(int count:{2,3,4,21}){
+            check(popup_rotation_selection(count,0,1,1,1)==0,"transient current missing on opening");
+            for(int step=2;step<3000;step++){
+                int selected=popup_rotation_selection(count,0,step,1,1);
+                check(selected==1+(step-2)%(count-1),"temporary current re-entered rotation");
+                check(popup_rotation_distance(count,selected,1,1)>=1,"rotation reversed across anchor");
+            }
+        }
         PopupHost first,second;
         check(first.receive("test",1,1,false),"first host not created");
         check(!second.receive("test",1,2,false),"duplicate popup owner");

@@ -90,6 +90,6 @@ static int CreatorControls(int i,int x,int y,int w){
 static int CreatorReset(int i,int x,int y,int w){
     if(!lab_property_count(i))return 0;Color previous=AppTheme.border;AppTheme.border=(Color){209,64,77,255};
     creatorReset=(Rectangle){x,y+10,w,32};
-    if(Button(creatorReset,lab_tr("Ripristina proprietà del creator"),true,!applying)){creatorColor=creatorColorDrag=-1;CreatorCommit(i,lab_properties_reset(i));}
+    if(DangerButton(creatorReset,lab_tr("Ripristina proprietà del creator"),!applying)){creatorColor=creatorColorDrag=-1;CreatorCommit(i,lab_properties_reset(i));}
     AppTheme.border=previous;return 54;
 }

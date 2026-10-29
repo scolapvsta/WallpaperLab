@@ -110,3 +110,8 @@ Transizioni per output e passaggio controller/renderer 0.17:
 `patches/engine-transition-handoff.patch`. Separa gli snapshot nativi dai frame
 dell'inspector, identifica richiesta e uscita, e sincronizza l'avvio tramite un
 segnale monotono comune. I pin upstream restano invariati.
+
+Composizione RGBA, iris antialias e namespace desktop dedicato 0.18:
+`patches/engine-compositor-transitions.patch`, applicata dopo la patch handoff.
+Pin invariati. La regola Hyprland è codice applicativo in desktop_surface.hpp;
+i riferimenti visivi dei nuovi temi sono elencati in docs/THEMES.md.

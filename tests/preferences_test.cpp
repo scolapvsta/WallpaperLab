@@ -1,4 +1,5 @@
 #include "preferences.hpp"
+#include "theme_catalog.h"
 #include "shortcuts.hpp"
 #include <fstream>
 #include <iostream>
@@ -11,6 +12,10 @@ int main(){
     auto root=fs::current_path()/("wallpaper-lab-preferences-"+std::to_string(getpid()));
     setenv("XDG_CONFIG_HOME",(root/"config").c_str(),1);setenv("XDG_STATE_HOME",(root/"state").c_str(),1);
     try {
+        for(int theme=0;theme<LAB_THEME_COUNT;theme++){
+            writeJson(configDir()/"settings.json",{{"theme_catalog",true},{"ui_theme",theme}});
+            require(loadSettings()["theme_collection"]==labThemes[theme].collection,"theme collection mismatch");
+        }
         writeJson(configDir()/"settings.json",{{"ui_theme",5},{"light_theme",false}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==5,"legacy pastel migration failed");
         writeJson(configDir()/"settings.json",{{"ui_theme",1}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==1,"legacy light migration failed");
         writeJson(configDir()/"settings.json",{{"ui_theme",4},{"light_theme",true},{"theme_variants",true}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==12,"legacy light pink did not migrate to independent Sakura Paper");

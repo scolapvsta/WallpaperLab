@@ -4,6 +4,7 @@
 #include "WallpaperEngine/Application/WallpaperApplication.h"
 #include "WallpaperEngine/Logging/Log.h"
 #include <csignal>
+#include "desktop_surface.hpp"
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
@@ -39,6 +40,7 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         WallpaperEngine::Application::WallpaperApplication app(context);
         if(context.settings.general.onlyListProperties) return 0;
         std::signal(SIGTERM,stopHandler);std::signal(SIGINT,stopHandler);
+        lab::prepareDesktopSurface();
         app.setup();
         int frames=0;bool reportedReady=false;
         while(context.state.general.keepRunning && !stopRequested) {

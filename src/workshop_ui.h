@@ -87,7 +87,7 @@ static void WorkshopGrid(Rectangle area){
   char author[256];snprintf(author,sizeof(author),"%s",lab_ws_text(i,"author"));TextLines(author,card.x+12,card.y+card.height-22,card.width-75,12,1,muted);
   if(lab_ws_number(i,"installed"))Icon(UI_CHECK,(Vector2){card.x+card.width-20,card.y+card.height-16},AppTheme.border,true);
   Rectangle download={image.x+image.width-36,image.y+6,30,30};char state[32];snprintf(state,sizeof(state),"%s",lab_ws_download_text(i,"status"));bool downloading=!strcmp(state,"queued")||!strcmp(state,"downloading");
-  bool downloaded=lab_ws_number(i,"installed");if(GlyphButton(download,downloaded?UI_CHECK:UI_DOWNLOAD,false,!busy&&!downloading&&!downloaded,""))lab_ws_download(i);
+  bool downloaded=lab_ws_number(i,"installed");if(ActionGlyphButton(download,downloaded?UI_CHECK:UI_DOWNLOAD,!busy&&!downloading&&!downloaded,""))lab_ws_download(i);
   if(i==wsSelected||hot)DrawRectangleRoundedLinesEx(card,.12f,10,i==wsSelected?2:1,i==wsSelected?AppTheme.border:muted);
   if(hot&&!CheckCollisionPointRec(GetMousePosition(),download)&&CheckCollisionPointRec(GetMousePosition(),viewport)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){wsSelected=i;wsDetailScroll=wsDetailDraw=0;isSearching=wsAuthorEditing=false;}
  }

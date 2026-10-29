@@ -1,4 +1,4 @@
-# Wallpaper Lab — guida 0.17
+# Wallpaper Lab — guida 0.18
 
 ## Libreria e monitor
 
@@ -37,12 +37,11 @@ Specchia orizzontalmente e Specchia verticalmente sono interruttori: il colore
 di accento indica che lo specchio è attivo. Le modifiche restano nel profilo di
 quel wallpaper e si vedono senza riavviare la scena.
 
-Sotto questi interruttori trovi due ripristini. **Ripristina effetti** riporta a
-neutro temperatura, tonalità, gamma, vignettatura, rotazione e le due specchiature;
-conserva luminosità, contrasto e saturazione. **Ripristina immagine** riporta a
-neutro anche questi ultimi tre controlli. Nessuno dei due cambia posizione, zoom,
-opzioni di riproduzione o proprietà del creator. Il ripristino viene salvato
-subito e vale soltanto per il wallpaper selezionato.
+Il pulsante rosso **Ripristina immagine** riporta a neutro luminosità, contrasto,
+saturazione, temperatura, tonalità, gamma, vignettatura, rotazione e specchiature.
+Non cambia posizione, zoom, riproduzione o proprietà del creator. Salva subito
+il ripristino per il solo wallpaper selezionato. Anche il ripristino del creator
+è rosso; importazione e download usano invece l'accento del tema.
 
 ## File locali e cartelle
 
@@ -123,19 +122,14 @@ lo sfondo senza transizione. Le immagini temporanee rimangono nello stato XDG lo
 
 ## Aspetto e lingue
 
-Aspetto separa le collezioni Temi scuri e Temi chiari: ogni nome è un tema
-indipendente, senza un interruttore chiaro/scuro che ne alteri la palette.
+Collezione ora filtra per stile: **Classici, Neon, Pastello, Vetro, Pixel, LED e
+RGB**. Sotto, Temi mostra soltanto le palette della famiglia selezionata. Ci sono
+29 preset; chiari e scuri mantengono nomi e palette propri, senza varianti forzate.
 
-- Scuri: Charcoal, Cyber Neon, Aurora Glass, Sakura Neon, Midnight Violet,
-  Matrix LED, Prism RGB, Nord, Rosé Pine, Catppuccin Mocha e Comfy Mint.
-- Chiari: Paper, Catppuccin Latte, Rosé Dawn, Sakura Paper e Frost.
-
-Cambiano superfici, accenti, contrasto e arrotondamenti. I neon aggiungono luce
-e contorni; Matrix LED usa una trama puntinata e dettagli verdi, Prism RGB un
-bordo cromatico, Aurora Glass riflessi e un fondale morbido; Sakura ha particelle
-discrete. Riduci animazioni ferma gli effetti in movimento. Sono adattamenti
-propri ispirati anche a Midnight/System24 per Discord, Comfy per Spicetify,
-Catppuccin e Rosé Pine; non port ufficiali.
+Neon usa contorni luminosi, Pastello toni smorzati, Vetro riflessi morbidi, Pixel
+pannelli squadrati e dettagli a griglia, LED/RGB una trama luminosa o un bordo
+cromatico. Il testo e le miniature restano leggibili. Riduci animazioni ferma gli
+effetti decorativi. [Elenco e riferimenti Pinterest](THEMES.md).
 
 La Trasparenza della UI è indipendente dal tema: 0% è opaco, 30% è il massimo.
 Il cursore occupa la stessa colonna degli altri campi. Varia soltanto le superfici
@@ -234,3 +228,17 @@ Linux sono obiettivi possibili compilando con le dipendenze adatte, ancora da
 verificare; su altri compositor anche shortcut e gestione output richiedono prove.
 L'installer attuale installa il runtime già compilato per questo ambiente, con
 backup e ripristino dei renderer; non è un installer universale di sistema.
+
+## Transizioni e animazioni del desktop
+
+Gli effetti dal puntatore coprono esattamente la distanza fino all'angolo più
+lontano: la durata scelta non include una parte finale senza movimento visibile.
+Il bordo dell'iris è antialias. Durata, curva, direzione e intensità restano
+personalizzabili dal pulsante accanto alla transizione.
+
+Su Hyprland l'app evita che lo slide/fade automatico delle layer surface si sommi
+ai propri effetti. La regola riguarda soltanto `wallpaper-lab-background`, viene
+applicata in memoria a ogni avvio del renderer e non cambia animazioni delle
+altre finestre né file di configurazione. Le prove grafiche native da sole non
+rilevano queste animazioni aggiunte dal compositor: la regressione usa anche
+campioni del desktop con un'immagine a fasce, prima e dopo il passaggio.

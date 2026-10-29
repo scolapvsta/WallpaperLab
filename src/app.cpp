@@ -545,7 +545,7 @@ int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
-    if(k=="ui_theme"||k=="light_theme")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int id=k=="light_theme"?(value?1:0):std::clamp(value,0,LAB_THEME_COUNT-1);latest["ui_theme"]=id;latest["light_theme"]=bool(labThemes[id].light);latest["theme_catalog"]=true;writeJson(configDir()/"settings.json",latest);settings=latest;});
+    if(k=="ui_theme"||k=="light_theme"||k=="theme_collection")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int id=k=="light_theme"?(value?1:0):std::clamp(value,0,LAB_THEME_COUNT-1);if(k=="theme_collection"){int group=std::clamp(value,0,LAB_COLLECTION_COUNT-1);for(int n=0;n<LAB_THEME_COUNT;n++)if(labThemes[n].collection==group){id=n;break;}}latest["theme_collection"]=labThemes[id].collection;latest["ui_theme"]=id;latest["light_theme"]=bool(labThemes[id].light);latest["theme_catalog"]=true;writeJson(configDir()/"settings.json",latest);settings=latest;});
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));
     if(k=="carousel_layout")return savePreference(k,std::clamp(value,0,3));
     if(k=="window_opacity"||k=="window_transparency")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int t=std::clamp(k=="window_opacity"?100-value:value,0,30);latest["window_transparency"]=t;latest["window_opacity"]=100-t;writeJson(configDir()/"settings.json",latest);settings=latest;});

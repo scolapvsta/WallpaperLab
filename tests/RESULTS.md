@@ -1045,3 +1045,81 @@ preferenze. Wallpaper attivo ripristinato e vecchio PID ritirato; tutti i file
 di configurazione confrontati uguali al backup (preferiti, profili, disposizione
 e impostazioni inclusi). Nessuna modifica ad autostart o servizi.
 Evidenza privata: `local/ui17/install/`.
+
+## Versione 0.18 — compositor, carousel temporaneo e collezioni
+
+Le prove 0.17 sui progetti reali controllavano readiness e completamento ma non
+la trasformazione aggiunta dal compositor al frame. Il nuovo video e gli snapshot
+personali, esaminati soltanto in locale, hanno distinto i due percorsi: snapshot
+pulito, slide/fade aggiuntivo sul desktop. Questo limite delle vecchie prove è
+ora coperto da una regressione sui pixel del desktop.
+
+- Build UI/engine riuscite; CTest **11/11**. Patch nuova
+  `engine-compositor-transitions.patch`, serie ordinata e hash verificati, pin
+  invariati. Namespace renderer `wallpaper-lab-background` e regola Lua runtime
+  con match esatto/no_anim, applicata dal renderer prima di creare le superfici.
+  Nessuna modifica a file Hyprland, avvio automatico, WallpaperX o altri programmi.
+- `compositor_handoff_integration.py`: immagine a fasce e renderer precedente
+  fermato con SIGSTOP soltanto dopo aver verificato il vero figlio --render
+  (PID/start/exe propri). Durante l'attesa del gate, la versione senza isolamento
+  del compositor mostra **2 cambi inattesi su 90 campioni**, RGB 20,163,37 e
+  20,121,79 invece di 20,180,20. Con la regola mirata: **0 su 90**. La transizione
+  applicativa non era ancora iniziata. Evidenze `local/ui18/compositor-before-verified/`
+  e `local/ui18/compositor-after/`. Il primo tentativo di prova fermava il vecchio
+  renderer troppo presto, confondendo un figlio hyprctl con il nuovo renderer:
+  corretto il test, quel risultato non viene usato.
+- `transition-state-graphics-test`: color mask alpha disabilitata riproduce
+  180,30,60,0 prima della difesa e 180,30,60,255 dopo, con stato originale
+  ripristinato. Matrice GPU di **162 combinazioni**: tutti gli otto effetti, tre
+  curve, tre origini, quattro direzioni pertinenti e tre intensità zoom; estremi
+  corretti, alpha opaco, assenza di nero imprevisto, iris monotono e chiusura al
+  nero prevista. `local/ui18/gl-matrix-final/` e `gl-state-baseline.log`.
+  Controllo separato senza la difesa alpha su scene native: sei cambi passati;
+  l'alpha è quindi una correzione difensiva distinta dalla causa compositor.
+- `transition_graphics_integration.py`: **otto effetti** sul renderer incorporato,
+  orientamento vecchio/nuovo e live/persist/reset passati.
+  `local/ui18/eight-effects/`. Raggio iris corretto fino all'angolo più lontano,
+  bordo antialias ed estremi esatti, condivisi con la preview.
+- `transition_project_integration.py`: **27 cambi reali** fra Reze, Computer Girl e
+  Frieren in singolo, duplicato e panorama. Tre configurazioni: iris chiusura/apertura
+  700 ms a 60 FPS; tendina verso il basso 350 ms lineare a 120 FPS; apertura dal
+  puntatore 1200 ms con accelerazione/frenata a 120 FPS. Campioni RGBA iniziali
+  confrontati con lo snapshot per ciascuna uscita; alpha 255 anche durante/fine.
+  Gate condiviso, precedente ritirato, stato personale invariato.
+  Evidenze `local/ui18/real-final-iris/`, `real-final-wipe/`, `real-final-pointer/`.
+  Minimo frame per uscita rispettivamente **42, 39 e 132**; massimo intervallo
+  misurato **18,2 ms**. Termine degli effetti entro rispettivamente 716, 359 e
+  1209 ms. Sono misure di questa macchina durante queste prove, non una garanzia
+  di frame rate su hardware diverso o sotto ogni carico.
+- `image_transform_integration.py`: specchi X/Y, rotazione, colori e ripristino
+  senza restart; Scorrimento e Tendina nelle quattro direzioni, durata 1,2 s
+  misurata fra **1,176 e 1,203 s**. `local/ui18/custom-directions/`.
+- `carousel_anchor_integration.py` rafforzata: miniatura viola del corrente non
+  preferito verificata nei pixel, tre giri senza riselezionarlo. Test separato
+  `carousel_transient_integration.py` passa lo stesso caso in **tutti e quattro
+  i layout**. Preferiti invariati. `local/ui18/carousel-anchor-verified/` e
+  `local/ui18/transient-four-layouts/`. Il loader include ora l'ancora corrente;
+  la navigazione salta il suo slot temporaneo dopo l'apertura.
+- `ui18_integration.py`: un solo reset rosso, tutti i dieci parametri immagine
+  azzerati insieme, posizione/zoom/playback conservati senza restart. Selettore
+  Collezione interamente nel margine utile. Sei collezioni filtrano correttamente
+  tutti i **29 preset**, selezione e persistenza provate nella UI reale.
+  Le azioni importazione/download ed eliminazione hanno colori semantici.
+- Catalogo **373 messaggi per 22 locale**; nuove categorie tradotte, controllo
+  Pango dell'intero catalogo con **0 glifi mancanti**. `local/ui18/languages/`.
+  Riferimenti Pinterest e limiti di accesso ai pin documentati in `docs/THEMES.md`.
+
+Ambiente: Arch Linux, Hyprland 0.56.2 con animazioni layer slide/fade abilitate,
+due monitor; WallpaperX rimasto attivo. I test non certificano ogni progetto
+Workshop, altri compositor o il mirroring dei pannelli nelle lingue RTL. La
+regola runtime usa l'API Lua di Hyprland: dopo un reload viene ricreata al prossimo
+avvio del renderer. Non viene disabilitata globalmente alcuna animazione del DE.
+
+Installazione 0.18 completata con backup di configurazione, palette Caelestia e
+runtime precedente. Renderer attivo ripristinato; vecchio PID ritirato. Le due
+superfici installate hanno il namespace dedicato. Preferiti, profili, disposizione
+e preferenze precedenti sono invariati: l'unica chiave aggiunta è theme_collection,
+derivata dal tema esistente. UI finale verificata in `local/ui18/gui-final/`;
+un tentativo iniziale aveva perso il focus verso un'altra finestra, quindi il
+test ora controlla nuovamente il PID in focus prima di ogni clic.
+Evidenze installazione: `local/ui18/install/`. App riaperta per il feedback.

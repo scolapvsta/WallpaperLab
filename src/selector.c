@@ -170,6 +170,7 @@ static Particle particles[MAX_POSSIBLE_PARTICLES];
 static int wallpaper_count = 0;
 static bool applying = false;
 static bool popupView = false;
+static int popupAnchor=-1;
 static int sceneTop=154, sceneBottom=166;
 static int smokeStage = -1;
 static double smokeStart;
@@ -340,7 +341,7 @@ void *LoaderThread(void* a)
             usleep(100000);
             continue;
         }
-        if(popupView && !lab_favorite(i))continue;
+        if(popupView && !lab_favorite(i)&&i!=popupAnchor)continue;
         if (!atomic_load(&imagePending[i]) && !atomic_load(&wallpapers[i].loaded))
         {
             Image img = LoadThumbnailImage(wallpapers[i].path);
@@ -748,12 +749,13 @@ int carousel_popup_main(void) {
         int i=lab_carousel_item(j);
         if(i>=0&&i<wallpaper_count&&!*lab_reason(i))indices[count++]=i;
     }
-    int baseline=-1;int current=lab_current();
+    int baseline=-1;int current=lab_current();popupAnchor=current;
     for(int j=0;j<count;j++)if(indices[j]==current)baseline=j;
     if(count>0&&baseline<0&&current>=0&&current<wallpaper_count&&!*lab_reason(current)&&count<MAX_POSSIBLE_WALLPAPERS){memmove(indices+1,indices,count*sizeof(int));indices[0]=current;count++;baseline=0;}
+    bool transient=baseline==0&&count>0&&!lab_favorite(indices[0]);int rotationBase=baseline,stepBase=1;
     int steps=0,released=0;
     if(lab_popup_poll(&steps,&released)<0)return -1;
-    int position=lab_popup_selection(count,baseline,steps);
+    int position=popup_rotation_selection(count,rotationBase,steps,stepBase,transient);
     if(released)return position>=0?indices[position]:-1;
     PopupFrame frame=popup_frame_scaled(g_targetMode,count,lab_popup_max_width(),lab_popup_max_height(),lab_option("switcher_size"),lab_option("switcher_zoom"));
     PopupLayout layout=frame.content;
@@ -784,16 +786,16 @@ int carousel_popup_main(void) {
             int reset=lab_popup_poll(&steps,&released);
             if(reset<0)closing=true;
             else {
-                if(reset){baseline=-1;for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;lastSteps=-1;}
+                if(reset){baseline=-1;for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;rotationBase=baseline;stepBase=1;lastSteps=-1;}
                 if(lastSteps!=steps){
-                    position=lab_popup_selection(count,baseline,steps);
-                    if(lastSteps>=0&&steps>=lastSteps)targetPhase+=steps-lastSteps;
+                    int previousPosition=position;position=popup_rotation_selection(count,rotationBase,steps,stepBase,transient);
+                    if(lastSteps>=0&&steps>=lastSteps)targetPhase+=popup_rotation_distance(count,previousPosition,steps-lastSteps,transient);
                     else {targetPhase=position;scrollMotion=(PopupMotion){position,0};}
                     lastSteps=steps;lastEvent=GetTime();
                 }
                 Vector2 mouse=GetMousePosition();bool moved=GetTime()>.2&&Vector2Distance(mouse,previousMouse)>1;previousMouse=mouse;int hovered=-1;
                 for(int hit=popupHitCount-1;hit>=0&&hovered<0;hit--)if(CheckCollisionPointRec(mouse,popupHits[hit].rect))for(int j=0;j<count;j++)if(indices[j]==popupHits[hit].index){hovered=j;break;}
-                if(hovered>=0&&((g_targetMode==MODE_GRID&&moved)||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){float delta=popup_distance(hovered,position,count);position=hovered;targetPhase+=delta;baseline=(position-(steps>0?(steps-1)%count:0)+count)%count;lastEvent=GetTime();}
+                if(hovered>=0&&((g_targetMode==MODE_GRID&&moved)||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){float delta=popup_distance(hovered,position,count);position=hovered;targetPhase+=delta;rotationBase=position;stepBase=steps;lastEvent=GetTime();}
                 if(hovered>=0){SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){confirm=true;closing=true;}}
                 bool focused=IsWindowFocused();if(focused)hadFocus=true;bool outside=IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),(Rectangle){frame.padding,frame.padding,layout.width,layout.height});
                 if(WindowShouldClose()||IsKeyPressed(KEY_ESCAPE)||outside||GetTime()-lastEvent>60)closing=true;

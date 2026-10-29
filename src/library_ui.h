@@ -21,7 +21,7 @@ static bool selectedResolutions[64]={0},resolutionGroups[6]={true,true,false,fal
 static int libraryPage=1,libraryTotal=0;static unsigned long libraryQuery=0;
 static float filterSize=260;static bool filterResizing=false;
 static float filterScroll=0,filterScrollDraw=0,filterWidth=0;
-static Rectangle resolutionRows[64],resolutionHeaders[6],settingsTabs[8],themeChoices[16],languageChoices[32],densityChoices[3],fontChoices[96],fontControl,shortcutControl,languageControl,variantChoices[2];
+static Rectangle resolutionRows[64],resolutionHeaders[6],settingsTabs[8],themeChoices[64],languageChoices[32],densityChoices[3],fontChoices[96],fontControl,shortcutControl,languageControl,variantChoices[2];
 static bool uiSmoke=false,detailResizing=false,variantOpen=false;
 static float inspectorSize=390;
 
@@ -76,6 +76,9 @@ static bool Button(Rectangle r,const char* label,bool active,bool enabled){
     if(ComplexText(shown))UiText(shown,r.x+(r.width-UiMeasure(shown,fontSize))/2,r.y+(r.height-fontSize)/2,fontSize,enabled?ink:Fade(ink,.35f));else DrawTextEx(buttonFont,shown,(Vector2){r.x+(r.width-MeasureTextEx(buttonFont,shown,fontSize,0).x)/2,r.y+(r.height-fontSize)/2-1},fontSize,0,enabled?ink:Fade(ink,0.35f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+}
+static bool DangerButton(Rectangle r,const char* label,bool enabled){
+ Color before=control,hover=controlHover,ink=AppTheme.text;Color red=lab_option("light_theme")?(Color){181,45,65,255}:(Color){169,48,69,255};red.a=before.a;control=red;controlHover=ColorLerp(red,WHITE,.09f);AppTheme.text=(Color){255,245,247,255};bool clicked=Button(r,label,false,enabled);DrawRectangleRoundedLinesEx(r,.22f*themeRoundness,12,1,Fade((Color){247,131,145,255},.7f));control=before;controlHover=hover;AppTheme.text=ink;return clicked;
 }
 static void StarIcon(Vector2 c,float radius,Color color,bool filled){
     Vector2 points[10];for(int n=0;n<10;n++){float a=(-90+n*36)*DEG2RAD,r=radius*(n%2?0.46f:1);points[n]=(Vector2){c.x+cosf(a)*r,c.y+sinf(a)*r};}
@@ -141,6 +144,9 @@ static bool GlyphButton(Rectangle r,UiIcon icon,bool active,bool enabled,const c
     if(active&&!star)DrawRectangleRoundedLinesEx(r,0.24f,12,1.2f,Fade(AppTheme.border,0.8f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+}
+static bool ActionGlyphButton(Rectangle r,UiIcon icon,bool enabled,const char* label){
+ Color before=control,hover=controlHover;Color tone=icon==UI_TRASH?(Color){232,94,113,255}:AppTheme.border;control=ColorLerp(surface,tone,.2f);controlHover=ColorLerp(surface,tone,.34f);bool clicked=GlyphButton(r,icon,false,enabled,label);DrawRectangleRoundedLinesEx(r,.24f*themeRoundness,12,1,Fade(tone,.45f));control=before;controlHover=hover;return clicked;
 }
 static void ToggleStar(int i){if(lab_favorite_change(i,0))starPulse[i]=1;}
 // Draw a bounded number of lines, preserving UTF-8 boundaries when truncating.
@@ -226,7 +232,7 @@ static void SettingsBody(Rectangle area){
     const int order[]={4,6,0,1,2,3,7,5};for(int slot=0;slot<8;slot++){int i=order[slot];settingsTabs[i]=(Rectangle){x,y+slot*43,122,36};if(Button(settingsTabs[i],tabs[i],settingsTab==i,!applying)){settingsTab=i;settingsScroll=settingsScrollDraw=0;choiceOpen=-1;displayDragging=-1;SetRecording(false);}}
     x+=140;w-=140;Rectangle body={x,y-3,w+3,area.height-21};Rectangle saved=inputClip;inputClip=body;
     if(!choiceWheel&&displayDragging<0&&Hot(body,true))settingsScroll=Clamp(settingsScroll-ScrollInput(body)*48,0,fmaxf(0,settingsExtent-body.height));choiceWheel=false;
-    settingsScrollDraw=SmoothScroll(settingsScrollDraw,settingsScroll);BeginScissorMode(body.x,body.y,body.width,body.height);y=body.y-settingsScrollDraw;
+    settingsScrollDraw=SmoothScroll(settingsScrollDraw,settingsScroll);BeginScissorMode(body.x,body.y,body.width,body.height);y=body.y+6-settingsScrollDraw;
     if(settingsTab==0)y+=DisplayEditor(x,y,w);
     else if(settingsTab==1){
         const char* names[]={"15 FPS","30 FPS","60 FPS","90 FPS","120 FPS"};int values[]={15,30,60,90,120},at=2;for(int i=0;i<5;i++)if(lab_option("fps")==values[i])at=i;
@@ -241,8 +247,8 @@ static void SettingsBody(Rectangle area){
         UiText(lab_tr("Shortcut del carousel"),x,y,18,AppTheme.text);y+=30;ShortcutInline(x,y,w);y+=50;
         int current=lab_shortcut_enabled();int value=BoolChoice(21,x,&y,w,lab_tr("Shortcut attivo"),current);if(value!=current)lab_set_shortcut(lab_shortcut(),value);
     }else if(settingsTab==3){
-        const char* groups[]={lab_tr("Temi scuri"),lab_tr("Temi chiari")};int family=lab_option("light_theme");int group=Choice(38,x,&y,w,lab_tr("Collezione"),groups,2,family);if(group!=family)lab_set_option("ui_theme",group?1:0);
-        const char* themes[LAB_THEME_COUNT];int ids[LAB_THEME_COUNT],n=0,at=0;for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].light==lab_option("light_theme")){ids[n]=i;themes[n]=labThemes[i].name;if(i==lab_option("ui_theme"))at=n;n++;}
+        const char* groups[LAB_COLLECTION_COUNT];for(int n=0;n<LAB_COLLECTION_COUNT;n++)groups[n]=lab_tr(labCollections[n]);int family=lab_option("theme_collection");int group=Choice(38,x,&y,w,lab_tr("Collezione"),groups,LAB_COLLECTION_COUNT,family);if(group!=family)lab_set_option("theme_collection",group);
+        const char* themes[LAB_THEME_COUNT];int ids[LAB_THEME_COUNT],n=0,at=0;for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==lab_option("theme_collection")){ids[n]=i;themes[n]=labThemes[i].name;if(i==lab_option("ui_theme"))at=n;n++;}
         int value=Choice(30,x,&y,w,lab_tr("Temi"),themes,n,at);if(value!=at)lab_set_option("ui_theme",ids[value]);
         if(uiSliderDrag!=0)opacityDraft=lab_option("window_transparency")/100.f;
         if(EntrySlider(x,&y,w,lab_tr("Trasparenza della UI"),&opacityDraft))lab_set_option("window_transparency",roundf(opacityDraft*100));
@@ -261,7 +267,7 @@ static void SettingsBody(Rectangle area){
     }else if(settingsTab==6){
         UiText(lab_tr("Librerie e file locali"),x,y,19,AppTheme.text);y+=32;
         y+=TextLines(lab_tr("Importa immagini e video. Gli originali restano al loro posto."),x,y,w,13,3,muted)+14;
-        if(GlyphButton((Rectangle){x,y,w,34},UI_IMPORT,false,!applying&&!lab_files_busy(),lab_tr("Importa file")))lab_files_start(0);y+=49;
+        if(ActionGlyphButton((Rectangle){x,y,w,34},UI_IMPORT,!applying&&!lab_files_busy(),lab_tr("Importa file")))lab_files_start(0);y+=49;
         for(int local=0;local<2;local++){UiText(lab_tr(local?"Sfondi locali":"Workshop Steam"),x,y,15,AppTheme.text);y+=25;y+=TextLines(lab_library_path(local),x,y,w,12,3,muted)+10;if(Button((Rectangle){x,y,w,32},lab_tr("Scegli cartella"),false,!applying&&!lab_files_busy()))lab_files_start(local?2:1);y+=48;}
         y+=TextLines(lab_tr("Cambiare cartella non sposta né elimina i file esistenti."),x,y,w,12,3,muted)+16;
     }else if(settingsTab==7){
@@ -481,7 +487,7 @@ static void Inspector(Rectangle area){
     DrawRectangle(panel.x+1,actions-9,actual-2,118,surface);DrawLine(x,actions-9,x+w,actions-9,lineColor);
     if(GlyphButton((Rectangle){x,actions,w,42},UI_STAR,lab_favorite(i),!applying,lab_favorite(i)?lab_tr("Rimuovi dal carousel"):lab_tr("Aggiungi al carousel")))ToggleStar(i);
     actions+=50;
-    if(GlyphButton((Rectangle){x,actions,w,42},UI_TRASH,false,!applying,lab_tr("Elimina sfondo")))RequestDelete(i);
+    if(ActionGlyphButton((Rectangle){x,actions,w,42},UI_TRASH,!applying,lab_tr("Elimina sfondo")))RequestDelete(i);
 }
 static void StatusBar(int sw,int sh){
     DrawRectangle(0,sh-statusHeight,sw,statusHeight,surface);DrawLine(0,sh-statusHeight,sw,sh-statusHeight,lineColor);
@@ -552,11 +558,11 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"preview_rect\":[%.1f,%.1f,%.1f,%.1f],\"library_cards\":[",inspectorPreviewRect.x,inspectorPreviewRect.y,inspectorPreviewRect.width,inspectorPreviewRect.height);for(int n=0;n<wallpaper_count;n++){Rectangle r=libraryCards[n];fprintf(f,"%s[%.1f,%.1f,%.1f,%.1f]",n?",":"",r.x,r.y,r.width,r.height);}fprintf(f,"]");
     fprintf(f,",\"inspector_sections\":");GeometryCenters(f,inspectorSectionRows,4);
     fprintf(f,",\"choice_list\":[%.1f,%.1f,%.1f,%.1f],\"choice_thumb\":[%.1f,%.1f,%.1f,%.1f]",choiceList.x,choiceList.y,choiceList.width,choiceList.height,choiceThumb.x,choiceThumb.y,choiceThumb.width,choiceThumb.height);
-    fprintf(f,",\"mirror_toggles\":");GeometryCenters(f,mirrorToggles,2);fprintf(f,",\"image_resets\":");GeometryCenters(f,imageResetButtons,2);
+    fprintf(f,",\"mirror_toggles\":");GeometryCenters(f,mirrorToggles,2);fprintf(f,",\"image_resets\":");GeometryCenters(f,imageResetButtons,1);
     fprintf(f,",\"image_tracks\":[");for(int n=0;n<3;n++)fprintf(f,"%s[%.1f,%.1f,%.1f]",n?",":"",adjustmentTracks[n].x,adjustmentTracks[n].y,adjustmentTracks[n].width);fprintf(f,"],\"opacity_track\":[%.1f,%.1f,%.1f],\"library_total\":%d,\"library_page\":%d",opacityTrack.x,opacityTrack.y,opacityTrack.width,libraryTotal,libraryPage);
     fprintf(f,",\"resolution_groups\":");GeometryCenters(f,groupChecks,6);
     fprintf(f,",\"theme_variants\":");GeometryCenters(f,variantChoices,2);
-    fprintf(f,",\"themes\":");GeometryCenters(f,themeChoices,16);fprintf(f,",\"languages\":");GeometryCenters(f,languageChoices,lab_language_count());fprintf(f,",\"density\":");GeometryCenters(f,densityChoices,3);
+    fprintf(f,",\"themes\":");GeometryCenters(f,themeChoices,LAB_THEME_COUNT);fprintf(f,",\"languages\":");GeometryCenters(f,languageChoices,lab_language_count());fprintf(f,",\"density\":");GeometryCenters(f,densityChoices,3);
     fprintf(f,",\"zoom_track\":[%.1f,%.1f,%.1f],\"creator_reset\":[%.1f,%.1f],\"color_swatch\":[%.1f,%.1f],\"color_box\":[%.1f,%.1f,%.1f,%.1f]",zoomTrack.x,zoomTrack.y,zoomTrack.width,creatorReset.x+creatorReset.width/2,creatorReset.y+creatorReset.height/2,creatorColorSwatch.x+creatorColorSwatch.width/2,creatorColorSwatch.y+creatorColorSwatch.height/2,creatorColorBox.x,creatorColorBox.y,creatorColorBox.width,creatorColorBox.height);
     fprintf(f,",\"color_hue\":[%.1f,%.1f,%.1f,%.1f]",creatorHue.x,creatorHue.y,creatorHue.width,creatorHue.height);
     fprintf(f,",\"display_cards\":");GeometryCenters(f,displayCards,lab_monitor_count());fprintf(f,",\"display_selected\":%d,\"screen\":%d,\"animation_controls\":",displaySelected,lab_screen());Rectangle animations[]={switcherEye,transitionEye,switcherCustomize,transitionCustomize};GeometryCenters(f,animations,4);

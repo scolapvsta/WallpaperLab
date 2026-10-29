@@ -18,7 +18,7 @@ static void ThemePanel(Rectangle r,float roundness,int segments,Color color){
  if((effect==1||effect==3&&!labThemes[themeId].light||effect==6||effect==7)&&r.width>28&&r.height>24){
   for(int n=3;n>0;n--)DrawRectangleRoundedLinesEx((Rectangle){r.x-n,r.y-n,r.width+2*n,r.height+2*n},radius,segments,1,Fade(AppTheme.border,.035f));
  }
- DrawRectangleRounded(r,radius,segments,color);
+ if(effect==11){DrawRectangleRec(r,color);DrawRectangleLinesEx(r,1,Fade(AppTheme.border,.38f));if(r.width>400&&r.height>250){for(int n=0;n<3;n++){DrawRectangle(r.x+5+n*6,r.y+5,4,4,Fade(AppTheme.border,.45f));}DrawRectangle(r.x+3,r.y+r.height-4,r.width-6,2,Fade(AppTheme.border,.15f));}}else DrawRectangleRounded(r,radius,segments,color);
  if((effect==1||(effect==3&&!labThemes[themeId].light)||effect==6||effect==7)&&r.width>28&&r.height>24){
   DrawRectangleRoundedLinesEx(r,radius,segments,1,Fade(AppTheme.border,.24f));
   if(r.width>400&&r.height>250){DrawRectangleGradientV(r.x+16,r.y+2,r.width-32,48,Fade(AppTheme.border,.065f),BLANK);float l=16;Color rim=Fade(AppTheme.border,.55f);DrawLineEx((Vector2){r.x+12,r.y+12+l},(Vector2){r.x+12,r.y+12},1.5f,rim);DrawLineEx((Vector2){r.x+12,r.y+12},(Vector2){r.x+12+l,r.y+12},1.5f,rim);DrawLineEx((Vector2){r.x+r.width-12-l,r.y+r.height-12},(Vector2){r.x+r.width-12,r.y+r.height-12},1.5f,rim);DrawLineEx((Vector2){r.x+r.width-12,r.y+r.height-12},(Vector2){r.x+r.width-12,r.y+r.height-12-l},1.5f,rim);if(effect==6)for(int y=r.y+45;y<r.y+r.height-35;y+=16)DrawRectangle(r.x+3,y,2,4,Fade(AppTheme.border,.38f));}
@@ -31,7 +31,7 @@ static void InitBackdrop(void){
  "void main(){vec2 uv=gl_FragCoord.xy/resolution;float t=time*.04;float halo=exp(-length(uv-vec2(.15+.05*sin(t),.8))*4.)*.08+exp(-length(uv-vec2(.85,.2))*5.)*.035;vec3 c=base;"
  "if(style==1.||style==5.||style==7.){c+=accent*halo;float grid=(1.-smoothstep(0.,.7,abs(mod(gl_FragCoord.x,48.)-24.)))*(1.-uv.y)*.018;c+=accent*grid;}"
  "if(style==2.)c+=accent*halo*1.8+vec3(.025,.01,.04)*sin(uv.x*5.+uv.y*4.+t);"
- "if(style==3.)c+=accent*halo*.7;if(style==4.||style==9.||style==10.)c+=accent*halo*.2;"
+ "if(style==11.){vec2 cell=floor(gl_FragCoord.xy/8.);float grid=step(.96,fract(sin(dot(cell,vec2(12.9898,78.233)))*43758.5453));c+=accent*grid*.025;}if(style==3.)c+=accent*halo*.7;if(style==4.||style==9.||style==10.)c+=accent*halo*.2;"
  "if(style==6.){vec2 p=mod(gl_FragCoord.xy,24.);float dotLed=(1.-smoothstep(.3,1.2,length(p-12.)))*.09;c+=accent*dotLed*(.6+.4*sin(time*.5+uv.x*5.));}"
  "finalColor=vec4(c,alpha);}";
  backdropShader=LoadShaderFromMemory(NULL,fs);backdropResolution=GetShaderLocation(backdropShader,"resolution");backdropTime=GetShaderLocation(backdropShader,"time");backdropStyle=GetShaderLocation(backdropShader,"style");backdropBase=GetShaderLocation(backdropShader,"base");backdropAccent=GetShaderLocation(backdropShader,"accent");backdropAlpha=GetShaderLocation(backdropShader,"alpha");
@@ -46,5 +46,5 @@ static void DrawBackdrop(int width,int height){
 static void ThemeWindowTrim(int sw,int sh){
  int effect=labThemes[themeId].effect;if(!effect)return;
  if(effect==7){for(int x=0;x<sw;x+=8)DrawRectangle(x,0,8,2,ColorFromHSV(fmodf(x*360.f/sw+(lab_option("reduce_motion")?0:GetTime()*10),360),.6f,.9f));}
- else DrawRectangleRoundedLinesEx((Rectangle){1,1,sw-2,sh-2},effect==6?.002f:.018f,12,effect==1||effect==3?1.5f:1,Fade(AppTheme.border,effect==1||effect==3?.48f:.2f));
+ else DrawRectangleRoundedLinesEx((Rectangle){1,1,sw-2,sh-2},effect==6||effect==11?.002f:.018f,12,effect==1||effect==3?1.5f:1,Fade(AppTheme.border,effect==1||effect==3?.48f:.2f));
 }

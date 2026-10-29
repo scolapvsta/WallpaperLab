@@ -1,0 +1,73 @@
+--- a/src/WallpaperEngine/Render/Helpers/Transition.h
++++ b/src/WallpaperEngine/Render/Helpers/Transition.h
+@@ -4,17 +4,19 @@
+ #include <map>
+ namespace WallpaperEngine::Render::Helpers {
+ inline void transitionFrame(const std::string& output,const glm::ivec4& vp,bool sourceReady){
+- struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0;GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5,duration=.7f,zoom=.3f;int direction=0,curve=0;std::string startFile;std::chrono::steady_clock::time_point start{},waiting{};};
++ struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0,sampleFlags=0,frames=0;float maxGapMs=0;glm::ivec3 sampleOld{0};GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5,duration=.7f,zoom=.3f;int direction=0,curve=0;std::string startFile;std::chrono::steady_clock::time_point start{},waiting{},lastFrame{};};
+  static std::map<std::string,State> states;auto& s=states[output];auto adjustment=imageAdjustments();bool neutral=adjustment.neutral();const char* raw=std::getenv("WALLPAPER_LAB_TRANSITION");if((!raw||s.finished)&&neutral)return;if(vp.z<1||vp.w<1)return;
+  struct Restore {
+-  GLint program,vao,active,tex[2],read,draw,unpack,viewport[4];GLboolean blend,depth,scissor;
+-  Restore(){glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glGetIntegerv(GL_TEXTURE_BINDING_2D,&tex[n]);}glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);glGetIntegerv(GL_UNPACK_ALIGNMENT,&unpack);glGetIntegerv(GL_VIEWPORT,viewport);blend=glIsEnabled(GL_BLEND);depth=glIsEnabled(GL_DEPTH_TEST);scissor=glIsEnabled(GL_SCISSOR_TEST);}
+-  ~Restore(){glUseProgram(program);glBindVertexArray(vao);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glBindTexture(GL_TEXTURE_2D,tex[n]);}glActiveTexture(active);glBindFramebuffer(GL_READ_FRAMEBUFFER,read);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);glPixelStorei(GL_UNPACK_ALIGNMENT,unpack);glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);if(blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);else glDisable(GL_DEPTH_TEST);if(scissor)glEnable(GL_SCISSOR_TEST);else glDisable(GL_SCISSOR_TEST);}
++  GLint program,vao,active,tex[2],read,draw,unpack,viewport[4];GLboolean blend,depth,scissor,cull,stencil,colorMask[4];
++  Restore(){glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glGetIntegerv(GL_TEXTURE_BINDING_2D,&tex[n]);}glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);glGetIntegerv(GL_UNPACK_ALIGNMENT,&unpack);glGetIntegerv(GL_VIEWPORT,viewport);glGetBooleanv(GL_COLOR_WRITEMASK,colorMask);cull=glIsEnabled(GL_CULL_FACE);stencil=glIsEnabled(GL_STENCIL_TEST);blend=glIsEnabled(GL_BLEND);depth=glIsEnabled(GL_DEPTH_TEST);scissor=glIsEnabled(GL_SCISSOR_TEST);}
++  ~Restore(){glUseProgram(program);glBindVertexArray(vao);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glBindTexture(GL_TEXTURE_2D,tex[n]);}glActiveTexture(active);glBindFramebuffer(GL_READ_FRAMEBUFFER,read);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,draw);glPixelStorei(GL_UNPACK_ALIGNMENT,unpack);glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);glColorMask(colorMask[0],colorMask[1],colorMask[2],colorMask[3]);if(cull)glEnable(GL_CULL_FACE);else glDisable(GL_CULL_FACE);if(stencil)glEnable(GL_STENCIL_TEST);else glDisable(GL_STENCIL_TEST);if(blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);else glDisable(GL_DEPTH_TEST);if(scissor)glEnable(GL_SCISSOR_TEST);else glDisable(GL_SCISSOR_TEST);}
+  } restore;
++ // Scene passes may leave alpha writes disabled; the compositor must output opaque RGBA.
++ glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glDisable(GL_CULL_FACE);glDisable(GL_STENCIL_TEST);
+  glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
+  if(!s.initialized){
+   s.initialized=true;std::vector<unsigned char> bytes(3,0);int width=1,height=1;
+-  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.startFile=entry.value("start_file",std::string());s.duration=std::clamp(entry.value("duration",.7f),.1f,2.5f);s.direction=std::clamp(entry.value("direction",0),0,3);s.curve=std::clamp(entry.value("curve",0),0,2);s.zoom=std::clamp(entry.value("zoom",.3f),.05f,.6f);s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
++  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.startFile=entry.value("start_file",std::string());s.duration=std::clamp(entry.value("duration",.7f),.1f,2.5f);s.direction=std::clamp(entry.value("direction",0),0,3);s.curve=std::clamp(entry.value("curve",0),0,2);s.zoom=std::clamp(entry.value("zoom",.3f),.05f,.6f);s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.sampleOld={bytes[(size_t(height-1-height/2)*width+width/2)*3],bytes[(size_t(height-1-height/2)*width+width/2)*3+1],bytes[(size_t(height-1-height/2)*width+width/2)*3+2]};s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
+   if(!s.snapshot)s.finished=true;
+   glActiveTexture(GL_TEXTURE0);glGenTextures(1,&s.old);glBindTexture(GL_TEXTURE_2D,s.old);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,bytes.data());
+   glGenTextures(1,&s.current);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);glGenFramebuffers(1,&s.fb);
+@@ -31,8 +33,13 @@
+   if(start){s.start=stamp;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";}
+  }
+  float t=s.finished?1:s.start==std::chrono::steady_clock::time_point{}?0:std::chrono::duration<float>(now-s.start).count()/s.duration;
++ if(!s.finished&&s.start!=std::chrono::steady_clock::time_point{}){s.frames++;if(s.lastFrame!=std::chrono::steady_clock::time_point{})s.maxGapMs=std::max(s.maxGapMs,std::chrono::duration<float,std::milli>(now-s.lastFrame).count());s.lastFrame=now;}
+  if(t>=1&&!s.finished){s.finished=true;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" completed\n";}
+  glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);if(s.w!=vp.z||s.h!=vp.w){s.w=vp.z;s.h=vp.w;glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,s.w,s.h,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);}glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,s.current,0);glBindFramebuffer(GL_READ_FRAMEBUFFER,restore.draw);glBlitFramebuffer(vp.x,vp.y,vp.x+vp.z,vp.y+vp.w,0,0,vp.z,vp.w,GL_COLOR_BUFFER_BIT,GL_NEAREST);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,restore.draw);glViewport(vp.x,vp.y,vp.z,vp.w);
+  glUseProgram(s.program);glUniform1i(glGetUniformLocation(s.program,"previousImage"),0);glUniform1i(glGetUniformLocation(s.program,"currentImage"),1);glUniform1f(glGetUniformLocation(s.program,"progress"),std::clamp(t,0.f,1.f));glUniform1i(glGetUniformLocation(s.program,"effect"),s.finished?0:s.effect);glUniform2f(glGetUniformLocation(s.program,"origin"),s.x,s.y);glUniform2f(glGetUniformLocation(s.program,"aspect"),float(vp.z)/std::min(vp.z,vp.w),float(vp.w)/std::min(vp.z,vp.w));glUniform3f(glGetUniformLocation(s.program,"adjustments"),adjustment.basic.x,adjustment.basic.y,adjustment.basic.z);glUniform4f(glGetUniformLocation(s.program,"adjustMore"),adjustment.more.x,adjustment.more.y,adjustment.more.z,adjustment.more.w);glUniform3f(glGetUniformLocation(s.program,"geometry"),adjustment.geometry.x,adjustment.geometry.y,adjustment.geometry.z);glUniform1f(glGetUniformLocation(s.program,"zoomAmount"),s.zoom);glUniform1i(glGetUniformLocation(s.program,"direction"),s.direction);glUniform1i(glGetUniformLocation(s.program,"curve"),s.curve);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s.old);glBindVertexArray(s.vao);glDrawArrays(GL_TRIANGLES,0,3);
++ if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE")){
++  int stage=t<=0?1:t>=1?4:t>=.45f?2:0;
++  if(stage&&!(s.sampleFlags&stage)){s.sampleFlags|=stage;unsigned char rgba[4]={};glBindFramebuffer(GL_READ_FRAMEBUFFER,restore.draw);glReadPixels(vp.x+vp.z/2,vp.y+vp.w/2,1,1,GL_RGBA,GL_UNSIGNED_BYTE,rgba);std::ofstream(trace,std::ios::app)<<nlohmann::json({{"frames",s.frames},{"max_gap_ms",s.maxGapMs},{"elapsed_ms",s.start==std::chrono::steady_clock::time_point{}?0.f:std::chrono::duration<float,std::milli>(now-s.start).count()},{"output",output},{"progress",std::clamp(t,0.f,1.f)},{"rgba",{rgba[0],rgba[1],rgba[2],rgba[3]}},{"old_rgb",{s.sampleOld.x,s.sampleOld.y,s.sampleOld.z}}}).dump()<<"\n";}
++ }
+ }
+ }
+--- a/src/WallpaperEngine/Render/Helpers/TransitionShader.h
++++ b/src/WallpaperEngine/Render/Helpers/TransitionShader.h
+@@ -11,5 +11,5 @@
+ "if(effect==4){vec2 q=(uv-.5)/(1.-zoomAmount*t)+.5;color=mix(oldAt(q),b,t);}" \
+ "float edge=direction==0?uv.x:direction==1?1.-uv.x:direction==2?1.-uv.y:uv.y;vec2 shift=direction==0?vec2(1,0):direction==1?vec2(-1,0):direction==2?vec2(0,-1):vec2(0,1);" \
+ "if(effect==5){vec2 q=uv-shift*(1.-t);color=edge>=1.-t?newAt(q):a;}if(effect==6)color=edge>=1.-t?b:a;" \
+-"float r=length((uv-origin)*aspect),radius=length(aspect);if(effect==7)color=r<t*radius?b:a;" \
+-"if(effect==8)color=t<.5?(r<(1.-t*2.)*radius?a:vec4(0,0,0,1)):(r<(t*2.-1.)*radius?b:vec4(0,0,0,1));color.a=1.;}"
++"float r=length((uv-origin)*aspect),radius=length(max(origin,1.-origin)*aspect),aa=max(fwidth(r),.0001);float iris=1.-smoothstep(t*radius-aa,t*radius+aa,r);if(effect==7)color=mix(a,b,iris);" \
++"if(effect==8){float size=t<.5?1.-t*2.:t*2.-1.;float mask=1.-smoothstep(size*radius-aa,size*radius+aa,r);color=vec4((t<.5?a.rgb:b.rgb)*mask,1.);}if(progress<=0.)color=effect==0?b:a;if(progress>=1.)color=b;color.a=1.;}"
+--- a/src/WallpaperEngine/Render/CWallpaper.cpp
++++ b/src/WallpaperEngine/Render/CWallpaper.cpp
+@@ -291,6 +291,8 @@
+ 
+     glBindVertexArray (this->m_vaoBuffer);
+ 
++    // Compose an opaque desktop even when the last scene material masks alpha.
++    glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+     glDisable (GL_BLEND);
+     glDisable (GL_DEPTH_TEST);
+     glDisable (GL_CULL_FACE);
+--- a/src/WallpaperEngine/Render/Drivers/Output/WaylandOutputViewport.cpp
++++ b/src/WallpaperEngine/Render/Drivers/Output/WaylandOutputViewport.cpp
+@@ -181,7 +181,7 @@
+     }
+ 
+     layerSurface = zwlr_layer_shell_v1_get_layer_surface (
+-	m_driver->getWaylandContext ()->layerShell, surface, output, wlrLayer, "linux-wallpaperengine"
++	m_driver->getWaylandContext ()->layerShell, surface, output, wlrLayer, "wallpaper-lab-background"
+     );
+ 
+     if (!layerSurface) {

@@ -19,7 +19,8 @@ python3 scripts/apply-patch-series.py vendor/engine \
     patches/engine-transitions-media-text.patch \
     patches/engine-stable-transitions-image-controls.patch \
     patches/engine-custom-animation-image-transform.patch \
-    patches/engine-transition-handoff.patch
+    patches/engine-transition-handoff.patch \
+    patches/engine-compositor-transitions.patch
 apply_patch_if_needed vendor/raylib patches/raylib-app-id.patch
 prefix_args=()
 if [[ -d local/sysroot/usr ]]; then prefix_args+=("-DCMAKE_PREFIX_PATH=$PWD/local/sysroot/usr"); fi

@@ -10,7 +10,7 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Versione attuale: 0.17
+## Versione attuale: 0.18
 
 La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
 versionate successive conservano anche la storia delle implementazioni.
@@ -25,16 +25,16 @@ versionate successive conservano anche la storia delle implementazioni.
 - **Inspector**: sezioni richiudibili per destinazione, immagine/ritaglio,
   riproduzione e proprietà del creator. Zoom, posizione, risoluzione e regolazioni
   sono salvati per progetto, con aggiornamento live dove supportato. Specchio
-  orizzontale/verticale sono toggle diretti. Ripristina immagine azzera i controlli
-  immagine; Ripristina effetti azzera solo le regolazioni avanzate, conservando
-  luminosità, contrasto e saturazione. Entrambi conservano posizione e proprietà.
+  orizzontale/verticale sono toggle diretti. Un solo pulsante rosso ripristina i controlli
+  immagine, conservando posizione, zoom e proprietà.
 - **File personali**: importa immagini/video dalla cartella + o trascinali nella
   finestra. L'app copia i media e calcola nome, risoluzione e miniatura. Le card
   distinguono Steam e Locale; l'origine è un filtro AND/OR. Impostazioni → Librerie
   configura sia la cartella Workshop sia quella locale creata automaticamente.
 - **Workshop**: ricerca e filtri automatici, informazioni del creator e download
   dalla card o dal pannello. Richiede Steam aperto e un account con Wallpaper Engine.
-- **Aspetto**: 16 temi indipendenti, separati in collezioni chiare/scure. Palette,
+- **Aspetto**: 29 temi in sei collezioni di stile: Classici, Neon, Pastello, Vetro,
+  Pixel e LED/RGB. La collezione filtra le palette del menu Temi. Palette,
   raggi, neon, riflessi, particelle e LED sono pertinenti al tema. La Trasparenza
   della UI va da 0% opaco a 30%, senza sbiadire immagini o scene live. Font e peso
   restano personalizzabili, con fallback Unicode e 22 lingue.
@@ -45,7 +45,8 @@ versionate successive conservano anche la storia delle implementazioni.
 
 Lo switcher parte dal wallpaper attivo del monitor scelto; le pressioni successive
 seguono l'ordine dei preferiti in app. Il corrente non preferito viene mostrato
-solo come punto di partenza temporaneo, senza aggiungerlo ai preferiti.
+solo come punto di partenza temporaneo con la propria miniatura, senza aggiungerlo
+ai preferiti né riselezionarlo nei giri successivi.
 Confermare il corrente non produce transizioni. Le anteprime di switcher e
 transizioni si chiudono con Esc o clic esterno.
 
@@ -53,6 +54,13 @@ Le transizioni desktop catturano ogni monitor separatamente, senza condividere
 la richiesta con l'anteprima live. Un segnale comune avvia l'animazione dopo la
 readiness del nuovo renderer e la chiusura del precedente. In duplicazione gli
 effetti dal puntatore usano la stessa posizione relativa sui due monitor.
+Su Hyprland il renderer usa il namespace dedicato `wallpaper-lab-background`:
+una regola runtime mirata disabilita lo slide/fade automatico del compositor,
+che altrimenti si sommerebbe alla transizione dell'app. Nessun file di configurazione
+viene modificato; la regola viene riapplicata a ogni avvio del renderer. Gli iris
+usano il raggio fino all'angolo più lontano, con bordo antialias e durata effettiva.
+Le [collezioni e i riferimenti Pinterest](docs/THEMES.md) descrivono i nuovi temi.
+
 Altri renderer attivi sulle stesse uscite possono sovrapporre superfici o
 consumare risorse: l'app non termina processi di altri programmi.
 
