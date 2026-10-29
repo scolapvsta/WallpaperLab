@@ -1,0 +1,123 @@
+--- a/src/WallpaperEngine/Render/Helpers/LiveFeed.h
++++ b/src/WallpaperEngine/Render/Helpers/LiveFeed.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ #include <GL/glew.h>
+ #include <chrono>
++#include <cctype>
+ #include <cstdlib>
+ #include <filesystem>
+ #include <fstream>
+@@ -22,13 +23,7 @@
+ 	return false;
+     }
+     try {
+-	auto request = std::filesystem::path (directory) / "request.json";
+-	if (std::filesystem::file_time_type::clock::now () - std::filesystem::last_write_time (request)
+-	    > std::chrono::seconds (2)) {
+-	    return false;
+-	}
+-	std::ifstream input (request);
+-	active = nlohmann::json::parse (input).value ("path", std::string ()) == project;
++        for(auto name:{"transition-request.json","request.json"}){auto request=std::filesystem::path(directory)/name;try{if(std::filesystem::file_time_type::clock::now()-std::filesystem::last_write_time(request)>std::chrono::seconds(2))continue;std::ifstream input(request);if(nlohmann::json::parse(input).value("path",std::string())==project){active=true;break;}}catch(...) {}}
+     } catch (...) { }
+     return active;
+ }
+@@ -38,28 +33,23 @@
+     if (!directory || !project) {
+ 	return;
+     }
+-    static auto last = std::chrono::steady_clock::time_point {};
+-    auto now = std::chrono::steady_clock::now ();
+-    if (now - last < std::chrono::milliseconds (83)) {
+-	return;
+-    }
+-    try {
+-	std::filesystem::path root (directory), request = root / "request.json";
+-	if (std::filesystem::file_time_type::clock::now () - std::filesystem::last_write_time (request)
+-	    > std::chrono::seconds (2)) {
+-	    return;
+-	}
+-	std::ifstream input (request);
+-	auto j = nlohmann::json::parse (input);
+-	if (j.value ("path", std::string ()) != project || j.value ("output", std::string ()) != output) {
+-	    return;
+-	}
+-	last = now;
++    static auto last=std::chrono::steady_clock::time_point{};
++    auto now=std::chrono::steady_clock::now();
++    try{
++        std::filesystem::path root(directory);nlohmann::json j;bool snapshot=false;
++        for(auto name:{"transition-request.json","request.json"}){try{auto request=root/name;if(std::filesystem::file_time_type::clock::now()-std::filesystem::last_write_time(request)>std::chrono::seconds(2))continue;std::ifstream input(request);auto candidate=nlohmann::json::parse(input);if(candidate.value("path",std::string())==project&&candidate.value("output",std::string())==output){j=std::move(candidate);snapshot=std::string(name)=="transition-request.json";break;}}catch(...) {}}
++        if(j.is_null())return;
++        if(!snapshot&&now-last<std::chrono::milliseconds(83))return;
++        std::string safeOutput=output;for(char& c:safeOutput)if(!std::isalnum((unsigned char)c)&&c!='-'&&c!='_')c='_';
++        std::string token=j.value("token",std::string());if(snapshot&&(token.empty()||token.size()>64||token.find_first_not_of("0123456789abcdefABCDEF-_")!=std::string::npos))return;
++        auto destination=root/(snapshot?"snapshot-"+token+"-"+safeOutput+".bin":"frame-"+safeOutput+".bin");
++        if(snapshot&&std::filesystem::exists(destination))return;
++        last=now;
+ 	int w = viewport.z, h = viewport.w;
+ 	if (w < 1 || h < 1) {
+ 	    return;
+ 	}
+-	float scale = j.value("transition",false)?1.f:std::min (640.f / w, 360.f / h);
++	float scale = (snapshot||j.value("transition",false))?1.f:std::min (640.f / w, 360.f / h);
+ 	int width = std::max (1, int (w * scale)), height = std::max (1, int (h * scale));
+ 	GLint oldRead, oldDraw, oldTexture, sourceSamples;
+ 	glGetIntegerv (GL_READ_FRAMEBUFFER_BINDING, &oldRead);
+@@ -121,7 +111,7 @@
+ 	    glPixelStorei (GL_PACK_ALIGNMENT, pack);
+ 	    static uint32_t sequence = 0;
+ 	    uint32_t header[] = { 0x574c4631, uint32_t (getpid ()), uint32_t (width), uint32_t (height), ++sequence };
+-	    auto temp = root / ("frame.tmp." + std::to_string (getpid ()));
++	    auto temp=root/("frame.tmp."+std::to_string(getpid())+"-"+safeOutput);
+ 	    {
+ 		std::ofstream stream (temp, std::ios::binary);
+ 		stream.write (reinterpret_cast<const char*> (header), sizeof (header));
+@@ -132,7 +122,9 @@
+ 		    throw std::runtime_error ("live feed write failed");
+ 		}
+ 	    }
+-	    std::filesystem::rename (temp, root / "frame.bin");
++	    std::filesystem::rename(temp,destination);
++        // Keep the legacy inspector endpoint, without copying large frame buffers.
++        if(!snapshot){auto legacy=root/("legacy.tmp."+std::to_string(getpid()));std::error_code ec;std::filesystem::remove(legacy,ec);std::filesystem::create_hard_link(destination,legacy,ec);if(ec)std::filesystem::copy_file(destination,legacy,std::filesystem::copy_options::overwrite_existing);std::filesystem::rename(legacy,root/"frame.bin");}
+ 	}
+ 
+     } catch (...) { } // A closed inspector or missing request must never stop wallpaper rendering.
+--- a/src/WallpaperEngine/Render/Helpers/Transition.h
++++ b/src/WallpaperEngine/Render/Helpers/Transition.h
+@@ -4,7 +4,7 @@
+ #include <map>
+ namespace WallpaperEngine::Render::Helpers {
+ inline void transitionFrame(const std::string& output,const glm::ivec4& vp,bool sourceReady){
+- struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0;GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5,duration=.7f,zoom=.3f;int direction=0,curve=0;std::chrono::steady_clock::time_point start{};};
++ struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0;GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5,duration=.7f,zoom=.3f;int direction=0,curve=0;std::string startFile;std::chrono::steady_clock::time_point start{},waiting{};};
+  static std::map<std::string,State> states;auto& s=states[output];auto adjustment=imageAdjustments();bool neutral=adjustment.neutral();const char* raw=std::getenv("WALLPAPER_LAB_TRANSITION");if((!raw||s.finished)&&neutral)return;if(vp.z<1||vp.w<1)return;
+  struct Restore {
+   GLint program,vao,active,tex[2],read,draw,unpack,viewport[4];GLboolean blend,depth,scissor;
+@@ -14,7 +14,7 @@
+  glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
+  if(!s.initialized){
+   s.initialized=true;std::vector<unsigned char> bytes(3,0);int width=1,height=1;
+-  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.duration=std::clamp(entry.value("duration",.7f),.1f,2.5f);s.direction=std::clamp(entry.value("direction",0),0,3);s.curve=std::clamp(entry.value("curve",0),0,2);s.zoom=std::clamp(entry.value("zoom",.3f),.05f,.6f);s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
++  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.startFile=entry.value("start_file",std::string());s.duration=std::clamp(entry.value("duration",.7f),.1f,2.5f);s.direction=std::clamp(entry.value("direction",0),0,3);s.curve=std::clamp(entry.value("curve",0),0,2);s.zoom=std::clamp(entry.value("zoom",.3f),.05f,.6f);s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
+   if(!s.snapshot)s.finished=true;
+   glActiveTexture(GL_TEXTURE0);glGenTextures(1,&s.old);glBindTexture(GL_TEXTURE_2D,s.old);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,bytes.data());
+   glGenTextures(1,&s.current);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);glGenFramebuffers(1,&s.fb);
+@@ -22,7 +22,14 @@
+   auto compile=[](GLenum type,const char* code){GLuint id=glCreateShader(type);glShaderSource(id,1,&code,nullptr);glCompileShader(id);return id;};const char* vertex="#version 330 core\nout vec2 uv;void main(){uv=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(uv*2.-1.,0,1);}";GLuint v=compile(GL_VERTEX_SHADER,vertex),f=compile(GL_FRAGMENT_SHADER,LAB_TRANSITION_FRAGMENT);s.program=glCreateProgram();glAttachShader(s.program,v);glAttachShader(s.program,f);glLinkProgram(s.program);glDeleteShader(v);glDeleteShader(f);GLint ok;glGetProgramiv(s.program,GL_LINK_STATUS,&ok);if(!ok){glDeleteProgram(s.program);s.program=0;s.finished=true;return;}glGenVertexArrays(1,&s.vao);
+  }
+  if(!s.program)return;
+- auto now=std::chrono::steady_clock::now();if(!s.finished&&sourceReady&&++s.stable>=3&&s.start==std::chrono::steady_clock::time_point{}){s.start=now;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";}
++ auto now=std::chrono::steady_clock::now();
++ if(!s.finished&&sourceReady&&++s.stable>=3&&s.start==std::chrono::steady_clock::time_point{}){
++  if(s.waiting==std::chrono::steady_clock::time_point{})s.waiting=now;
++  bool start=s.startFile.empty();auto stamp=now;
++  if(!start)try{std::ifstream input(s.startFile);auto data=nlohmann::json::parse(input);auto ns=data.at("time_ns").get<int64_t>();stamp=std::chrono::steady_clock::time_point(std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::nanoseconds(ns)));start=stamp<=now&&now-stamp<std::chrono::seconds(10);}catch(...){}
++  if(!start&&now-s.waiting>std::chrono::seconds(5)){start=true;stamp=now;}
++  if(start){s.start=stamp;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";}
++ }
+  float t=s.finished?1:s.start==std::chrono::steady_clock::time_point{}?0:std::chrono::duration<float>(now-s.start).count()/s.duration;
+  if(t>=1&&!s.finished){s.finished=true;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" completed\n";}
+  glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);if(s.w!=vp.z||s.h!=vp.w){s.w=vp.z;s.h=vp.w;glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,s.w,s.h,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);}glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,s.current,0);glBindFramebuffer(GL_READ_FRAMEBUFFER,restore.draw);glBlitFramebuffer(vp.x,vp.y,vp.x+vp.z,vp.y+vp.w,0,0,vp.z,vp.w,GL_COLOR_BUFFER_BIT,GL_NEAREST);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,restore.draw);glViewport(vp.x,vp.y,vp.z,vp.w);

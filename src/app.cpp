@@ -16,6 +16,7 @@
 #include <cmath>
 #include <csignal>
 #include <cstring>
+#include <cctype>
 #include <fcntl.h>
 #include <fstream>
 #include <future>
@@ -61,6 +62,8 @@ std::vector<fs::path> libraryRoots(){
  if(auto extra=getenv("WALLPAPER_LAB_LIBRARY"))return {fs::path(extra)};
  auto prefs=loadSettings();std::vector<fs::path> roots;auto custom=prefs.value("workshop_path",std::string());if(!custom.empty())roots.emplace_back(custom);else for(auto p:steamLibraries())roots.push_back(p/"steamapps/workshop/content/431960");auto local=localLibrary(prefs);fs::create_directories(local);roots.push_back(local);return roots;
 }
+std::string outputKey(std::string name){for(char& c:name)if(!std::isalnum((unsigned char)c)&&c!='-'&&c!='_')c='_';return name;}
+fs::path feedFrame(const std::string& output){auto file=feedDir()/("frame-"+outputKey(output)+".bin");return fs::exists(file)?file:feedDir()/"frame.bin";}
 std::future<json> fileJob;std::string fileNotice;
 json selectedRunning(const json& selection);
 bool owned(const json& process);
@@ -72,7 +75,7 @@ void syncCaelestia(const Item& item,const json& prefs,bool alreadyLocked=false){
  try{
   // Prefer the actual rendered frame, including crop and image adjustments.
   // Fall back to the author's thumbnail when a paused renderer has no frame.
-  auto process=selectedRunning(prefs);if(owned(process)&&process.value("path",std::string())==item.path){int screen=std::clamp(prefs.value("screen",0),0,std::max(0,(int)monitors.size()-1));writeJson(feedDir()/"request.json",{{"path",item.path},{"output",monitors.empty()?"":monitors[screen]}});auto requested=fs::last_write_time(feedDir()/"request.json");for(int tries=0;tries<10;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedDir()/"frame.bin";if(fs::last_write_time(frame)<requested)continue;std::ifstream input(frame,std::ios::binary);uint32_t header[5]={};input.read((char*)header,20);if(header[0]!=0x574c4631||header[1]!=process.at("pid").get<uint32_t>()||header[2]<1||header[3]<1||uint64_t(header[2])*header[3]>40000000)continue;std::vector<char> pixels(size_t(header[2])*header[3]*3);input.read(pixels.data(),pixels.size());if(!input)continue;capturedArtwork=stateDir()/"integrations"/("artwork-"+std::to_string(getpid())+"-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".ppm");fs::create_directories(capturedArtwork.parent_path());std::ofstream ppm(capturedArtwork,std::ios::binary);ppm<<"P6\n"<<header[2]<<" "<<header[3]<<"\n255\n";ppm.write(pixels.data(),pixels.size());break;}catch(...){} }}
+  auto process=selectedRunning(prefs);if(owned(process)&&process.value("path",std::string())==item.path){int screen=std::clamp(prefs.value("screen",0),0,std::max(0,(int)monitors.size()-1));writeJson(feedDir()/"request.json",{{"path",item.path},{"output",monitors.empty()?"":monitors[screen]}});auto requested=fs::last_write_time(feedDir()/"request.json");for(int tries=0;tries<10;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedFrame(monitors.empty()?"":monitors[screen]);if(fs::last_write_time(frame)<requested)continue;std::ifstream input(frame,std::ios::binary);uint32_t header[5]={};input.read((char*)header,20);if(header[0]!=0x574c4631||header[1]!=process.at("pid").get<uint32_t>()||header[2]<1||header[3]<1||uint64_t(header[2])*header[3]>40000000)continue;std::vector<char> pixels(size_t(header[2])*header[3]*3);input.read(pixels.data(),pixels.size());if(!input)continue;capturedArtwork=stateDir()/"integrations"/("artwork-"+std::to_string(getpid())+"-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".ppm");fs::create_directories(capturedArtwork.parent_path());std::ofstream ppm(capturedArtwork,std::ios::binary);ppm<<"P6\n"<<header[2]<<" "<<header[3]<<"\n255\n";ppm.write(pixels.data(),pixels.size());break;}catch(...){} }}
  }catch(...){}
  try{if(!fs::is_regular_file(stateDir()/"integrations/caelestia-runtime.json"))prepareCaelestia();std::unique_ptr<ControllerLock> publicationLock;bool published=updateCaelestia(capturedArtwork.empty()?item.preview:capturedArtwork.string(),true,[&]{if(!alreadyLocked)try{publicationLock=std::make_unique<ControllerLock>();}catch(...){return false;}auto latest=loadSettings();if(!latest.value("caelestia_enabled",false)||latest.value("caelestia_palette",0)!=prefs.value("caelestia_palette",0)||latest.value("caelestia_mode",0)!=prefs.value("caelestia_mode",0))return false;auto active=selectedRunning(latest);return owned(active)&&active.value("path",std::string())==item.path;},prefs.value("caelestia_palette",0),prefs.value("caelestia_mode",0));if(published){std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}
  catch(const std::exception& e){try{std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}catch(...){}}
@@ -168,7 +171,7 @@ std::vector<std::string> renderArgs(const Item& item,const json& prefs,bool prev
     return args;
 }
 std::string launch(Item item,json prefs,bool preview,int direction=0) {
-    pid_t pid=-1;fs::path ready;
+    pid_t pid=-1;fs::path ready,transitionGate;
     try {
         fs::create_directories(stateDir());
         ControllerLock lock;
@@ -179,16 +182,18 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
         }
         auto args=renderArgs(item,prefs,preview);
         if(!preview&&prefs.value("transition_type",0)>0&&!prefs.value("reduce_motion",false)){
+         fs::create_directories(feedDir());
          auto prior=running();json config=json::object();auto cache=stateDir()/"transitions";fs::create_directories(cache);for(auto& e:fs::directory_iterator(cache)){std::error_code ec;if(fs::file_time_type::clock::now()-fs::last_write_time(e.path(),ec)>std::chrono::minutes(1))fs::remove_all(e.path(),ec);}
          auto token=stateDir()/"transitions"/std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());fs::create_directories(token);
-         auto mouse=capture({"hyprctl","cursorpos","-j"});json cursor;try{if(!mouse.empty())cursor=json::parse(mouse[0]);}catch(...){}
+         auto mouse=capture({"hyprctl","cursorpos","-j"});json cursor=json::object();try{if(!mouse.empty())cursor=json::parse(mouse[0]);}catch(...){}
+         double mirrorX=.5,mirrorY=.5;for(const auto& display:displayData){double x=cursor.value("x",display.x+display.logicalWidth/2),y=cursor.value("y",display.y+display.logicalHeight/2);if(x>=display.x&&x<display.x+display.logicalWidth&&y>=display.y&&y<display.y+display.logicalHeight){mirrorX=(x-display.x)/display.logicalWidth;mirrorY=(y-display.y)/display.logicalHeight;break;}}
          for(int n=0;n<(int)monitors.size();n++){
           if(prefs.value("mode",std::string())=="single"&&n!=prefs.value("screen",0))continue;
           auto old=prior.contains("outputs")?prior["outputs"].value(monitors[n],json::object()):prior;if(!owned(old)||old.value("path",std::string())==item.path)continue;
-          writeJson(feedDir()/"request.json",{{"path",old["path"]},{"output",monitors[n]},{"transition",true}});auto requested=fs::last_write_time(feedDir()/"request.json");
-          for(int tries=0;tries<8;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedDir()/"frame.bin";if(fs::last_write_time(frame)<requested)continue;std::ifstream file(frame,std::ios::binary);uint32_t header[5]={};file.read((char*)header,20);if(header[1]!=old["pid"].get<uint32_t>())continue;auto dest=token/(std::to_string(n)+".bin");fs::copy_file(frame,dest,fs::copy_options::overwrite_existing);auto& d=displayData[n];config[monitors[n]]={{"file",dest.string()},{"effect",prefs["transition_type"]},{"duration",prefs.value("transition_duration",700)/1000.f},{"direction",prefs.value("transition_direction",0)},{"curve",prefs.value("transition_curve",0)},{"zoom",prefs.value("transition_zoom",30)/100.f},{"x",std::clamp((cursor.value("x",d.x+d.logicalWidth/2)-d.x)/d.logicalWidth,0.,1.)},{"y",std::clamp((cursor.value("y",d.y+d.logicalHeight/2)-d.y)/d.logicalHeight,0.,1.)}};break;}catch(...){} }
+          writeJson(feedDir()/"transition-request.json",{{"path",old["path"]},{"output",monitors[n]},{"transition",true},{"token",token.filename().string()}});
+          for(int tries=0;tries<20;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedDir()/("snapshot-"+token.filename().string()+"-"+outputKey(monitors[n])+".bin");if(!fs::exists(frame))continue;std::ifstream file(frame,std::ios::binary);uint32_t header[5]={};file.read((char*)header,20);if(!file||header[0]!=0x574c4631||header[1]!=old["pid"].get<uint32_t>()||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000||fs::file_size(frame)!=20+uint64_t(header[2])*header[3]*3)continue;auto dest=token/(std::to_string(n)+".bin");fs::copy_file(frame,dest,fs::copy_options::overwrite_existing);auto& d=displayData[n];config[monitors[n]]={{"file",dest.string()},{"effect",prefs["transition_type"]},{"duration",prefs.value("transition_duration",700)/1000.f},{"direction",prefs.value("transition_direction",0)},{"curve",prefs.value("transition_curve",0)},{"zoom",prefs.value("transition_zoom",30)/100.f},{"x",prefs.value("mode",std::string())=="mirror"?mirrorX:std::clamp((cursor.value("x",d.x+d.logicalWidth/2)-d.x)/d.logicalWidth,0.,1.)},{"y",prefs.value("mode",std::string())=="mirror"?mirrorY:std::clamp((cursor.value("y",d.y+d.logicalHeight/2)-d.y)/d.logicalHeight,0.,1.)}};break;}catch(...){} }
          }
-         if(!config.empty())args.insert(args.end(),{"--lab-transition",config.dump()});
+         std::error_code requestError;fs::remove(feedDir()/"transition-request.json",requestError);for(auto& entry:fs::directory_iterator(feedDir()))if(entry.path().filename().string().starts_with("snapshot-"+token.filename().string()+"-"))fs::remove(entry.path(),requestError);if(!config.empty()){transitionGate=token/"start.json";for(auto& entry:config)entry["start_file"]=transitionGate.string();args.insert(args.end(),{"--lab-transition",config.dump()});}
         }
         ready=stateDir()/("ready-"+std::to_string(getpid())+"-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         args.insert(args.begin()+2,{"--ready-file",ready.string()});
@@ -227,6 +232,7 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
             try{writeJson(stateDir()/"running.json",process);}
             catch(...){writeJson(configDir()/"settings.json",oldPrefs);throw;}
             stop(victim);
+            if(!transitionGate.empty()){try{writeJson(transitionGate,{{"time_ns",std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()}});}catch(const std::exception& e){std::cerr<<"Transition start signal: "<<e.what()<<"\n";}if(prefs.value("caelestia_enabled",false))std::this_thread::sleep_for(std::chrono::milliseconds(prefs.value("transition_duration",700)));}
             syncCaelestia(item,prefs,true);
         }
         return {};
@@ -371,6 +377,17 @@ int lab_adjust_set(int i,const char* key,float value,int commit){return guarded(
  writeJson(stateDir()/"placement-live.json",{{"path",path},{"image",placements[path]["image"]}});
  if(commit){ControllerLock lock;auto latest=loadPlacements();latest[path]["image"]=placements[path]["image"];writeJson(configDir()/"wallpaper_profiles.json",latest);placements=latest;if(settings.value("caelestia_enabled",false)&&i==lab_current())integrationDirty=true;}
 });}
+int lab_adjust_reset(int i,int additional_only){return guarded([&]{
+ ControllerLock lock;auto latest=loadPlacements();auto path=items.at(i).path;
+ auto& image=latest[path]["image"];if(!image.is_object())image=json::object();
+ if(additional_only){
+  for(auto key:{"temperature","hue","gamma","vignette","rotation","flip_x","flip_y"})image.erase(key);
+ }else image=json::object();
+ // Commit one profile update, preserving crop, playback and creator properties.
+ writeJson(configDir()/"wallpaper_profiles.json",latest);placements=latest;
+ writeJson(stateDir()/"placement-live.json",{{"path",path},{"image",image}});
+ if(settings.value("caelestia_enabled",false)&&i==lab_current())integrationDirty=true;
+});}
 static const json& propertyOverrides(int i){static const json empty=json::object();auto p=placements.find(items.at(i).path);return p!=placements.end()&&p->contains("properties")?p->at("properties"):empty;}
 static std::string propertyKey(int i,int p){return items.at(i).propertyOrder.at(p);}
 static const json& propertySchema(int i,int p){return items.at(i).properties.at(propertyKey(i,p));}
@@ -419,7 +436,7 @@ int lab_live_frame(int i,unsigned char* pixels,int capacity,int* width,int* heig
             auto screen=std::clamp(settings.value("screen",0),0,std::max(0,int(monitors.size())-1));
             writeJson(feedDir()/"request.json",{{"path",items[i].path},{"output",monitors.empty()?"":monitors[screen]}});sent=now;lastItem=i;
         }
-        std::ifstream input(feedDir()/"frame.bin",std::ios::binary);uint32_t header[5]={};input.read(reinterpret_cast<char*>(header),sizeof(header));
+        std::ifstream input(feedFrame(monitors.empty()?"":monitors[std::clamp(settings.value("screen",0),0,(int)monitors.size()-1)]),std::ios::binary);uint32_t header[5]={};input.read(reinterpret_cast<char*>(header),sizeof(header));
         if(!input||header[0]!=0x574c4631||header[1]!=current.at("pid").get<uint32_t>()||(header[1]==lastPid&&header[4]==lastSequence)||header[2]<1||header[2]>640||header[3]<1||header[3]>360)return 0;
         int bytes=header[2]*header[3]*3;if(bytes>capacity)return 0;input.read(reinterpret_cast<char*>(pixels),bytes);if(!input)return 0;
         lastPid=header[1];lastSequence=header[4];*width=header[2];*height=header[3];return 1;

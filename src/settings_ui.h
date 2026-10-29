@@ -37,6 +37,11 @@ static void ChoiceOverlay(void){
 }
 static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){const char* names[]={lab_tr("Disattivo"),lab_tr("Attivo")};return Choice(id,x,y,w,label,names,2,value);}
 
+// Direct two-state controls for per-wallpaper image mirroring.
+static bool SwitchToggle(Rectangle row,const char* label,bool value){
+ bool hot=Hot(row,!applying);TextLines(label,row.x,row.y+7,row.width-76,14,2,AppTheme.text);Rectangle track={row.x+row.width-54,row.y+6,48,24};ThemePanel(track,1,16,value?AppTheme.border:hot?controlHover:control);DrawCircleV((Vector2){track.x+(value?36:12),track.y+12},9,value?(lab_option("light_theme")?WHITE:(Color){24,31,37,255}):AppTheme.text);if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)?!value:value;
+}
+
 // A shared compact slider. Drafts belong to the caller until mouse release.
 static Rectangle numberTracks[160];
 static int uiSliderDrag=-1;static Rectangle adjustmentTracks[3],opacityTrack;

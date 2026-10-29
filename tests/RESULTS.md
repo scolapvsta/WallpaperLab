@@ -983,3 +983,65 @@ Caelestia era già attiva: resta attiva e la palette installata è vibrant/dark,
 con range dei canali surface pari a 75 (superficie cromatica, non grigia).
 Helper opzionale presente nel runtime installato; nessun cambio di avvio automatico
 o servizi. Evidenze private `local/ui16/install/`. App riaperta per il feedback.
+
+## Versione 0.17 — transizioni, ripristino e lingue
+
+- Build applicazione e libreria engine riuscite; CTest **11/11**. Serie patch
+  ordinata verificata in reverse e hash del manifest corrispondenti; pin invariati.
+- Individuati sul desktop due gruppi di renderer di vecchie prove UI ancora
+  attivi. Eseguibile, starttime, argomenti, XDG privati e membri del gruppo
+  verificati prima della chiusura. Il renderer WallpaperX resta attivo e non è
+  stato modificato; le prove seguenti sono state eseguite anche in sua presenza.
+- `transition_handoff_integration.py`: applicazione completa via controller e
+  campioni del desktop dal compositor, non soltanto shader diretto. La 0.16
+  passa una dissolvenza semplice, ma in duplicazione, con richieste concorrenti
+  dell'inspector, riproduce una transizione assente su **DP-5** pur funzionando su
+  DP-6. Evidenza: `local/ui17/handoff-old-mirror-stress/`. Questo risultato non
+  dimostra che un renderer esterno sia la causa del difetto.
+- Con snapshot separati e start gate comune, la stessa prova completa entrambi
+  gli output, anche ritardando la chiusura del vecchio gruppo con SIGSTOP dopo
+  la cattura. 808 scritture concorrenti dell'inspector, 36 campioni intermedi di
+  dissolvenza sul desktop, nessun flash nero. `local/ui17/handoff-final-ready-gate/`.
+  L'identità del processo di prova viene controllata prima del segnale. Le
+  impostazioni e il renderer personali sono rimasti invariati.
+- `transition_graphics_integration.py`: tutti gli **otto effetti**, vecchia e
+  nuova immagine orientate correttamente; nessun nero non pianificato. L'iris
+  chiuso e la dissolvenza al nero mantengono il nero previsto dal loro effetto.
+  Verificati anche aggiornamento live, persistenza e ripristino delle regolazioni
+  senza restart. `local/ui17/transitions-final/`.
+- `transition_project_integration.py`: **nove cambi reali** fra Reze, Computer Girl
+  e Frieren, in singolo, duplicato e panorama, effetto iris da 700 ms. Tutti gli
+  output attesi iniziano e completano; snapshot nativi 1920×1080 e 2560×1440 con
+  PID corretto e un solo gate condiviso. 669 richieste live concorrenti. Gruppo
+  precedente ritirato, renderer personale preservato. La prova ha individuato
+  e fatto correggere anche il primo avvio con effetto attivo e feed assente.
+  Evidenza: `local/ui17/real-projects-final/`.
+- `ui17_integration.py`: toggle diretti X/Y, nessuna dropdown o restart. Reset
+  dei soli sette effetti avanzati conservando i tre controlli base; reset completo
+  immagine; reset già neutro. Posizione, zoom, playback e proprietà del creator
+  preservati. Tutte le **22 lingue** selezionate nella UI reale e persistenti;
+  attraversate Generali, Carousel, Aspetto e Integrazioni. Screenshot controllati
+  anche per alfabeti non latini. `local/ui17/gui-verified/`.
+- Catalogo: **368 messaggi** per 22 locale, 34 righe prima lasciate in inglese
+  ora tradotte più il nuovo reset. Nuovo controllo contro intere righe di fallback
+  inglese ripetuto, eccetto le risoluzioni numeriche. Coverage di 241 chiavi UI
+  statiche e transizioni; il test C++ controlla l'intero catalogo e gli switch.
+- `i18n_rendering.py`: ogni messaggio renderizzato con Pango e font installati,
+  **zero glifi mancanti** nei 22 locale; campioni PNG privati e wrapping verificati.
+  `local/ui17/languages-final/`. Non è una certificazione madrelingua: restano
+  diagnostici tecnici grezzi del backend e layout pannelli LTR anche in arabo/urdu.
+- Valutazione Windows documentata in `docs/WINDOWS_PORT.md`; nessun port avviato.
+  Stima con una persona a tempo pieno e hardware Windows: 4–6 settimane per il
+  prototipo immagini/video, 3–5 mesi complessivi per una beta ampia.
+
+Limiti: prove desktop su Arch/Hyprland, due monitor; nove cambi su tre scene e
+otto effetti su fixture web. Non certificano tutti i progetti Workshop o altri
+compositor. La presenza di più renderer può ancora consumare risorse o sovrapporre
+superfici; Wallpaper Lab non termina programmi di wallpaper esterni. Le catture
+sono istantanee della scena precedente, non due scene animate simultanee.
+
+Installazione 0.17 riuscita con runtime precedente recuperabile e backup delle
+preferenze. Wallpaper attivo ripristinato e vecchio PID ritirato; tutti i file
+di configurazione confrontati uguali al backup (preferiti, profili, disposizione
+e impostazioni inclusi). Nessuna modifica ad autostart o servizi.
+Evidenza privata: `local/ui17/install/`.

@@ -137,3 +137,41 @@ normalmente poco sature. L'output resta dynamic/default per compatibilità con l
 shell. Il callback di pubblicazione verifica anche variante/modo correnti; una
 modifica in coda causa una nuova generazione. Il ripristino condizionale 0.15
 rimane valido. Il browser statico di Caelestia non viene popolato né riavviato.
+
+## Passaggio e catture per monitor 0.17
+
+L'inspector pubblica `request.json` e riceve un frame ridotto
+`frame-OUTPUT.bin`. Il vecchio `frame.bin` rimane un alias atomico per compatibilità
+con le prove grafiche esistenti. Il controller usa invece
+`transition-request.json` con token di sessione, path del progetto e output.
+Il renderer scrive uno snapshot nativo immutabile
+`snapshot-TOKEN-OUTPUT.bin`: la richiesta dell'inspector non può sostituirlo, né
+un altro monitor con lo stesso PID può rispondere al suo posto. Magic, PID,
+dimensioni e lunghezza vengono verificati prima di accettare il file. Le copie
+temporanee nel feed vengono rimosse dal controller per il solo token corrente.
+
+Il nuovo renderer continua a mostrare lo snapshot mentre attende readiness e
+passaggio. Dopo aver registrato lo stato e ritirato il renderer precedente, il
+controller pubblica un `start.json` comune, con timestamp monotono. I monitor
+usano quel timestamp per la durata, anziché iniziare ciascuno durante l'avvio.
+Tre frame pronti restano necessari. Se il segnale non è leggibile, un limite di
+attesa di cinque secondi evita uno snapshot bloccato indefinitamente. Le prove
+dirette `--render` senza start_file mantengono il comportamento autonomo.
+La palette Caelestia viene campionata dopo la durata della transizione.
+
+In modalità duplicata l'origine dell'iris è la posizione normalizzata del mouse
+sul monitor che lo contiene, condivisa fra le uscite. Panorama e monitor singolo
+mantengono coordinate relative alla propria uscita.
+
+`lab_adjust_reset` aggiorna in un'unica scrittura il sotto-oggetto image del
+profilo corrente, sotto ControllerLock; pubblica anche il messaggio live. Il
+ripristino selettivo rimuove soltanto sette chiavi avanzate. Posizione, zoom,
+creator e riproduzione rimangono indipendenti. Il reset completo usa image vuoto,
+che il renderer interpreta con i valori neutri.
+
+Il catalogo contiene 368 messaggi e 22 locale. La verifica Pango copre ogni
+messaggio e controlla i glifi mancanti; le schermate native verificano cambio e
+persistenza della lingua. L'arabo e l'urdu usano shaping e direzione del testo
+Pango, ma la disposizione dei pannelli resta da sinistra a destra. I messaggi
+tecnici grezzi del backend e i contenuti degli autori non fanno parte del catalogo
+tradotto. Queste prove non sostituiscono una revisione linguistica madrelingua.

@@ -10,7 +10,7 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Versione attuale: 0.16
+## Versione attuale: 0.17
 
 La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
 versionate successive conservano anche la storia delle implementazioni.
@@ -24,7 +24,10 @@ versionate successive conservano anche la storia delle implementazioni.
   evidenziato nella mappa resta il target in modalità singola, anche dopo la chiusura.
 - **Inspector**: sezioni richiudibili per destinazione, immagine/ritaglio,
   riproduzione e proprietà del creator. Zoom, posizione, risoluzione e regolazioni
-  sono salvati per progetto, con aggiornamento live dove supportato.
+  sono salvati per progetto, con aggiornamento live dove supportato. Specchio
+  orizzontale/verticale sono toggle diretti. Ripristina immagine azzera i controlli
+  immagine; Ripristina effetti azzera solo le regolazioni avanzate, conservando
+  luminosità, contrasto e saturazione. Entrambi conservano posizione e proprietà.
 - **File personali**: importa immagini/video dalla cartella + o trascinali nella
   finestra. L'app copia i media e calcola nome, risoluzione e miniatura. Le card
   distinguono Steam e Locale; l'origine è un filtro AND/OR. Impostazioni → Librerie
@@ -45,6 +48,16 @@ seguono l'ordine dei preferiti in app. Il corrente non preferito viene mostrato
 solo come punto di partenza temporaneo, senza aggiungerlo ai preferiti.
 Confermare il corrente non produce transizioni. Le anteprime di switcher e
 transizioni si chiudono con Esc o clic esterno.
+
+Le transizioni desktop catturano ogni monitor separatamente, senza condividere
+la richiesta con l'anteprima live. Un segnale comune avvia l'animazione dopo la
+readiness del nuovo renderer e la chiusura del precedente. In duplicazione gli
+effetti dal puntatore usano la stessa posizione relativa sui due monitor.
+Altri renderer attivi sulle stesse uscite possono sovrapporre superfici o
+consumare risorse: l'app non termina processi di altri programmi.
+
+La versione attuale è verificata su Arch Linux/Hyprland. Una versione Windows
+richiede un port dedicato: [analisi e stima](docs/WINDOWS_PORT.md).
 
 I quattro layout restano disponibili. **Griglia** torna a ingrandire la selezione sopra il mosaico e permette
 hover/clic con il mouse. Il pallino bianco indica il wallpaper in uso. **Fiume** e

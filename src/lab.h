@@ -48,6 +48,7 @@ int lab_playback(int i,const char* key);
 int lab_playback_set(int i,const char* key,int enabled);
 float lab_adjust(int i,const char* key);
 int lab_adjust_set(int i,const char* key,float value,int commit);
+int lab_adjust_reset(int i,int additional_only);
 int lab_property_count(int i);
 const char* lab_property_type(int i,int p);
 const char* lab_property_label(int i,int p);

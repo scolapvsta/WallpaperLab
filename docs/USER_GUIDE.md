@@ -1,4 +1,4 @@
-# Wallpaper Lab — guida 0.16
+# Wallpaper Lab — guida 0.17
 
 ## Libreria e monitor
 
@@ -32,6 +32,17 @@ Le sezioni dello sfondo sono richiudibili: Display di destinazione, Immagine e
 ritaglio, Riproduzione e Proprietà del creator. Immagine raccoglie regolazioni,
 zoom e spostamento; il ripristino delle proprietà del creator rimane in fondo,
 separato dai controlli immagine.
+
+Specchia orizzontalmente e Specchia verticalmente sono interruttori: il colore
+di accento indica che lo specchio è attivo. Le modifiche restano nel profilo di
+quel wallpaper e si vedono senza riavviare la scena.
+
+Sotto questi interruttori trovi due ripristini. **Ripristina effetti** riporta a
+neutro temperatura, tonalità, gamma, vignettatura, rotazione e le due specchiature;
+conserva luminosità, contrasto e saturazione. **Ripristina immagine** riporta a
+neutro anche questi ultimi tre controlli. Nessuno dei due cambia posizione, zoom,
+opzioni di riproduzione o proprietà del creator. Il ripristino viene salvato
+subito e vale soltanto per il wallpaper selezionato.
 
 ## File locali e cartelle
 

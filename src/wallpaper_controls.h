@@ -1,4 +1,5 @@
 // Local preferences are independent of the global playback switches.
+static Rectangle mirrorToggles[2],imageResetButtons[2];
 static int adjustmentItem=-1;static float adjustmentDraft[8];
 static int ImageControls(int i,int x,int y,int w){
  int start=y;const char* keys[]={"brightness","contrast","saturation","temperature","hue","gamma","vignette","rotation"};const char* names[]={"Luminosità","Contrasto","Saturazione","Temperatura","Tonalità","Gamma","Vignettatura","Rotazione"};float lo[]={-1,0,0,-1,-180,.25,0,-180},hi[]={1,2,2,1,180,3,1,180};
@@ -6,8 +7,10 @@ static int ImageControls(int i,int x,int y,int w){
  if(n<3)commit=ValueSlider(id,x,&y,w,lab_tr(names[n]),&adjustmentDraft[n],lo[n],hi[n],n==0);else{float display=adjustmentDraft[n]*(n==3||n==6?100:1);commit=NumberSlider(id,x,&y,w,lab_tr(names[n]),&display,lo[n]*(n==3||n==6?100:1),hi[n]*(n==3||n==6?100:1),n==4||n==7?"°":n==3||n==6?"%":"×");adjustmentDraft[n]=display/(n==3||n==6?100:1);}
  static double lastSent[8];if(commit||(uiSliderDrag==id&&GetTime()-lastSent[n]>.033)){lab_adjust_set(i,keys[n],adjustmentDraft[n],commit);lastSent[n]=GetTime();}
  }
- adjustmentItem=i;const char* flipKeys[]={"flip_x","flip_y"},*flipNames[]={"Specchia orizzontalmente","Specchia verticalmente"};for(int n=0;n<2;n++){int at=lab_adjust(i,flipKeys[n])>.5f,v=BoolChoice(81+n,x,&y,w,lab_tr(flipNames[n]),at);if(v!=at)lab_adjust_set(i,flipKeys[n],v,1);}
- if(Button((Rectangle){x,y,w,30},lab_tr("Ripristina immagine"),false,true)){uiSliderDrag=-1;for(int n=0;n<8;n++)lab_adjust_set(i,keys[n],n==1||n==2||n==5?1:0,1);for(int n=0;n<2;n++)lab_adjust_set(i,flipKeys[n],0,1);}y+=44;
+ adjustmentItem=i;const char* flipKeys[]={"flip_x","flip_y"},*flipNames[]={"Specchia orizzontalmente","Specchia verticalmente"};for(int n=0;n<2;n++){int at=lab_adjust(i,flipKeys[n])>.5f;mirrorToggles[n]=(Rectangle){x,y,w,40};int v=SwitchToggle(mirrorToggles[n],lab_tr(flipNames[n]),at);if(v!=at)lab_adjust_set(i,flipKeys[n],v,1);y+=43;}
+ imageResetButtons[0]=(Rectangle){x,y,(w-8)/2,32};imageResetButtons[1]=(Rectangle){x+(w+8)/2,y,(w-8)/2,32};
+ if(Button(imageResetButtons[0],lab_tr("Ripristina immagine"),false,true)){uiSliderDrag=-1;lab_adjust_reset(i,0);}
+ if(Button(imageResetButtons[1],lab_tr("Ripristina effetti"),false,true)){uiSliderDrag=-1;lab_adjust_reset(i,1);}y+=46;
  return y-start;
 }
 static int WallpaperPlayback(int i,int x,int y,int w){int start=y;

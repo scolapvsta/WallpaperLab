@@ -8,4 +8,8 @@ for file in (root/'src').glob('*.h'):
 keys.update(['Nessuna','Dissolvenza incrociata','Dissolvenza al nero','Zoom avanti','Zoom indietro','Scorrimento','Tendina','Apertura dal puntatore','Chiusura e apertura dal puntatore'])
 assert not keys-catalog.keys(),sorted(keys-catalog.keys())
 for key in keys:assert len(catalog[key])==21 and all(catalog[key]),key
+# Repeated English fallback rows previously passed structural validation.
+# Numeric resolution labels are deliberately identical in every language.
+for key,row in catalog.items():
+ if len(set(row))==1:assert re.fullmatch(r'\d+ × \d+',row[0]),('untranslated locale row',key)
 print(f'{len(keys)} UI keys covered in all 22 locales')

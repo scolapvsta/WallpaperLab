@@ -105,3 +105,8 @@ nessun file del pacchetto Caelestia viene sovrascritto.
 
 Manipolazioni del fotogramma, durata/direzione/curva transizioni condivise con la
 preview: `patches/engine-custom-animation-image-transform.patch`.
+
+Transizioni per output e passaggio controller/renderer 0.17:
+`patches/engine-transition-handoff.patch`. Separa gli snapshot nativi dai frame
+dell'inspector, identifica richiesta e uscita, e sincronizza l'avvio tramite un
+segnale monotono comune. I pin upstream restano invariati.

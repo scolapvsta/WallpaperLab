@@ -552,6 +552,7 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"preview_rect\":[%.1f,%.1f,%.1f,%.1f],\"library_cards\":[",inspectorPreviewRect.x,inspectorPreviewRect.y,inspectorPreviewRect.width,inspectorPreviewRect.height);for(int n=0;n<wallpaper_count;n++){Rectangle r=libraryCards[n];fprintf(f,"%s[%.1f,%.1f,%.1f,%.1f]",n?",":"",r.x,r.y,r.width,r.height);}fprintf(f,"]");
     fprintf(f,",\"inspector_sections\":");GeometryCenters(f,inspectorSectionRows,4);
     fprintf(f,",\"choice_list\":[%.1f,%.1f,%.1f,%.1f],\"choice_thumb\":[%.1f,%.1f,%.1f,%.1f]",choiceList.x,choiceList.y,choiceList.width,choiceList.height,choiceThumb.x,choiceThumb.y,choiceThumb.width,choiceThumb.height);
+    fprintf(f,",\"mirror_toggles\":");GeometryCenters(f,mirrorToggles,2);fprintf(f,",\"image_resets\":");GeometryCenters(f,imageResetButtons,2);
     fprintf(f,",\"image_tracks\":[");for(int n=0;n<3;n++)fprintf(f,"%s[%.1f,%.1f,%.1f]",n?",":"",adjustmentTracks[n].x,adjustmentTracks[n].y,adjustmentTracks[n].width);fprintf(f,"],\"opacity_track\":[%.1f,%.1f,%.1f],\"library_total\":%d,\"library_page\":%d",opacityTrack.x,opacityTrack.y,opacityTrack.width,libraryTotal,libraryPage);
     fprintf(f,",\"resolution_groups\":");GeometryCenters(f,groupChecks,6);
     fprintf(f,",\"theme_variants\":");GeometryCenters(f,variantChoices,2);
