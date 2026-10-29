@@ -1187,3 +1187,44 @@ ripristinato e vecchio PID ritirato. Evidenza: `local/ui19/install/`.
 - Limiti: il popup transitorio riceve i colori, conservando la geometria esistente;
   non ha i decori della finestra principale. Le modalità opposte dei preset
   storici sono derivate dal colore d'accento. Le decorazioni sono statiche.
+
+
+## 0.21 — palette per tema, 2077 e background dell’app — 29 ottobre 2026
+
+- Build Release e CTest: **11/11 superati**. Test preferenze aggiornati per la
+  migrazione dei 32 ID della 0.20, isolamento delle palette e conservazione del
+  font. Le otto palette attive sono risolte in entrambe le modalità.
+- Themes è una dropdown anche con due voci. Eliminati dal catalogo attivo
+  Originale e le 29 palette precedenti; backup locale 0.20 e cronologia conservati.
+  Strawberry mantiene tre palette; 2077 ne offre cinque dedicate.
+- `theme_rework_integration.py`, con libreria sintetica, XDG e selettore file
+  simulato isolati: tutte le palette selezionate, cambi tema/modalità indipendenti,
+  font invariato e stato ricordato dopo il riavvio. Prova superata.
+- Importazione background da un percorso con spazi e apostrofo: copia PNG in XDG,
+  sopravvivenza alla rimozione del file originale e al riavvio, immagine danneggiata
+  rifiutata conservando la precedente, ripristino del fondo del tema. Superato.
+  Il catalogo wallpaper non viene riletto né modificato per il background dell’app.
+- Quattro anteprime del carousel aperte e chiuse in 2077 con un item sintetico:
+  prova grafica di base, senza benchmark di collezioni grandi. Stato del renderer
+  personale identico prima e dopo la suite isolata.
+- Con Riduci animazioni, due acquisizioni a distanza di 0,5 secondi della regione
+  dello sfondo urbano risultano identiche. Pioggia/LED/glitch rispettano l’opzione.
+- Ispezionati screenshot di Strawberry (biscotti giallo miele e coniglietti interi),
+  libreria 2077, Hazard Yellow, modalità chiara e background importato. Corretti
+  centratura verticale tramite altezza Pango, misura dei testi della navigazione,
+  spazio della freccia, tagli UTF-8, larghezza Ripristina tema e selettore per pagina.
+- Illustrazioni native originali; nessuna foto allegata, asset Workshop o screenshot
+  di test incluso nei file versionati. Riferimenti usati soltanto per il disegno.
+- Limiti: skyline stilizzato pixel/vettoriale, non una scena 3D; insegne geometriche
+  ispirate al katakana, non testi giapponesi tradotti. Background importato statico,
+  con ritaglio centrale; GIF al primo frame. Font separato dai temi, senza corsivo
+  forzato. Popup transitorio con layout precedente e colori aggiornati.
+- Verifica finale ripetuta dopo le correzioni di larghezza e il controllo dell’esito
+  FFmpeg: suite grafica completa superata in `local/theme21-verified/`; CTest
+  11/11. Screenshot e risultati restano locali.
+- Installata 0.21.0 usando un binario temporaneo nello stesso runtime: lo stesso
+  wallpaper è partito e ha segnalato readiness prima della sostituzione del binario
+  e della chiusura del vecchio renderer. Verificati PID, start time, executable e
+  argomento --render; nuovo stato vivo e stessi percorsi wallpaper. Avvio automatico
+  invariato. Aperto 2077/Violet Afterglow scuro; salvata la precedente combinazione
+  Strawberry, senza modificare il font personale.

@@ -129,18 +129,28 @@ lo sfondo senza transizione. Le immagini temporanee rimangono nello stato XDG lo
 
 ## Aspetto e lingue
 
-**Themes** sceglie la UI: Originale (backup) conserva gli stili precedenti;
-Strawberry core aggiunge sfondo vichy, fragole, coniglietti, fiocchi, pizzi e
-pulsanti a biscotto. **Color Palettes** propone 32 abbinamenti; **Mode** passa
-tra Dark e Light mantenendo tema e palette. Ogni tema ricorda la propria ultima
-combinazione. Il primo avvio dopo l'aggiornamento conserva l'aspetto precedente.
+**Themes** è una dropdown con Strawberry core e **2077**. **Color Palettes**
+mostra solo le tre palette Strawberry o le cinque palette cyberpunk del tema
+selezionato. **Mode** cambia Dark/Light; ogni tema ricorda la propria combinazione.
+I vecchi preset sono rimossi dalla scelta attiva e conservati nei backup.
+Font e peso del testo restano impostazioni indipendenti.
+
+Strawberry usa biscotti giallo miele arrotondati e coniglietti con fiocco; 2077 ha
+una città al neon, pannelli a taglio, LED, pioggia e glitch sullo sfondo.
+Riduci animazioni ferma gli effetti decorativi in movimento.
+
+**Sfondo dell’app → Carica dal PC** permette di sostituire il fondo illustrato
+con una tua immagine. L'app ne conserva una copia nei dati XDG, indipendente dal
+file originale. **Ripristina tema** torna allo sfondo del tema. Il caricamento
+non importa un wallpaper desktop e non cambia i progetti della libreria.
 [Dettagli, backup e limiti](THEMES.md).
 
 La Trasparenza della UI è indipendente dal tema: 0% è opaco, 30% è il massimo.
 Il cursore occupa la stessa colonna degli altri campi. Varia soltanto le superfici
 dell'interfaccia; miniature, immagini Workshop e scene live restano opache,
 così come il testo. Il renderer desktop non viene alterato. Le preferenze
-precedenti mantengono palette e modalità nel tema Originale.
+precedenti Strawberry mantengono la palette; gli altri preset passano a Strawberry Milk,
+conservando modalità e font.
 
 Le 22 lingue comprendono italiano, inglese, tedesco, spagnolo, francese, portoghese,
 olandese, polacco, romeno, svedese, cinese semplificato/tradizionale, giapponese,

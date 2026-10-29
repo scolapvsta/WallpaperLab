@@ -49,10 +49,17 @@ json loadSettings() {
     json prefs={{"window_opacity",100},{"page_size",100},{"fullscreen_policy",1},{"font_weight",1},{"carousel_layout",1},{"mode","span"},{"screen",0},{"fps",60},{"muted",true},{"disable_audio_processing",false},{"disable_mouse",true},{"disable_parallax",true},{"disable_particles",false}};
     auto file=configDir()/"settings.json";
     if(fs::exists(file)) { auto saved=readJson(file);if(!saved.is_object())throw std::runtime_error("Impostazioni non valide");prefs.update(saved); }
-    if(!prefs.value("theme_variants",false)){int theme=prefs.value("ui_theme",prefs.value("light_theme",false)?1:0);prefs["light_theme"]=theme==1||theme==5;prefs["ui_theme"]=theme==1?0:theme;prefs["theme_variants"]=true;}
-    if(!prefs.value("theme_catalog",false)){int id=std::clamp(prefs.value("ui_theme",0),0,10);int dark[]={0,1,2,3,4,14,6,7,8,9,10},light[]={1,1,13,13,12,5,11,13,5,13,11};prefs["ui_theme"]=prefs.value("light_theme",false)?light[id]:dark[id];prefs["theme_catalog"]=true;}
-    int theme=std::clamp(prefs.value("ui_theme",0),0,LAB_THEME_COUNT-1);prefs["ui_theme"]=theme;if(!prefs.value("theme_ui_v2",false)){prefs["light_theme"]=bool(labThemes[theme].light);prefs["ui_design"]=0;prefs["theme_ui_v2"]=true;}
-    prefs["ui_design"]=std::clamp(prefs.value("ui_design",0),0,1);prefs["light_theme"]=prefs.value("light_theme",bool(labThemes[theme].light));prefs["theme_collection"]=labThemes[theme].collection;
+    if(!prefs.value("theme_scoped_v3",false)){
+        int old=prefs.value("ui_theme",0);bool hadTheme=prefs.contains("ui_theme")||prefs.contains("light_theme");
+        if(!prefs.value("theme_ui_v2",false))prefs["light_theme"]=old==1||old==5||old==11||old==12||old==13||old==19||old==20||old==21||old==23||old==26||old>=29;
+        prefs["ui_design"]=1;prefs["ui_theme"]=old>=29&&old<=31?old-29:0;
+        int saved=prefs.value("strawberry_palette",29);prefs["strawberry_palette"]=saved>=29&&saved<=31?saved-29:0;
+        if(!hadTheme)prefs["light_theme"]=true;
+        prefs["theme_scoped_v3"]=true;prefs["theme_ui_v2"]=true;
+    }
+    int design=std::clamp(prefs.value("ui_design",1),1,2);prefs["ui_design"]=design;
+    prefs["ui_theme"]=LabPaletteForDesign(prefs.value("ui_theme",LabDefaultPalette(design)),design);
+    prefs["light_theme"]=prefs.value("light_theme",design==1);
     prefs["window_transparency"]=std::clamp(prefs.value("window_transparency",100-prefs.value("window_opacity",100)),0,30);prefs["window_opacity"]=100-prefs["window_transparency"].get<int>();
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
     const std::pair<const char*,int> animationDefaults[]={{"switcher_size",100},{"switcher_zoom",132},{"switcher_fade_in",140},{"switcher_fade_out",140},{"switcher_motion",350},{"switcher_reverse",0},{"wave_speed",100},{"wave_height",24},{"transition_duration",700},{"transition_direction",0},{"transition_curve",0},{"transition_zoom",30},{"caelestia_palette",0},{"caelestia_mode",0}};

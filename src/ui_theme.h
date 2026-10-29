@@ -6,6 +6,7 @@ static float themeRoundness=1,uiSurfaceAlpha=1,themeTransparencyPreview=-1;
 static int themeId=0;
 static Color ThemeHex(unsigned int rgb){return (Color){rgb>>16,(rgb>>8)&255,rgb&255,255};}
 #include "strawberry_ui.h"
+#include "cyber_ui.h"
 static void ApplyTheme(void){
  themeId=lab_option("ui_theme");if(themeId<0||themeId>=LAB_THEME_COUNT)themeId=0;LabTheme resolved=LabResolvedPalette(themeId,lab_option("light_theme"));const LabTheme* t=&resolved;
  uiSurfaceAlpha=1-Clamp(themeTransparencyPreview>=0?themeTransparencyPreview:lab_option("window_transparency"),0,30)/100.f;
@@ -15,6 +16,7 @@ static void ApplyTheme(void){
  AppTheme.bg.a=surface.a=control.a=controlHover.a=roundf(uiSurfaceAlpha*255);AppTheme.idle=control;AppTheme.hover=controlHover;
 }
 static void ThemePanel(Rectangle r,float roundness,int segments,Color color){
+ if(CyberTheme()){CyberPanel(r,color);return;}
  if(StrawberryTheme()){
   DrawRectangleRounded(r,Clamp(roundness*1.7f,.08f,1),segments,color);
   if(r.width>90&&r.height>28)DrawRectangleRoundedLinesEx(r,Clamp(roundness*1.7f,.08f,1),segments,1,Fade(AppTheme.border,.25f));
@@ -44,7 +46,24 @@ static void InitBackdrop(void){
  "finalColor=vec4(c,alpha);}";
  backdropShader=LoadShaderFromMemory(NULL,fs);backdropResolution=GetShaderLocation(backdropShader,"resolution");backdropTime=GetShaderLocation(backdropShader,"time");backdropStyle=GetShaderLocation(backdropShader,"style");backdropBase=GetShaderLocation(backdropShader,"base");backdropAccent=GetShaderLocation(backdropShader,"accent");backdropAlpha=GetShaderLocation(backdropShader,"alpha");
 }
+static Texture2D appBackgroundTexture;
+static char appBackgroundLoaded[4096]="";
+static bool DrawAppBackground(int w,int h){
+ const char* path=lab_app_background();
+ if(strcmp(path,appBackgroundLoaded)){
+  if(appBackgroundTexture.id){UnloadTexture(appBackgroundTexture);appBackgroundTexture=(Texture2D){0};}
+  snprintf(appBackgroundLoaded,sizeof(appBackgroundLoaded),"%s",path);
+  if(*path){Image image=LoadImage(path);if(image.data){appBackgroundTexture=LoadTextureFromImage(image);UnloadImage(image);SetTextureFilter(appBackgroundTexture,TEXTURE_FILTER_BILINEAR);}}
+ }
+ if(!appBackgroundTexture.id)return false;
+ float scale=fmaxf(w/(float)appBackgroundTexture.width,h/(float)appBackgroundTexture.height);
+ Rectangle dst={(w-appBackgroundTexture.width*scale)/2,(h-appBackgroundTexture.height*scale)/2,appBackgroundTexture.width*scale,appBackgroundTexture.height*scale};
+ DrawTexturePro(appBackgroundTexture,(Rectangle){0,0,appBackgroundTexture.width,appBackgroundTexture.height},dst,(Vector2){0},0,Fade(WHITE,uiSurfaceAlpha));
+ DrawRectangle(0,0,w,h,Fade(AppTheme.bg,lab_option("light_theme")?.12f:.25f));return true;
+}
 static void DrawBackdrop(int width,int height){
+ if(DrawAppBackground(width,height))return;
+ if(CyberTheme()){CyberBackdrop(width,height);return;}
  if(StrawberryTheme()){BerryBackdrop(width,height);return;}
  int effect=labThemes[themeId].effect;
  if(!effect||!backdropShader.id){DrawRectangle(0,0,width,height,AppTheme.bg);return;}
@@ -53,6 +72,11 @@ static void DrawBackdrop(int width,int height){
  if(effect==3||effect==2){for(int n=0;n<10;n++){float px=fmodf(n*173.3f+width*.13f+sinf(time*.2f+n)*24,width),py=fmodf(n*97.1f+time*(effect==3?8:3),height);DrawEllipse(px,py,effect==3?2.5f:1.4f,effect==3?1.3f:1.4f,Fade(AppTheme.border,lab_option("light_theme")?.12f:.1f));}}
 }
 static void ThemeWindowTrim(int sw,int sh){
+ if(CyberTheme()){
+  DrawLine(2,2,sw-2,2,Fade(AppTheme.border,.6f));
+  for(int n=0;n<12;n++)DrawRectangle(sw-150+n*11,sh-4,6,2,Fade(n%3?AppTheme.border:CyberSecondary(),lab_option("reduce_motion")?.6f:.45f+.25f*sinf(GetTime()*2+n*.6f)));return;
+ }
+
  if(StrawberryTheme()){DrawRectangleRoundedLinesEx((Rectangle){2,2,sw-4,sh-4},.02f,12,2,Fade(AppTheme.border,.4f));return;}
  int effect=labThemes[themeId].effect;if(!effect)return;
  if(effect==7){for(int x=0;x<sw;x+=8)DrawRectangle(x,0,8,2,ColorFromHSV(fmodf(x*360.f/sw+(lab_option("reduce_motion")?0:GetTime()*10),360),.6f,.9f));}

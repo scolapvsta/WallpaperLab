@@ -58,7 +58,15 @@ static void UiText(const char* text,int x,int y,int size,Color color){
         DrawTexturePro(f.texture,source,dest,(Vector2){0},0,color);px+=GlyphAdvance(f,cp,size);text+=bytes;}
 }
 static int UiMeasure(const char* text,int size){if(ComplexText(text))return Shape(text,size)->width;float width=0;while(*text){int bytes=0,cp=GetCodepointNext(text,&bytes);if(bytes<1)break;width+=GlyphAdvance(TextFont(cp),cp,size);text+=bytes;}return ceilf(width);}
-static void ButtonText(const char* text,float x,float y,Color color){if(ComplexText(text)){UiText(text,x,y,15,color);return;}DrawTextEx(buttonFont,text,(Vector2){x,y},15,0,color);}
+static int buttonTrailing=0;
+// All control captions share shaping, UTF-8 truncation and actual line-height centering.
+static void ControlCaption(Rectangle r,const char* label,int leading,int trailing,Color ink){
+ char shown[512];snprintf(shown,sizeof(shown),"%s",label);int size=15;int left=leading?leading:12,right=trailing?trailing:12;float available=fmaxf(0,r.width-left-right);
+ if(UiMeasure(shown,size)>available)size=14;
+ while(*shown&&UiMeasure(shown,size)>available){int n=strlen(shown);if(n>=3&&!strcmp(shown+n-3,"..."))shown[n-=3]=0;if(!n)break;do{n--;}while(n>0&&((unsigned char)shown[n]&0xc0)==0x80);shown[n]=0;if(n)strcat(shown,"...");}
+ ShapedText* shaped=Shape(shown,size);UiText(shown,r.x+left+(leading?0:(available-shaped->width)/2),r.y+(r.height-shaped->height)/2,size,ink);
+}
+static void ButtonText(const char* text,float x,float y,Color color){UiText(text,x,y,15,color);}
 static bool Hot(Rectangle r,bool enabled){return enabled&&(!(switcherPreview||animationCustomize)||transitionDrawing||choiceRendering)&&!switcherPreviewBlocks&&(!transitionPreview||transitionDrawing||choiceRendering)&&(choiceOpen<0||choiceRendering||choiceRegistering)&&(!inputBlocked||modalDrawing)&&CheckCollisionPointRec(GetMousePosition(),inputClip)&&CheckCollisionPointRec(GetMousePosition(),r);}
 static float ScrollInput(Rectangle area){
  static Rectangle owner;static Vector2 lastMiddle;bool over=CheckCollisionPointRec(GetMousePosition(),area);if(choiceOpen>=0&&!choiceRendering)return 0;
@@ -71,9 +79,8 @@ static bool Button(Rectangle r,const char* label,bool active,bool enabled){
     bool hot=Hot(r,enabled);Color bg=active?AppTheme.border:hot?controlHover:control;if(active)bg.a=control.a;
     ThemeButton(r,enabled?bg:Fade(bg,0.45f));
     Color ink=active?(lab_option("light_theme")?WHITE:(Color){17,30,25,255}):AppTheme.text;
-    char shown[512];snprintf(shown,sizeof(shown),"%s",label);bool complex=ComplexText(label);float measured=complex?UiMeasure(label,15):MeasureTextEx(buttonFont,label,15,0).x;float fontSize=Clamp(15*(r.width-16)/fmaxf(1,measured),12,15);
-    while(strlen(shown)>3&&(complex?UiMeasure(shown,fontSize):MeasureTextEx(buttonFont,shown,fontSize,0).x)>r.width-16){int len=strlen(shown);if(len>=3&&!strcmp(shown+len-3,"..."))shown[len-=3]=0;len--;while(len>0&&((unsigned char)shown[len]&0xc0)==0x80)len--;shown[len]=0;strcat(shown,"...");}
-    if(ComplexText(shown))UiText(shown,r.x+(r.width-UiMeasure(shown,fontSize))/2,r.y+(r.height-fontSize)/2,fontSize,enabled?ink:Fade(ink,.35f));else DrawTextEx(buttonFont,shown,(Vector2){r.x+(r.width-MeasureTextEx(buttonFont,shown,fontSize,0).x)/2,r.y+(r.height-fontSize)/2-1},fontSize,0,enabled?ink:Fade(ink,0.35f));
+    if(StrawberryTheme())ink=ThemeHex(0x654325);
+    ControlCaption(r,label,0,buttonTrailing,enabled?ink:Fade(ink,.45f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 }
@@ -135,12 +142,13 @@ static bool GlyphButton(Rectangle r,UiIcon icon,bool active,bool enabled,const c
     Color bg=star&&!StrawberryTheme()?(Color){31,35,41,255}:hot?controlHover:control;if(icon==UI_KEY&&active&&recordingKey)bg=(Color){26,89,55,255};
     ThemeButton(r,enabled?bg:Fade(bg,0.5f));
     Color ink=icon==UI_TRASH?(Color){236,105,115,255}:star&&!StrawberryTheme()?WHITE:AppTheme.text;
+    if(StrawberryTheme()&&icon!=UI_TRASH)ink=ThemeHex(0x654325);
     if(!enabled)ink=Fade(ink,0.35f);
     Vector2 center={r.x+(label&&*label?23:r.width/2),r.y+r.height/2};
     int index=iconIndex>=0?iconIndex:selected_index;
     if(star&&index>=0){float p=starPulse[index];if(p<=0)Icon(UI_STAR,center,ink,active);else StarIcon(center,10+3*sinf(p*PI),ink,active);if(p>0)DrawCircleLines(center.x,center.y,12+(1-p)*8,Fade(ink,p*0.4f));}
     else Icon(icon,center,ink,active);
-    if(label&&*label)ButtonText(label,r.x+44,r.y+(r.height-15)/2-1,enabled?(star&&!StrawberryTheme()?WHITE:AppTheme.text):Fade(star&&!StrawberryTheme()?WHITE:AppTheme.text,0.35f));
+    if(label&&*label)ControlCaption(r,label,42,10,ink);
     if(active&&!star)DrawRectangleRoundedLinesEx(r,0.24f,12,1.2f,Fade(AppTheme.border,0.8f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
@@ -161,7 +169,7 @@ static int TextLines(const char* text,int x,int y,int width,int size,int maxLine
             if(UiMeasure(line,size)>width){line[n]=0;break;}
             if(p[n]==' ')lastSpace=n;n+=bytes;
         }
-        if(!n)n=1;
+        if(!n){int bytes=0;GetCodepointNext(p,&bytes);n=bytes>0?bytes:1;}
         if(p[n]&&p[n]!='\n'&&lastSpace>0)n=lastSpace;
         memcpy(line,p,n);line[n]=0;
         const char* next=p+n;while(*next==' '||*next=='\n')next++;
@@ -225,9 +233,9 @@ static float CompactGlyphWidth(const char* label);
 #include "resolution_picker.h"
 #include "display_editor.h"
 #include "transition_ui.h"
-static float opacityDraft=0;
+static float opacityDraft=0;static Rectangle backgroundPick,backgroundClear;
 static void SettingsBody(Rectangle area){
-    if(StrawberryTheme())ThemePanel((Rectangle){area.x+148,area.y,area.width-156,area.height},.025f,12,surface);
+    ThemePanel((Rectangle){area.x+148,area.y,area.width-156,area.height},.025f,12,surface);
     int x=area.x+16,y=area.y+12,w=area.width-32;
     const char* tabs[]={lab_tr("Display"),lab_tr("Riproduzione"),lab_tr("Carousel"),lab_tr("Aspetto"),lab_tr("Generali"),"Workshop",lab_tr("Librerie"),lab_tr("Integrazioni")};
     const int order[]={4,6,0,1,2,3,7,5};for(int slot=0;slot<8;slot++){int i=order[slot];settingsTabs[i]=(Rectangle){x,y+slot*43,122,36};if(Button(settingsTabs[i],tabs[i],settingsTab==i,!applying)){settingsTab=i;settingsScroll=settingsScrollDraw=0;choiceOpen=-1;displayDragging=-1;SetRecording(false);}}
@@ -248,10 +256,16 @@ static void SettingsBody(Rectangle area){
         UiText(lab_tr("Shortcut del carousel"),x,y,18,AppTheme.text);y+=30;ShortcutInline(x,y,w);y+=50;
         int current=lab_shortcut_enabled();int value=BoolChoice(21,x,&y,w,lab_tr("Shortcut attivo"),current);if(value!=current)lab_set_shortcut(lab_shortcut(),value);
     }else if(settingsTab==3){
-        const char* designs[]={lab_tr("Originale (backup)"),"Strawberry core"};int design=lab_option("ui_design");int value=Choice(38,x,&y,w,"Themes",designs,2,design);if(value!=design)lab_set_option("ui_design",value);
-        const char* palettes[LAB_THEME_COUNT];for(int i=0;i<LAB_THEME_COUNT;i++)palettes[i]=labThemes[i].name;
-        int palette=lab_option("ui_theme");value=Choice(30,x,&y,w,"Color Palettes",palettes,LAB_THEME_COUNT,palette);if(value!=palette)lab_set_option("ui_theme",value);
+        const char* designs[]={"Strawberry core","2077"};int design=lab_option("ui_design");int value=Choice(38,x,&y,w,"Themes",designs,2,design-1);if(value!=design-1)lab_set_option("ui_design",value+1);
+        const char* palettes[LAB_THEME_COUNT];int ids[LAB_THEME_COUNT],count=0,selected=0;
+        for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==lab_option("ui_design")){ids[count]=i;palettes[count]=labThemes[i].name;if(i==lab_option("ui_theme"))selected=count;count++;}
+        value=Choice(30,x,&y,w,"Color Palettes",palettes,count,selected);if(value!=selected)lab_set_option("ui_theme",ids[value]);
         const char* modes[]={"Dark","Light"};int light=lab_option("light_theme");value=Choice(31,x,&y,w,"Mode",modes,2,light);if(value!=light)lab_set_option("light_theme",value);
+        UiText(lab_tr("Sfondo dell’app"),x,y+4,14,AppTheme.text);y+=28;
+        int resetWidth=Clamp(UiMeasure(lab_tr("Ripristina tema"),15)+28,156,w*.45f);
+        backgroundPick=(Rectangle){x,y,w-resetWidth-12,36};backgroundClear=(Rectangle){x+w-resetWidth,y,resetWidth,36};
+        if(Button(backgroundPick,lab_tr("Carica dal PC"),false,!applying&&!lab_files_busy()))lab_files_start(3);
+        if(Button(backgroundClear,lab_tr("Ripristina tema"),false,!applying&&*lab_app_background()))lab_clear_app_background();y+=48;
         if(uiSliderDrag!=0)opacityDraft=lab_option("window_transparency")/100.f;
         if(EntrySlider(x,&y,w,lab_tr("Trasparenza della UI"),&opacityDraft))lab_set_option("window_transparency",roundf(opacityDraft*100));
         y+=TextLines(lab_tr("0% · opaca · immagini e scene restano opache"),x,y,w,12,2,muted)+14;
@@ -292,7 +306,7 @@ static void SettingsBody(Rectangle area){
 }
 static void FilterRow(int x,int y,const char* title,const char** labels,int count,int* selected,int available){
     UiText(title,x,y+10,14,muted);float px=x+100;
-    for(int i=0;i<count;i++){int width=MeasureTextEx(buttonFont,labels[i],15,0).x+28;Rectangle r={px,y,width,34};
+    for(int i=0;i<count;i++){int width=UiMeasure(labels[i],15)+32;Rectangle r={px,y,width,34};
         if(r.x+r.width>x+available)break;
         if(Button(r,labels[i],*selected==i,!applying)){*selected=i;g_scroll.y=g_smoothScrollY=0;}px+=width+8;
     }
@@ -315,10 +329,10 @@ static int PageFooter(Rectangle area,int current,int pages,bool busy){
  int y=area.y+area.height-40;Rectangle left={area.x+12,y,32,32},right={area.x+area.width-44,y,32,32};int change=0;
  if(GlyphButton(left,UI_LEFT,false,!busy&&current>1,""))change=-1;if(GlyphButton(right,UI_RIGHT,false,!busy&&current<pages,""))change=1;
  int per=lab_option("page_size"),at=per==50?0:per==200?2:1;char labels[3][80];const char* options[3];for(int n=0;n<3;n++){snprintf(labels[n],80,area.width<420?"%d":"%d %s",n==0?50:n==1?100:200,lab_tr("per pagina"));options[n]=labels[n];}
- int cy=y;int fw=area.width<420?114:234,cx=area.x+area.width-52-fw;int v=Choice(57,cx,&cy,fw,"",options,3,at);if(v!=at){lab_set_option("page_size",v==0?50:v==1?100:200);change=2;}
+ int cy=y;int fw=area.width<420?88:fminf(260,UiMeasure(labels[2],15)+56),cx=area.x+area.width-52-fw;int v=Choice(57,cx,&cy,fw,"",options,3,at);if(v!=at){lab_set_option("page_size",v==0?50:v==1?100:200);change=2;}
  const char* label=area.width<470?TextFormat("%d / %d",current,pages):TextFormat(lab_tr("Pagina %d di %d"),current,pages);UiText(label,area.x+54,y+9,13,muted);return change;
 }
-static float CompactGlyphWidth(const char* label){return MeasureTextEx(buttonFont,label,15,0).x+54;}
+static float CompactGlyphWidth(const char* label){return UiMeasure(label,15)+54;}
 static float ShortcutInline(float x,float y,float available){
     const char* label=lab_tr(recordingKey?lab_tr("Inserisci shortcut"):lab_tr("Shortcut"));float width=CompactGlyphWidth(label);
     shortcutControl=(Rectangle){x,y,width,36};Color old=AppTheme.border;if(recordingKey)AppTheme.border=(Color){113,223,158,255};
@@ -347,12 +361,16 @@ static void Header(int sw,int top,int count){
     DrawRectangle(0,0,sw,top,AppTheme.bg);
     if(StrawberryTheme()){
         for(int x=0;x<sw;x+=32)DrawRectangle(x,0,16,top,Fade(AppTheme.border,.035f));
-        BerryLace(0,top-11,sw);BerryBunny(42,41,.65f);
-        if(sw>1160){BerryBow(sw-144,29,.8f);BerryFruit(sw-80,37,20);BerryBunny(sw-42,125,1.1f);}
+        BerryLace(0,top-11,sw);BerryBunny(40,31,.48f);
+        if(sw>1160){BerryBow(sw-144,29,.8f);BerryFruit(sw-80,37,20);BerryBunny(sw-52,88,.9f);}
+    }else if(CyberTheme()){
+        for(int x=0;x<sw;x+=8)DrawRectangle(x,0,3,2,Fade(AppTheme.border,.45f));
+        CyberPanel((Rectangle){22,20,36,40},control);DrawText("77",29,31,20,AppTheme.border);
+        if(sw>1160){DrawText("2077",sw-170,24,32,AppTheme.border);DrawText("NEON DISTRICT",sw-170,60,10,CyberSecondary());}
     }else Icon(UI_LOGO,(Vector2){44,40},AppTheme.text,false);
-    DrawTextEx(brandFont,"Wallpaper Lab",(Vector2){72,21},27,0,AppTheme.text);
-    float navX=fmaxf(285,72+MeasureTextEx(brandFont,"Wallpaper Lab",27,0).x+30);const char* navNames[]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop"};UiIcon navIcons[]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD};
-    for(int i=0;i<3;i++){int navPage=i==2?3:i;float width=MeasureTextEx(buttonFont,lab_tr(navNames[i]),15,0).x+62;if(i==0)headerLibrary=(Rectangle){navX,22,width,38};else if(i==1)headerCarousel=(Rectangle){navX,22,width,38};else headerWorkshop=(Rectangle){navX,22,width,38};if(GlyphButton((Rectangle){navX,22,width,38},navIcons[i],page==navPage,!applying,lab_tr(navNames[i])))ChangePage(navPage);navX+=width+8;}
+    UiText("Wallpaper Lab",72,22,25,AppTheme.text);
+    float navX=fmaxf(285,72+UiMeasure("Wallpaper Lab",25)+30);const char* navNames[]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop"};UiIcon navIcons[]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD};
+    for(int i=0;i<3;i++){int navPage=i==2?3:i;float width=UiMeasure(lab_tr(navNames[i]),15)+62;if(i==0)headerLibrary=(Rectangle){navX,22,width,38};else if(i==1)headerCarousel=(Rectangle){navX,22,width,38};else headerWorkshop=(Rectangle){navX,22,width,38};if(GlyphButton((Rectangle){navX,22,width,38},navIcons[i],page==navPage,!applying,lab_tr(navNames[i])))ChangePage(navPage);navX+=width+8;}
     headerSettings=(Rectangle){navX,22,40,38};if(GlyphButton(headerSettings,UI_GEAR,settingsOpen||page==2,!applying,"")){settingsOpen=!settingsOpen;choiceOpen=-1;settingsScroll=settingsScrollDraw=0;SetRecording(false);}
     UiText(page==0?lab_tr("Libreria"):page==1?lab_tr("Carousel"):page==3?"Workshop":lab_tr("Impostazioni"),28,94,23,AppTheme.text);
     UiText(page==2?lab_tr("Tutto in un posto"):TextFormat(lab_tr("%d sfondi"),page==3?(int)lab_ws_number(-1,"total"):libraryTotal),28,126,13,muted);
@@ -373,7 +391,8 @@ static void Header(int sw,int top,int count){
         if(hint)UiText(lab_tr(hint),search.x+search.width-UiMeasure(lab_tr(hint),12),142,12,muted);
 
     }
-    if(StrawberryTheme())UiText("strawberry core · made with sweetness",72,54,11,muted);
+    if(StrawberryTheme())UiText("strawberry core",72,53,11,muted);
+    if(CyberTheme())UiText("2077 / AFTER HOURS",72,53,11,muted);
     DrawLine(28,top-1,sw-28,top-1,lineColor);
 }
 static void Grid(Rectangle area,int count,int* indices,float dt){
@@ -568,6 +587,7 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"creator_binary\":[");for(int n=0;n<creatorBinaryCount;n++){Rectangle r=creatorBinaryRows[n];fprintf(f,"%s{\"property\":%d,\"value\":%d,\"control\":[%.1f,%.1f]}",n?",":"",creatorBinaryProps[n],creatorBinaryValues[n],r.x+r.width-30,r.y+r.height/2);}fprintf(f,"]");
     fprintf(f,",\"mirror_toggles\":");GeometryCenters(f,mirrorToggles,2);fprintf(f,",\"image_resets\":");GeometryCenters(f,imageResetButtons,1);
     fprintf(f,",\"image_tracks\":[");for(int n=0;n<3;n++)fprintf(f,"%s[%.1f,%.1f,%.1f]",n?",":"",adjustmentTracks[n].x,adjustmentTracks[n].y,adjustmentTracks[n].width);fprintf(f,"],\"opacity_track\":[%.1f,%.1f,%.1f],\"library_total\":%d,\"library_page\":%d",opacityTrack.x,opacityTrack.y,opacityTrack.width,libraryTotal,libraryPage);
+    fprintf(f,",\"app_background_controls\":[[%.1f,%.1f],[%.1f,%.1f]]",backgroundPick.x+backgroundPick.width/2,backgroundPick.y+backgroundPick.height/2,backgroundClear.x+backgroundClear.width/2,backgroundClear.y+backgroundClear.height/2);
     fprintf(f,",\"resolution_groups\":");GeometryCenters(f,groupChecks,6);
     fprintf(f,",\"theme_variants\":");GeometryCenters(f,variantChoices,2);
     fprintf(f,",\"themes\":");GeometryCenters(f,themeChoices,LAB_THEME_COUNT);fprintf(f,",\"languages\":");GeometryCenters(f,languageChoices,lab_language_count());fprintf(f,",\"density\":");GeometryCenters(f,densityChoices,3);
@@ -630,7 +650,7 @@ int selector_main(int argc,char**argv){
         if(argc>1&&!strcmp(argv[1],"--workshop-ui-test")&&GetTime()>6)break;
         if(seenFontRevision!=lab_font_revision())ReloadUiFonts();
         if(IsFileDropped()){FilePathList dropped=LoadDroppedFiles();if(!lab_files_busy()&&!applying)lab_import_files((const char* const*)dropped.paths,dropped.count);UnloadDroppedFiles(dropped);}
-        int filesResult=lab_files_poll();if(filesResult>0&&!scanning){StartLibraryScan();snprintf(notice,sizeof(notice),"%s",lab_files_notice());}
+        int filesResult=lab_files_poll();if(filesResult==1&&!scanning){StartLibraryScan();snprintf(notice,sizeof(notice),"%s",lab_files_notice());}
         WorkshopTick();if(!scanning&&!applying&&lab_ws_installed())StartLibraryScan();
         if(scanning){int ready=lab_rescan_ready();if(ready){scanning=false;if(ready>0)CommitLibraryScan(loaders);}}
         ApplyTheme();int sw=GetScreenWidth(),sh=GetScreenHeight();float dt=fminf(GetFrameTime(),0.05f);SetMouseCursor(MOUSE_CURSOR_DEFAULT);
@@ -726,5 +746,5 @@ int selector_main(int argc,char**argv){
     WorkshopCleanup();if(uiCanvas.id)UnloadRenderTexture(uiCanvas);if(transitionCanvas.id)UnloadRenderTexture(transitionCanvas);if(transitionShader.id)UnloadShader(transitionShader);for(int n=0;n<1024;n++){if(shapedCache[n].texture.id)UnloadTexture(shapedCache[n].texture);free(shapedCache[n].text);}if(backdropShader.id)UnloadShader(backdropShader);if(liveTexture.id)UnloadTexture(liveTexture);lab_shutdown();atomic_store(&loader_running,false);for(int n=0;n<4;n++)pthread_join(loaders[n],NULL);
     for(int i=0;i<wallpaper_count;i++){if(atomic_load(&wallpapers[i].loaded))UnloadTexture(wallpapers[i].texture);if(atomic_load(&imagePending[i]))UnloadImage(pendingImages[i]);free(wallpapers[i].path);free(wallpapers[i].filename);}
     for(int i=0;i<96;i++)if(fontPreview[i].texture.id&&fontPreview[i].texture.id!=GetFontDefault().texture.id)UnloadFont(fontPreview[i]);
-    if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);if(iconAtlasTarget.id)UnloadRenderTexture(iconAtlasTarget);CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;
+    if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);if(iconAtlasTarget.id)UnloadRenderTexture(iconAtlasTarget);if(cyberCity.id)UnloadRenderTexture(cyberCity);if(appBackgroundTexture.id)UnloadTexture(appBackgroundTexture);CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;
 }

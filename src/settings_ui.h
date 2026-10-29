@@ -28,11 +28,11 @@ static int ToggleChoice(int id,int x,int* y,int w,const char* label,const char**
  return next!=value?(selected<0?0:1-selected):selected;
 }
 static int Choice(int id,int x,int* py,int w,const char* label,const char** options,int count,int selected){
- if(count==2)return ToggleChoice(id,x,py,w,label,options,selected);
+ if(count==2&&id!=38)return ToggleChoice(id,x,py,w,label,options,selected);
  choiceToggle[id]=false;
  int result=selected;if(choicePending==id){result=choiceValue;choicePending=-1;}
- int y=*py;int cw=fminf(292,w*.60f);TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
- choiceRegistering=choiceOpen<0||choiceOpen==id||!CheckCollisionPointRec(GetMousePosition(),choiceList);if(!choiceEnabled&&choiceOpen==id)choiceOpen=-1;bool clicked=Button(box,selected>=0&&selected<count?options[selected]:"—",choiceOpen==id,!applying&&choiceEnabled);choiceRegistering=false;
+ int y=*py;int cw=*label?fminf(292,w*.60f):w;TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
+ choiceRegistering=choiceOpen<0||choiceOpen==id||!CheckCollisionPointRec(GetMousePosition(),choiceList);if(!choiceEnabled&&choiceOpen==id)choiceOpen=-1;buttonTrailing=24;bool clicked=Button(box,selected>=0&&selected<count?options[selected]:"—",choiceOpen==id,!applying&&choiceEnabled);buttonTrailing=0;choiceRegistering=false;
  if(clicked){choiceOpen=choiceOpen==id?-1:id;choiceScroll=Clamp(selected-2,0,fmaxf(0,count-7));}
  if(choiceOpen==id){choiceSelected=result;choiceMulti=false;choiceChecks=NULL;for(int n=0;n<count&&n<96;n++)snprintf(choiceLabels[n],256,"%s",options[n]);}
  DrawLineEx((Vector2){box.x+box.width-15,y+14},(Vector2){box.x+box.width-10,y+19},1.5f,muted);return result;

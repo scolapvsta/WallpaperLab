@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Isolated native appearance tests: migration, independent design/palette/mode and all layouts."""
+"""Theme-scoped palettes, dropdown themes, native backgrounds and visual smoke tests."""
 import argparse,json,pathlib,subprocess,os,time,shlex,shutil
 from PIL import Image,ImageChops,ImageStat
-p=argparse.ArgumentParser();p.add_argument('--app',required=True,type=pathlib.Path);p.add_argument('--output',required=True,type=pathlib.Path);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);steam=out/'steam';steam.mkdir(exist_ok=True);source=out/'originals';source.mkdir(exist_ok=True);bin_=out/'bin';bin_.mkdir(exist_ok=True);sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'lab-ui20-{os.getpid()}.sock'
+p=argparse.ArgumentParser();p.add_argument('--app',required=True,type=pathlib.Path);p.add_argument('--output',required=True,type=pathlib.Path);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);steam=out/'steam';steam.mkdir(exist_ok=True);source=out/'originals';source.mkdir(exist_ok=True);bin_=out/'bin';bin_.mkdir(exist_ok=True);sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'lab-ui21-{os.getpid()}.sock'
 env=os.environ|{'XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'XDG_DATA_HOME':str(out/'data'),'XDG_CACHE_HOME':str(out/'cache'),'WALLPAPER_LAB_UI_STATE':str(out/'ui.json'),'YDOTOOL_SOCKET':str(sock),'LD_LIBRARY_PATH':':'.join(str(app.parent/x)for x in ['.','lib','deps']),'PATH':str(bin_)+':'+os.environ['PATH']}
 log=open(out/'log','w');daemon=subprocess.Popen(['ydotoold','--socket-path='+str(sock)],stdout=log,stderr=log);ui=None;results={}
 def run(*args):return subprocess.check_output([str(x)for x in args],env=env,text=True)
@@ -63,50 +63,57 @@ env['WALLPAPER_LAB_UI_READ_ONLY']='1'
 root=pathlib.Path(__file__).resolve().parents[1]
 env['LD_LIBRARY_PATH']+=':'+str(root/'local/sysroot/usr/lib')+':'+str(root/'build-engine/output')
 fixture=out/'library/1000';fixture.mkdir(parents=True,exist_ok=True);env['WALLPAPER_LAB_LIBRARY']=str(fixture.parent)
-(fixture/'project.json').write_text(json.dumps({'type':'web','title':'Strawberry test garden','file':'index.html','preview':'preview.png'}))
+(fixture/'project.json').write_text(json.dumps({'type':'web','title':'Theme / layout fixture','file':'index.html','preview':'preview.png'}))
 (config/'carousel.json').write_text(json.dumps([str(fixture)]))
-(fixture/'index.html').write_text('<body>UI fixture</body>');Image.new('RGB',(640,360),(191,132,153)).save(fixture/'preview.png')
-(config/'settings.json').write_text(json.dumps({'theme_catalog':True,'theme_variants':True,'ui_theme':4,'language':'it','carousel_layout':1}))
+(fixture/'index.html').write_text('<body>UI fixture</body>');Image.new('RGB',(640,360),(100,122,168)).save(fixture/'preview.png')
+(config/'settings.json').write_text(json.dumps({'theme_catalog':True,'theme_variants':True,'theme_ui_v2':True,'ui_design':1,'ui_theme':29,'light_theme':True,'font_family':'DejaVu Sans','language':'it','carousel_layout':1}))
+selection=out/'selection.txt';selection.write_text('')
+picker=bin_/'zenity';picker.write_text('#!/bin/sh\ncat '+shlex.quote(str(selection))+'\n');picker.chmod(0o755)
+background=source/"App's pastel backdrop.png";im=Image.new('RGB',(1600,900),(112,158,193));__import__('PIL.ImageDraw',fromlist=['ImageDraw']).Draw(im).rectangle((800,0,1600,900),fill=(193,123,153));im.save(background)
+bad=source/'broken.png';bad.write_text('not an image')
 def pref():return json.loads((config/'settings.json').read_text())
 def toggle(id):
  assert g()['choices'][str(id)]['kind']=='toggle';old=g()['choices'][str(id)]['value'];click(*g()['choices'][str(id)]['control']);wait(lambda:g()['choices'][str(id)]['value']!=old)
 def launch():
  global ui
  ui=subprocess.Popen([str(app),'--appearance-settings'],env=env,stdout=log,stderr=log);wait(w)
- m=next(m for m in json.loads(run('hyprctl','monitors','-j'))if m['name']=='DP-6')
+ monitors=json.loads(run('hyprctl','monitors','-j'));m=next((m for m in monitors if m['name']=='DP-6'),monitors[-1])
  run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.move({{window="pid:{ui.pid}",workspace="{m["activeWorkspace"]["id"]}",follow=false}}))');time.sleep(.5)
- run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}})); hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1440,y=900}})); hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}})); hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}))')
- time.sleep(.8)
- wait(lambda:'38'in g()['choices']);time.sleep(.6)
-def close():
- ui.terminate();ui.wait(15)
+ run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}})); hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1440,y=900,relative=false}})); hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}})); hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}))')
+ time.sleep(.8);wait(lambda:'38'in g()['choices']);time.sleep(.6)
+def close():ui.terminate();ui.wait(15)
 try:
  wait(sock.exists);launch()
- assert s()['theme']==4 and s()['design']==0 and s()['light']is False;shot('original-sakura-backup')
- toggle(38);wait(lambda:s()['design']==1);assert s()['theme']==29 and s()['light']is True
- assert len(g()['choices']['30']['options'])==32;shot('strawberry-appearance-light')
- toggle(31);wait(lambda:s()['light']is False);assert s()['theme']==29 and s()['design']==1;shot('strawberry-appearance-dark')
- close();launch();assert s()['light']is False and s()['design']==1 and s()['theme']==29
- results['dark_mode_survives_restart']=True
- choose(30,30);wait(lambda:s()['theme']==30);assert s()['design']==1 and s()['light']is False
- toggle(38);wait(lambda:s()['design']==0);assert s()['theme']==4 and s()['light']is False
- toggle(38);wait(lambda:s()['design']==1);assert s()['theme']==30 and s()['light']is False
- results['theme_restores_its_palette_and_mode']=True
- toggle(31);choose(30,29);shot('strawberry-milk')
- choose(30,30);shot('raspberry-ribbon');choose(30,31);shot('vanilla-shortcake')
- # Every original palette remains selectable without switching design or mode.
- for palette in range(29):
-  choose(30,palette);wait(lambda:s()['theme']==palette);assert s()['design']==1 and s()['light']is True
- results['all_29_backup_palettes_selectable_independently']=True
- choose(30,29);esc();wait(lambda:not state()['settings']);shot('strawberry-library')
- click(*g()['header']['carousel']);wait(lambda:state()['page']==1);shot('strawberry-carousel')
+ assert s()['theme']==0 and s()['design']==1 and s()['light']is True
+ assert g()['choices']['38']['kind']=='dropdown' and len(g()['choices']['38']['options'])==2
+ assert len(g()['choices']['30']['options'])==3
+ for i in range(3):
+  choose(30,i);wait(lambda:s()['theme']==i);shot('strawberry-palette-'+str(i))
+ toggle(31);shot('strawberry-dark');choose(30,1)
+ choose(38,1);wait(lambda:s()['design']==2);assert s()['theme']==3 and s()['light']is False
+ assert len(g()['choices']['30']['options'])==5
+ for i in range(5):
+  choose(30,i);wait(lambda:s()['theme']==3+i);shot('2077-palette-'+str(i))
+ choose(30,3);toggle(31);assert s()['theme']==6;shot('2077-light')
+ choose(38,0);wait(lambda:s()['design']==1);assert s()['theme']==1 and s()['light']is False
+ choose(38,1);wait(lambda:s()['design']==2);assert s()['theme']==6 and s()['light']is True
+ close();launch();assert s()['design']==2 and s()['theme']==6 and s()['light']is True
+ assert pref()['font_family']=='DejaVu Sans';results['dropdown_scoped_palettes_modes_font_independence_restart']=True
+ # Import through the same asynchronous file picker used by the appearance button.
+ selection.write_text(str(background)+'\n');click(*g()['app_background_controls'][0]);wait(lambda:pref().get('app_background'))
+ copied=pathlib.Path(pref()['app_background']);assert copied.is_file() and copied!=background and 'wallpapers'not in copied.parts
+ background.unlink();close();launch();assert pathlib.Path(pref()['app_background']).is_file();shot('2077-custom-background')
+ selection.write_text(str(bad)+'\n');click(*g()['app_background_controls'][0]);time.sleep(2);assert pref()['app_background']==str(copied)
+ click(*g()['app_background_controls'][1]);wait(lambda:not pref().get('app_background'));results['background_copy_survives_source_removal_and_restart_invalid_preserves_previous_clear']=True
+ # Freeze effects, then inspect the unobstructed city backdrop and all preview layouts.
+ click(*g()['settings_tabs'][4]);toggle(41);assert pref()['reduce_motion'];click(*g()['settings_tabs'][3]);toggle(31)
+ esc();wait(lambda:not state()['settings']);first=shot('2077-library');time.sleep(.5);second=shot('2077-reduced-motion');assert ImageChops.difference(first.crop((500,500,900,720)),second.crop((500,500,900,720))).getbbox()is None
+ click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
  for layout in range(4):
   choose(20,layout);assert pref()['carousel_layout']==layout
-  click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.8);shot('strawberry-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
- results['four_switcher_layout_previews']=True
- results['library_and_carousel_graphical_smoke']=True
- # Settings are changed only inside the fixture XDG directories.
- results['independent_three_controls']=True
+  click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.8);shot('2077-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
+ results['four_switcher_layout_previews_and_reduce_motion']=True
+ click(*g()['header']['settings']);wait(lambda:state()['settings']);click(*g()['settings_tabs'][3]);choose(38,0);toggle(31);esc();wait(lambda:not state()['settings']);click(*g()['header']['library']);shot('strawberry-library')
 finally:
  if __import__('sys').exc_info()[0] and ui and ui.poll()is None:
   try:shot('failure')

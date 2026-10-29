@@ -6,7 +6,6 @@ for file in (root/'src').glob('*.h'):
  for literal in re.findall(r'lab_tr\(("(?:[^"\\]|\\.)*")\)',file.read_text()):keys.add(json.loads(literal))
 # Names are selected dynamically by the transition dropdown and preview.
 keys.update(['Nessuna','Dissolvenza incrociata','Dissolvenza al nero','Zoom avanti','Zoom indietro','Scorrimento','Tendina','Apertura dal puntatore','Chiusura e apertura dal puntatore'])
-keys.update(json.loads(x)for x in re.findall(r'"(?:[^"\\]|\\.)*"',(root/'src/theme_catalog.h').read_text().split('labCollections[]=')[1]))
 assert not keys-catalog.keys(),sorted(keys-catalog.keys())
 for key in keys:assert len(catalog[key])==21 and all(catalog[key]),key
 # Repeated English fallback rows previously passed structural validation.

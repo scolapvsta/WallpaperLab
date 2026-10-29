@@ -12,17 +12,16 @@ int main(){
     auto root=fs::current_path()/("wallpaper-lab-preferences-"+std::to_string(getpid()));
     setenv("XDG_CONFIG_HOME",(root/"config").c_str(),1);setenv("XDG_STATE_HOME",(root/"state").c_str(),1);
     try {
-        for(int theme=0;theme<LAB_THEME_COUNT;theme++){
-            writeJson(configDir()/"settings.json",{{"theme_catalog",true},{"ui_theme",theme}});
-            require(loadSettings()["theme_collection"]==labThemes[theme].collection,"theme collection mismatch");
+        for(int design=1;design<=2;design++)for(int palette=0;palette<LAB_THEME_COUNT;palette++){
+            writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",design},{"ui_theme",palette},{"light_theme",false}});
+            auto loaded=loadSettings();require(labThemes[loaded["ui_theme"].get<int>()].collection==design,"cross-theme palette accepted");
+            require(loaded["light_theme"]==false,"independent mode changed");
         }
-        writeJson(configDir()/"settings.json",{{"ui_theme",5},{"light_theme",false}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==5,"legacy pastel migration failed");
-        writeJson(configDir()/"settings.json",{{"ui_theme",1}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==1,"legacy light migration failed");
-        writeJson(configDir()/"settings.json",{{"ui_theme",4},{"light_theme",true},{"theme_variants",true}});require(loadSettings()["light_theme"]==true&&loadSettings()["ui_theme"]==12,"legacy light pink did not migrate to independent Sakura Paper");
-        writeJson(configDir()/"settings.json",{{"theme_catalog",true},{"theme_ui_v2",true},{"ui_design",1},{"ui_theme",29},{"light_theme",false}});
-        require(loadSettings()["light_theme"]==false&&loadSettings()["ui_design"]==1&&loadSettings()["ui_theme"]==29,"independent dark strawberry mode lost on reload");
-        writeJson(configDir()/"settings.json",{{"theme_catalog",true},{"ui_theme",4}});
-        require(loadSettings()["ui_design"]==0&&loadSettings()["light_theme"]==false,"legacy appearance changed on migration");
+        for(int old=0;old<32;old++){
+            writeJson(configDir()/"settings.json",{{"theme_ui_v2",true},{"ui_theme",old},{"light_theme",true},{"ui_design",old<29?0:1},{"font_family","Noto Sans"}});
+            auto loaded=loadSettings();require(loaded["ui_design"]==1&&loaded["ui_theme"]==(old>=29?old-29:0),"legacy palette migration failed");
+            require(loaded["font_family"]=="Noto Sans","theme migration changed font");
+        }
         for(int i=0;i<LAB_THEME_COUNT;i++)for(int light=0;light<2;light++){
             auto colors=LabResolvedPalette(i,light);require(colors.light==light,"palette mode ignored");
             require(colors.bg!=colors.text&&colors.surface!=colors.accent,"palette lost contrast");

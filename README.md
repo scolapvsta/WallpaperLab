@@ -10,11 +10,12 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Versione attuale: 0.20
+## Versione attuale: 0.21
 
-Themes, Color Palettes e Dark/Light mode sono indipendenti. Strawberry core è
-la prima UI completa con fragole, coniglietti, fiocchi, pizzi, fondo vichy e
-pulsanti a biscotto. Gli stili precedenti restano in Originale (backup).
+Themes è una dropdown: Strawberry core (biscotti al miele, coniglietti e fiocchi)
+e **2077** (città al neon, LED, pioggia e glitch). Ogni tema offre le proprie palette:
+tre Strawberry e cinque cyberpunk. Dark/Light e font restano indipendenti.
+È possibile caricare un'immagine dal PC come sfondo dell'app.
 
 La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
 versionate successive conservano anche la storia delle implementazioni.
@@ -37,9 +38,9 @@ versionate successive conservano anche la storia delle implementazioni.
   configura sia la cartella Workshop sia quella locale creata automaticamente.
 - **Workshop**: ricerca e filtri automatici, informazioni del creator e download
   dalla card o dal pannello. Richiede Steam aperto e un account con Wallpaper Engine.
-- **Aspetto**: UI Originale o Strawberry core; 32 palette indipendenti e modalità
-  Light/Dark, ricordate per tema. Le 29 palette precedenti mantengono gli ID.
-  Trasparenza UI da 0% a 30%, font e peso personalizzabili, fallback Unicode e 22 lingue.
+- **Aspetto**: dropdown Themes, palette dedicate per tema e modalità Light/Dark.
+  Font indipendente; etichette, icone e menu con spaziature uniformate. Sfondo app
+  importabile dal PC e ripristinabile. I vecchi preset restano nei backup.
   [Dettagli e limiti dei temi](docs/THEMES.md).
 - **Caelestia**: integrazione facoltativa e inizialmente spenta. Genera i colori
   di barre e widget dal frame renderizzato (miniatura come ripiego), senza cambiare altre

@@ -9,6 +9,7 @@
 #include "popup.hpp"
 #include "displays.hpp"
 #include "local_library.hpp"
+#include "app_background.hpp"
 #include "caelestia_integration.hpp"
 #include "theme_catalog.h"
 #include <algorithm>
@@ -298,9 +299,11 @@ const char* lab_path(int i){return items.at(i).path.c_str();}
 int lab_files_busy(){return fileJob.valid();}
 const char* lab_files_notice(){return lab_tr(fileNotice.c_str());}
 const char* lab_library_path(int local){static std::string value;if(local)value=localLibrary(settings).string();else{value=settings.value("workshop_path",std::string());if(value.empty())for(auto p:steamLibraries())if(fs::is_directory(p/"steamapps/workshop/content/431960")){value=(p/"steamapps/workshop/content/431960").string();break;}}return value.c_str();}
-int lab_files_start(int action){if(fileJob.valid()||pending.valid()||catalogScan.valid())return 0;fileNotice.clear();std::string title=lab_tr(action==0?"Importa immagini o video":action==1?"Workshop Steam":"Sfondi locali");auto prefs=loadSettings();fileJob=std::async(std::launch::async,[action,title,prefs]{auto files=chooseLocalFiles(action!=0,title);if(files.empty())return json{{"cancelled",true}};if(action!=0){auto directory=fs::canonical(files.front());if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");ControllerLock lock;auto latest=loadSettings();latest[action==1?"workshop_path":"local_path"]=directory.string();writeJson(configDir()/"settings.json",latest);return json{{"changed",true}};}int count=0;for(auto& file:files){importLocalMedia(file,localLibrary(prefs));count++;}return json{{"imported",count}};});return 1;}
+int lab_files_start(int action){if(fileJob.valid()||pending.valid()||catalogScan.valid())return 0;fileNotice.clear();std::string title=lab_tr(action==3?"Sfondo dell’app":action==0?"Importa immagini o video":action==1?"Workshop Steam":"Sfondi locali");auto prefs=loadSettings();fileJob=std::async(std::launch::async,[action,title,prefs]{auto files=chooseLocalFiles(action==1||action==2,title,action==3);if(files.empty())return json{{"cancelled",true}};if(action==3){auto image=importAppBackground(files.front());ControllerLock lock;auto latest=loadSettings();latest["app_background"]=image.string();writeJson(configDir()/"settings.json",latest);return json{{"background",true}};}if(action!=0){auto directory=fs::canonical(files.front());if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");ControllerLock lock;auto latest=loadSettings();latest[action==1?"workshop_path":"local_path"]=directory.string();writeJson(configDir()/"settings.json",latest);return json{{"changed",true}};}int count=0;for(auto& file:files){importLocalMedia(file,localLibrary(prefs));count++;}return json{{"imported",count}};});return 1;}
+const char* lab_app_background(){static std::string path;path=settings.value("app_background",std::string());return path.c_str();}
+int lab_clear_app_background(){return savePreference("app_background","");}
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
-int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return 1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
+int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return result.value("background",false)?2:1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
 int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
 const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):status.value("error",std::string());}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
 void lab_cancel_switcher_preview(){stop(switcherDemoProcess);switcherDemoProcess=json::object();}
@@ -545,22 +548,19 @@ int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
-    if(k=="ui_theme"||k=="light_theme"||k=="ui_design"||k=="theme_collection")return guarded([&]{
-        ControllerLock lock;auto latest=loadSettings();
+    if(k=="ui_theme"||k=="light_theme"||k=="ui_design")return guarded([&]{
+        ControllerLock lock;auto latest=loadSettings();int old=latest.value("ui_design",1);
         if(k=="light_theme")latest[k]=bool(value);
         else if(k=="ui_design"){
-            int design=std::clamp(value,0,1),old=latest.value("ui_design",0);
+            int design=std::clamp(value,1,2);
             if(design!=old){
-                latest[old?"strawberry_palette":"original_palette"]=latest["ui_theme"];
-                latest[old?"strawberry_light":"original_light"]=latest["light_theme"];
-                latest["ui_theme"]=latest.value(design?"strawberry_palette":"original_palette",design?LAB_STRAWBERRY_PALETTE:0);
-                latest["light_theme"]=latest.value(design?"strawberry_light":"original_light",design!=0);
+                latest[old==1?"strawberry_palette":"cyber_palette"]=latest["ui_theme"];
+                latest[old==1?"strawberry_light":"cyber_light"]=latest["light_theme"];
+                latest["ui_theme"]=LabPaletteForDesign(latest.value(design==1?"strawberry_palette":"cyber_palette",LabDefaultPalette(design)),design);
+                latest["light_theme"]=latest.value(design==1?"strawberry_light":"cyber_light",design==1);
                 latest[k]=design;
             }
-        }else if(k=="ui_theme")latest[k]=std::clamp(value,0,LAB_THEME_COUNT-1);
-        else {int group=std::clamp(value,0,LAB_COLLECTION_COUNT-1);for(int n=0;n<LAB_THEME_COUNT;n++)if(labThemes[n].collection==group){latest["ui_theme"]=n;break;}}
-        latest["ui_theme"]=std::clamp(latest["ui_theme"].get<int>(),0,LAB_THEME_COUNT-1);
-        latest["theme_collection"]=labThemes[latest["ui_theme"].get<int>()].collection;
+        }else latest[k]=LabPaletteForDesign(value,old);
         writeJson(configDir()/"settings.json",latest);settings=latest;
     });
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));

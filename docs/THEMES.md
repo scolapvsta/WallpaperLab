@@ -1,38 +1,70 @@
-# Themes, Color Palettes e modalità — 0.20
+# Themes e palette dedicate — 0.21
 
-I temi sono ora UI complete. In Aspetto le tre scelte sono indipendenti:
+**Themes** è sempre una dropdown, anche con due sole voci. I temi attivi sono
+Strawberry core e **2077**. **Color Palettes** contiene esclusivamente le palette
+del tema selezionato; **Mode** cambia Dark/Light. Ciascun tema ricorda la propria
+palette e modalità. La scelta del font e del peso resta indipendente dal tema.
 
-- **Themes**: Originale (backup) oppure Strawberry core.
-- **Color Palettes**: le 29 palette precedenti, con ID invariati, più Strawberry
-  Milk, Raspberry Ribbon e Vanilla Shortcake (32 in totale).
-- **Mode**: Dark oppure Light, senza cambiare il tema o la palette selezionati.
-
-Il cambio di tema ricorda separatamente palette e modalità di ciascuna UI.
-Alla prima selezione Strawberry core usa Strawberry Milk in Light mode.
-Le impostazioni precedenti migrano a Originale mantenendo aspetto e colori.
-Una copia locale dei sorgenti della 0.19 e delle preferenze precedenti al rework
-è conservata in `local/backups/themes-0.19/`; la cronologia Git conserva la versione.
+Le 29 palette storiche e Originale sono stati rimossi dal catalogo attivo, su
+richiesta dell'utente. Il backup locale `local/backups/themes-0.20/` e il commit
+0.20 (`78bc1ec`) ne conservano l'implementazione. Le vecchie preferenze Strawberry
+Milk/Raspberry Ribbon/Vanilla Shortcake migrano mantenendo la selezione; gli altri
+preset passano a Strawberry Milk. La modalità e il font salvati vengono conservati.
 
 ## Strawberry core
 
-Fondo vichy rosa con fragole e piccoli fiocchi, coniglietti con guance rosa e
-nastrini, testata decorata, pizzo sui pannelli e tasti a biscotto con glassa,
-bordi smerlati e puntinatura. Anche i toggle usano una base a biscotto. I tre
-abbinamenti dedicati variano dal latte e fragola al lampone e alla vaniglia.
-La versione scura usa superfici cacao/rosa e accenti più chiari.
+Tre palette: **Strawberry Milk**, **Raspberry Ribbon**, **Vanilla Shortcake**.
+Fondo vichy, fragole, fiocchi e pizzi. Pulsanti a biscotto giallo miele con estremità
+arrotondate, incisione interna e piccoli puntini; il testo sui biscotti rimane
+marrone per il contrasto anche in modalità scura. Coniglietti interi con orecchio
+piegato, occhi lucidi, guance rosa, grande fiocco a quadretti e biscottino in mano.
+Il font non viene modificato o reso corsivo dal tema.
 
-Le illustrazioni sono vettoriali originali generate dal codice raylib: i tre
-riferimenti forniti in chat ispirano motivi, colori e accessori, senza includere
-le fotografie o l'illustrazione con personaggi nell'app. Nessun asset remoto,
-font o servizio online è necessario. Le decorazioni sono statiche e rispettano
-Riduci animazioni; i quattro layout del carousel mantengono la loro struttura.
-Anteprime Workshop, foto personali e scene live conservano il proprio contenuto.
+## 2077
 
-I colori degli altri preset in modalità opposta sono derivati dal loro accento:
-non sono 32 coppie di palette disegnate manualmente. Strawberry è la prima UI
-rielaborata; gli stili precedenti sono ancora disponibili in Originale. Il popup
-transitorio del carousel mantiene il layout esistente e riceve i colori, senza
-la cornice decorata della finestra principale. Il wallpaper desktop non cambia.
+| Palette | Accento | Atmosfera |
+| --- | --- | --- |
+| Violet Afterglow | Viola | Grattacieli e foschia notturna |
+| Pink Voltage | Fucsia | Insegne rosa acceso |
+| Electric Blue | Ciano | Blu elettrico e rosa |
+| Night Drive | Rosa | Blu notte e neon rosa/ciano |
+| Hazard Yellow | Giallo | Segnaletica gialla e arancio |
+
+Scena urbana originale disegnata in raylib e memorizzata in una texture: skyline
+su tre livelli, finestre pixel, insegne geometriche ispirate al katakana,
+cartelloni, cavi e prospettiva della strada con riflessi. Pannelli con angoli
+smussati a taglio, contorni luminosi, pioggia animata, trama a scansione, LED in
+movimento e brevi glitch discreti confinati allo sfondo. Riduci animazioni ferma
+pioggia e LED e disabilita i glitch. I contenuti e i testi restano stabili.
+La variante Light usa colori derivati dall'accento per mantenere leggibilità.
+
+I riferimenti allegati ispirano l'atmosfera e le forme. Non sono incorporati
+come fotografie né copiati come asset; le illustrazioni sono vettoriali originali.
+
+## Sfondo dell'app dal PC
+
+Aspetto → **Sfondo dell’app → Carica dal PC** apre il selettore di immagini.
+L'immagine viene decodificata e salvata come PNG entro 2048 × 2048 pixel nei dati
+XDG `wallpaper-lab/app-backgrounds/`; il file originale rimane intatto e non è
+necessario conservarlo nello stesso percorso. L'importazione è asincrona. Un file
+non valido conserva la selezione precedente. **Ripristina tema** torna al fondo
+illustrato del tema; le copie precedenti restano nei dati locali.
+
+Il fondo personalizzato è comune ai temi, riempie la finestra con ritaglio centrale
+e riceve una leggera tinta del tema. Sostituisce la scena/vichy dello sfondo, mentre
+pannelli, tasti e testata mantengono il proprio stile. Non modifica il wallpaper
+desktop, le miniature, l'inspector o il catalogo dei progetti. GIF e altri formati
+animati sono importati come immagine statica (primo frame). Serve zenity o kdialog
+per la scelta e FFmpeg per la conversione, già usati per i media locali.
+
+## Layout e limiti
+
+Le etichette dei controlli usano la stessa misura e lo stesso rendering Pango,
+centratura basata sull'altezza effettiva, troncamento UTF-8 e spazio riservato alla
+freccia nei menu. La testata usa la stessa misura per disporre testi e icone.
+I quattro layout del carousel conservano struttura e animazioni. Il popup
+transitorio mantiene la geometria precedente e riceve i colori; i decori completi
+sono nella finestra principale e nelle sue anteprime.
 
 # Archivio: collezioni e palette — 0.18
 

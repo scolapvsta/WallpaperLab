@@ -32,11 +32,15 @@ inline fs::path importLocalMedia(const fs::path& input,const fs::path& directory
  }catch(...){std::error_code ec;fs::remove_all(stage,ec);throw;}
 }
 inline bool executableAvailable(const std::string& name){const char* paths=getenv("PATH");if(!paths)return false;std::istringstream input(paths);std::string path;while(std::getline(input,path,':'))if(!path.empty()&&access((fs::path(path)/name).c_str(),X_OK)==0)return true;return false;}
-inline std::vector<fs::path> chooseLocalFiles(bool folder,const std::string& title){
+inline std::vector<fs::path> chooseLocalFiles(bool folder,const std::string& title,bool imageOnly=false){
  std::vector<std::string> args;
  if(executableAvailable("zenity")){args={"zenity","--file-selection","--title="+title};if(folder)args.push_back("--directory");else{args.insert(args.end(),{"--multiple","--separator=\n","--file-filter=Media | *.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.mkv *.mov *.avi *.m4v","--file-filter=Tutti i file | *"});}}
  else if(executableAvailable("kdialog")){args=folder?std::vector<std::string>{"kdialog","--getexistingdirectory"}:std::vector<std::string>{"kdialog","--getopenfilename",".","*.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.mkv *.mov *.avi *.m4v","--multiple","--separate-output"};args.insert(args.end(),{"--title",title});}
  else throw std::runtime_error("Per scegliere i file serve zenity o kdialog");
+ if(imageOnly){
+  if(args.front()=="zenity")args={"zenity","--file-selection","--title="+title,"--file-filter=Images | *.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff *.avif"};
+  else args={"kdialog","--getopenfilename",".","*.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff *.avif","--title",title};
+ }
  auto result=capture(args);std::vector<fs::path> files;if(result.empty())return files;std::istringstream lines(result[0]);std::string line;while(std::getline(lines,line))if(!line.empty())files.emplace_back(line);return files;
 }
 }

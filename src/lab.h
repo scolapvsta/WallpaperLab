@@ -28,6 +28,8 @@ void lab_cycle_fps(void);
 void lab_toggle_mute(void);
 int lab_select(int i);
 const char* lab_origin(int i);
+const char* lab_app_background(void);
+int lab_clear_app_background(void);
 int lab_files_busy();
 int lab_import_files(const char* const* paths,int count);
 int lab_files_start(int action);
