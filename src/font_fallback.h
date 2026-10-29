@@ -26,7 +26,7 @@ static Font LoadFallbackFont(const char* path,int size,int* codepoints,int count
     font.glyphs=MemAlloc(count*sizeof(GlyphInfo));memset(font.glyphs,0,count*sizeof(GlyphInfo));
     for(int i=0;i<count;i++){
         GlyphInfo* glyph=&font.glyphs[i];glyph->value=codepoints[i];
-        if(FT_Get_Char_Index(face,codepoints[i])&&!FT_Load_Char(face,codepoints[i],FT_LOAD_DEFAULT)){
+        if(FT_Get_Char_Index(face,codepoints[i])&&!FT_Load_Char(face,codepoints[i],FT_LOAD_NO_HINTING|FT_LOAD_NO_AUTOHINT)){
             FT_GlyphSlot slot=face->glyph;
             if(strength>0&&slot->format==FT_GLYPH_FORMAT_OUTLINE){FT_Outline_Embolden(&slot->outline,strength);slot->advance.x+=strength/2;}
             FT_Render_Glyph(slot,FT_RENDER_MODE_NORMAL);int w=slot->bitmap.width,h=slot->bitmap.rows;

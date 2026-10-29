@@ -55,3 +55,8 @@ static inline PopupFrame popup_frame(int mode,int count,int maxWidth,int maxHeig
     f.width=f.content.width+2*f.padding;f.height=f.content.height+2*f.padding;
     return f;
 }
+
+static inline PopupFrame popup_frame_scaled(int mode,int count,int maxWidth,int maxHeight,int percent,int zoom){
+ float scale=fmaxf(.7f,fminf(1.4f,percent/100.f));int pad=(int)ceilf(160*scale*fmaxf(.05f,zoom/100.f-1)/2+12);int limit=(maxWidth<maxHeight?maxWidth:maxHeight)/4;if(pad>limit)pad=limit;
+ PopupFrame f={0};f.padding=count>0?pad:0;f.content=popup_layout(mode,count,fmaxf(1,(maxWidth-2*f.padding)/scale),fmaxf(1,(maxHeight-2*f.padding)/scale));f.content.tile=roundf(f.content.tile*scale);f.content.width=roundf(f.content.width*scale);f.content.height=roundf(f.content.height*scale);if(mode==3){int waveHeight=(int)ceilf(f.content.tile*zoom/100.f+80);f.content.height=waveHeight<maxHeight-2*f.padding?waveHeight:maxHeight-2*f.padding;}f.width=f.content.width+2*f.padding;f.height=f.content.height+2*f.padding;return f;
+}

@@ -38,6 +38,7 @@ static void ChoiceOverlay(void){
 static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){const char* names[]={lab_tr("Disattivo"),lab_tr("Attivo")};return Choice(id,x,y,w,label,names,2,value);}
 
 // A shared compact slider. Drafts belong to the caller until mouse release.
+static Rectangle numberTracks[160];
 static int uiSliderDrag=-1;static Rectangle adjustmentTracks[3],opacityTrack;
 static bool ValueSlider(int id,int x,int* y,int w,const char* label,float* value,float lo,float hi,bool signedValue){
  int top=*y;UiText(label,x,top,14,AppTheme.text);const char* number=signedValue?TextFormat("%+.0f%%",*value*100):TextFormat("%.0f%%",*value*100);UiText(number,x+w-UiMeasure(number,13),top,13,muted);
@@ -54,3 +55,12 @@ static bool EntrySlider(int x,int* y,int w,const char* label,float* value){
  themeTransparencyPreview=uiSliderDrag==0?*value*100:-1;
  ThemePanel(opacityTrack,1,6,controlHover);DrawRectangle(opacityTrack.x,opacityTrack.y,opacityTrack.width*(*value/.3f),4,AppTheme.border);DrawCircle(opacityTrack.x+opacityTrack.width*(*value/.3f),opacityTrack.y+2,5,AppTheme.text);UiText(TextFormat("%.0f%%",*value*100),box.x+cw-42,top+10,12,muted);*y+=43;return commit;
 }
+
+// Compact setting slider with explicit units; values persist on release.
+static bool NumberSlider(int id,int x,int* y,int w,const char* label,float* value,float lo,float hi,const char* suffix){
+ int top=*y;TextLines(label,x,top,w-90,14,2,AppTheme.text);const char* number=TextFormat(!strcmp(suffix,"×")?"%.2f%s":"%.0f%s",*value,suffix);UiText(number,x+w-UiMeasure(number,13),top,13,muted);Rectangle track={x+5,top+28,w-10,4};numberTracks[id]=track;
+ if(Hot((Rectangle){x,top+18,w,25},!applying)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT))uiSliderDrag=id;
+ bool commit=false;if(uiSliderDrag==id){*value=lo+Clamp((GetMouseX()-track.x)/track.width,0,1)*(hi-lo);if(!IsMouseButtonDown(MOUSE_BUTTON_LEFT)){uiSliderDrag=-1;commit=true;}}
+ ThemePanel(track,1,8,controlHover);DrawRectangle(track.x,track.y,track.width*(*value-lo)/(hi-lo),4,AppTheme.border);DrawCircleV((Vector2){track.x+track.width*(*value-lo)/(hi-lo),track.y+2},5,AppTheme.text);*y+=48;return commit;
+}
+static void SettingSlider(int id,int x,int* y,int w,const char* label,const char* key,int lo,int hi,const char* suffix){static float drafts[32];int at=id-100;if(uiSliderDrag!=id)drafts[at]=lab_option(key);if(NumberSlider(id,x,y,w,label,&drafts[at],lo,hi,suffix))lab_set_option(key,lroundf(drafts[at]));}

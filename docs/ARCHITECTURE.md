@@ -16,8 +16,9 @@
 - `settings_ui`: menu disegnati alla fine del frame, con selezione differita e
   blocco degli eventi verso i campi coperti dall'overlay.
 - `shaped_text`: cache limitata di layout Pango/Cairo; shaping Unicode e fallback
-  Fontconfig. ASCII mantiene il renderer FreeType dell'interfaccia.
-- `i18n`: 328 messaggi in 22 locale; nomi dei temi e contenuti degli autori originali.
+  Fontconfig. Anche ASCII usa Pango/Cairo; FreeType rimane per brand e anteprime font.
+- `i18n`: 367 chiavi in 22 locale; nuove opzioni avanzate 0.16 con fallback inglese
+  dove non ancora revisionate. Nomi dei temi e contenuti degli autori originali.
 - `patches` e `build-manifest.json`: modifiche vendor riproducibili con pin upstream.
 
 Test e limiti effettivi sono raccolti in `tests/RESULTS.md`; build, log e dati
@@ -94,3 +95,45 @@ La generazione è asincrona rispetto alla UI. Prima della pubblicazione ricontro
 flag e processo corrente sotto ControllerLock, scartando risultati tardivi dopo
 disable o un altro cambio wallpaper. Gli errori vengono separati dallo stato del
 renderer. La palette è unica per la shell e derivata dalla miniatura, non da ogni frame.
+
+
+## Personalizzazione e generatore opzionale 0.16
+
+Le preferenze switcher sono interi con unità esplicite (percentuali, pixel,
+millisecondi): dimensione, zoom, entrata/uscita, movimento, inversione e Onda.
+`popup_frame_scaled` riserva spazio per lo zoom e l'ampiezza massima senza far
+crescere il pannello a ogni pressione. Il mouse usa i rettangoli disegnati nel
+canvas, inclusi offset e layer ingranditi; in Griglia hover cambia selezione,
+mentre nelle strisce la geometria resta stabile fino al clic. Il dot bianco è
+comune al selettore e alle card. La demo dentro l'app usa PopupImages e lo stesso
+shader arrotondato, senza lanciare un altro processo.
+
+`transition_duration`, `transition_direction`, `transition_curve` e
+`transition_zoom` viaggiano nella configurazione per output e negli uniform della
+preview. Il motore mantiene la readiness a tre frame prima di iniziare il tempo.
+`ImageTuning` estende il profilo con hue, temperature, gamma, vignette, rotation,
+flip_x/flip_y. Il postprocess trasforma le UV della nuova immagine, conserva lo
+snapshot già elaborato del wallpaper precedente e adatta il crop alla rotazione.
+La stessa lettura profilo/live, limitata a 40 ms, aggiorna i parametri senza restart.
+
+Le icone vengono disegnate in un atlas a 3× con margini e mipmap: cerchi ed ellissi
+sono geometria piena, per evitare linee OpenGL da un pixel non scalabili. Pango/Cairo
+tratta ora anche ASCII con antialiasing grayscale e hinting leggero; il batch viene
+scaricato prima di creare/rimuovere texture. La composizione alpha selettiva della
+0.15 resta invariata.
+
+L'integrazione Caelestia non chiama più wallpaper --print ereditando lo schema
+corrente. `caelestia_palette.py`, incluso dal componente app dell'installer,
+seleziona esplicitamente uno dei quattro generatori Material You. `--prepare`
+verifica i moduli già presenti o installa materialyoucolor/Pillow in un venv XDG
+privato soltanto quando l'utente abilita la funzione. Registra i preset opzionali
+nel data dir; non installa la shell, non usa sudo e non modifica il pacchetto Caelestia.
+
+Il controller richiede un frame fresco al proprio renderer (PID e path verificati),
+lo scrive temporaneamente in PPM e lo rimuove dopo la generazione. Se non arriva,
+usa la miniatura del progetto. I ruoli surface/background ricevono una tinta
+contenuta dal seed, così i widget mostrano il colore anche con superfici Material
+normalmente poco sature. L'output resta dynamic/default per compatibilità con la
+shell. Il callback di pubblicazione verifica anche variante/modo correnti; una
+modifica in coda causa una nuova generazione. Il ripristino condizionale 0.15
+rimane valido. Il browser statico di Caelestia non viene popolato né riavviato.

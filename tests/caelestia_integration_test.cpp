@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 using namespace lab;
 void check(bool ok,const char* msg){if(!ok)throw std::runtime_error(msg);}
-int main(){auto root=fs::temp_directory_path()/("lab-caelestia-"+std::to_string(getpid()));setenv("XDG_STATE_HOME",root.c_str(),1);try{
+int main(){auto root=fs::temp_directory_path()/("lab-caelestia-"+std::to_string(getpid()));setenv("XDG_STATE_HOME",root.c_str(),1);setenv("WALLPAPER_LAB_CAELESTIA_TEST_LEGACY","1",1);try{
  auto original=json{{"name","manual"},{"flavour","test"},{"mode","dark"},{"variant","tonalspot"},{"colours",{{"primary","abcdef"},{"surface","112233"}}}};writeJson(caelestiaScheme(),original);updateCaelestia("",false);check(readJson(caelestiaScheme())==original,"disabled integration changed scheme");
  fs::create_directories(root/"bin");auto fake=root/"bin/caelestia";std::ofstream(fake)<<"#!/bin/sh\nprintf '%s\\n' '{\"name\":\"dynamic\",\"mode\":\"dark\",\"flavour\":\"test\",\"variant\":\"tonalspot\",\"colours\":{\"primary\":\"123456\",\"surface\":\"010203\"}}'\n";chmod(fake.c_str(),0700);auto path=(root/"bin").string()+":"+getenv("PATH");setenv("PATH",path.c_str(),1);std::ofstream(root/"preview.png")<<"fixture";
  updateCaelestia((root/"preview.png").string(),true,[]{return false;});check(readJson(caelestiaScheme())==original,"cancelled generation published after disable");

@@ -913,3 +913,73 @@ DP-5/DP-6 sono state ripristinate sugli stessi wallpaper; preferiti e profili
 conservati. Il confronto delle preferenze ha rilevato soltanto i nuovi marker
 `theme_catalog=true` e `window_transparency=0`. Caelestia è rimasta disattivata;
 nessuna modifica all'avvio automatico. Evidenza privata `local/ui15/install/`.
+
+
+## 0.16.0 — carousel personalizzabile, input e palette cromatiche (29 ottobre 2026)
+
+- CTest: **11/11**, catalogo preferenze/popup, parser, proprietà, display,
+  i18n e contratto di pubblicazione/ripristino Caelestia. 367 chiavi nei 22 locale;
+  nuove etichette avanzate in italiano/inglese, con fallback inglese dove non
+  revisionate; traduzioni esistenti conservate.
+- `ui16_integration.py`: finestra nativa e input reale su XDG isolato. No-op
+  sull'attivo, media opachi a trasparenza UI 0/30%, page size nel footer,
+  rimozione del secondo selettore monitor. Evidenziare DP-5 nella mappa e chiudere
+  con Esc applica il prossimo wallpaper soltanto a DP-5, conservando il PID DP-6.
+  Entrambe le demo sono interne alla finestra e si chiudono con X, Esc e clic
+  esterno senza riavviare renderer. Slider switcher/Onda e durata/curva/direzione
+  persistenti; temperatura e specchio salvati dal pannello senza restart.
+  Screenshot dei popup compatti e delle icone ispezionati.
+  Evidenza finale: `local/ui16/gui-final-verified/`.
+  Il test finale aspetta l’assestamento dello scroll e riduce i cambi di focus:
+  nei primi tentativi il puntatore e le coordinate animate non erano stabili.
+- `carousel_mouse_integration.py`: zoom effettivo >1,3× nel test con zoom 140%,
+  hover e conferma mouse in Griglia; conferma con clic anche Fiume, Verticale e
+  Onda senza spostamento della striscia al solo hover. Preferiti invariati e
+  conferma del corrente senza restart. Tutti e quattro i layout passati.
+  Evidenza: `local/ui16/carousel-mouse-final/`.
+- `transition_graphics_integration.py`: otto effetti, vecchia/nuova immagine
+  orientate correttamente, nessun nero non pianificato, live/persist/reset dei
+  tre controlli iniziali senza restart. `local/ui16/transitions/`.
+- `image_transform_integration.py`: campioni di framebuffer reali per specchio
+  orizzontale/verticale e rotazione 180°, tonalità, temperatura, gamma,
+  vignettatura, ripristino neutro e identità del processo conservata. Scorrimento
+  e Tendina nelle quattro direzioni, durata configurata 1,2 s e curva lineare.
+  Evidenza: `local/ui16/transforms-final/`.
+- `caelestia_palette_test.py`: quattro varianti Material You in dark e light,
+  wallpaper rossi/blu con primary e surface distinti e cromatici. Preparazione
+  registra i preset nel solo XDG privato. `local/ui16/palettes/`.
+- Bootstrap opzionale provato da un venv iniziale senza i moduli: installati in
+  un secondo venv privato materialyoucolor 3.0.4 e Pillow 12.3.0; generazione
+  valida con quelle versioni. Nessun pacchetto di sistema modificato.
+  `local/ui16/optional-install/verified.json` e log nella stessa directory.
+- `caelestia_desktop_integration.py`: wallpaper reale rosso con miniatura
+  deliberatamente blu. La palette coincide con il frame rosso, non con la
+  miniatura. Attiva/disattiva anche da CLI, ripristino dello schema precedente,
+  schema personale e renderer personali invariati. Nessun wallpaper statico
+  Caelestia impostato. `local/ui16/caelestia-frame-proof/`.
+- Patch nuova `engine-custom-animation-image-transform.patch`, pin invariati;
+  serie ordinata e hash del manifest verificati senza alterare altri file vendor.
+
+Limiti: prove di trasformazione su fixture web con un output; panorama applica
+rotazione/specchio separatamente a ciascun display e non inverte la logica di
+interazione degli oggetti. La palette usa un campione al cambio wallpaper o al
+commit delle regolazioni, non un aggiornamento per frame; la shell Caelestia resta
+un'installazione separata e il suo catalogo di wallpaper statici non viene popolato.
+La variante pubblicata è dynamic/default, con generatore scelto esplicitamente.
+Windows/macOS non portati; Ubuntu/altri compositor Linux non ancora verificati.
+Nessun download Steam o controllo di player musicali richiesto da questa release.
+
+
+Regressione ordine/ancora ripetuta con lo zoom ripristinato:
+`local/ui16/carousel-order/results.json`, tutti i controlli passati; canvas contenuto
+nella superficie nativa, con selezione che supera il bordo del mosaico senza clipping.
+Cache testo Pango: 1.100 etichette, 1.024 slot, **0 pixel differenti** tra percorso
+con flush per etichetta e batch; 187.909 pixel di testo. `local/ui16/text-cache/`.
+
+Installazione 0.16 completata con backup del runtime e delle preferenze correnti.
+Assegnazioni wallpaper DP-5/DP-6, preferiti e profili preservati. Le differenze nelle
+preferenze sono soltanto le nuove chiavi di personalizzazione. L'integrazione
+Caelestia era già attiva: resta attiva e la palette installata è vibrant/dark,
+con range dei canali surface pari a 75 (superficie cromatica, non grigia).
+Helper opzionale presente nel runtime installato; nessun cambio di avvio automatico
+o servizi. Evidenze private `local/ui16/install/`. App riaperta per il feedback.

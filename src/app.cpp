@@ -64,11 +64,19 @@ std::vector<fs::path> libraryRoots(){
 std::future<json> fileJob;std::string fileNotice;
 json selectedRunning(const json& selection);
 bool owned(const json& process);
-std::mutex integrationStatusMutex;std::future<void> integrationJob;
+std::mutex integrationStatusMutex;std::future<void> integrationJob;bool integrationDirty=false;
+extern "C" void startIntegrationJob();
 void syncCaelestia(const Item& item,const json& prefs,bool alreadyLocked=false){
  if(!prefs.value("caelestia_enabled",false))return;
- try{std::unique_ptr<ControllerLock> publicationLock;bool published=updateCaelestia(item.preview,true,[&]{if(!alreadyLocked)try{publicationLock=std::make_unique<ControllerLock>();}catch(...){return false;}auto latest=loadSettings();if(!latest.value("caelestia_enabled",false))return false;auto active=selectedRunning(latest);return owned(active)&&active.value("path",std::string())==item.path;});if(published){std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}
+ fs::path capturedArtwork;
+ try{
+  // Prefer the actual rendered frame, including crop and image adjustments.
+  // Fall back to the author's thumbnail when a paused renderer has no frame.
+  auto process=selectedRunning(prefs);if(owned(process)&&process.value("path",std::string())==item.path){int screen=std::clamp(prefs.value("screen",0),0,std::max(0,(int)monitors.size()-1));writeJson(feedDir()/"request.json",{{"path",item.path},{"output",monitors.empty()?"":monitors[screen]}});auto requested=fs::last_write_time(feedDir()/"request.json");for(int tries=0;tries<10;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedDir()/"frame.bin";if(fs::last_write_time(frame)<requested)continue;std::ifstream input(frame,std::ios::binary);uint32_t header[5]={};input.read((char*)header,20);if(header[0]!=0x574c4631||header[1]!=process.at("pid").get<uint32_t>()||header[2]<1||header[3]<1||uint64_t(header[2])*header[3]>40000000)continue;std::vector<char> pixels(size_t(header[2])*header[3]*3);input.read(pixels.data(),pixels.size());if(!input)continue;capturedArtwork=stateDir()/"integrations"/("artwork-"+std::to_string(getpid())+"-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".ppm");fs::create_directories(capturedArtwork.parent_path());std::ofstream ppm(capturedArtwork,std::ios::binary);ppm<<"P6\n"<<header[2]<<" "<<header[3]<<"\n255\n";ppm.write(pixels.data(),pixels.size());break;}catch(...){} }}
+ }catch(...){}
+ try{if(!fs::is_regular_file(stateDir()/"integrations/caelestia-runtime.json"))prepareCaelestia();std::unique_ptr<ControllerLock> publicationLock;bool published=updateCaelestia(capturedArtwork.empty()?item.preview:capturedArtwork.string(),true,[&]{if(!alreadyLocked)try{publicationLock=std::make_unique<ControllerLock>();}catch(...){return false;}auto latest=loadSettings();if(!latest.value("caelestia_enabled",false)||latest.value("caelestia_palette",0)!=prefs.value("caelestia_palette",0)||latest.value("caelestia_mode",0)!=prefs.value("caelestia_mode",0))return false;auto active=selectedRunning(latest);return owned(active)&&active.value("path",std::string())==item.path;},prefs.value("caelestia_palette",0),prefs.value("caelestia_mode",0));if(published){std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}
  catch(const std::exception& e){try{std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}catch(...){}}
+ if(!capturedArtwork.empty()){std::error_code ec;fs::remove(capturedArtwork,ec);}
 }
 
 
@@ -178,7 +186,7 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
           if(prefs.value("mode",std::string())=="single"&&n!=prefs.value("screen",0))continue;
           auto old=prior.contains("outputs")?prior["outputs"].value(monitors[n],json::object()):prior;if(!owned(old)||old.value("path",std::string())==item.path)continue;
           writeJson(feedDir()/"request.json",{{"path",old["path"]},{"output",monitors[n]},{"transition",true}});auto requested=fs::last_write_time(feedDir()/"request.json");
-          for(int tries=0;tries<8;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedDir()/"frame.bin";if(fs::last_write_time(frame)<requested)continue;std::ifstream file(frame,std::ios::binary);uint32_t header[5]={};file.read((char*)header,20);if(header[1]!=old["pid"].get<uint32_t>())continue;auto dest=token/(std::to_string(n)+".bin");fs::copy_file(frame,dest,fs::copy_options::overwrite_existing);auto& d=displayData[n];config[monitors[n]]={{"file",dest.string()},{"effect",prefs["transition_type"]},{"x",std::clamp((cursor.value("x",d.x+d.logicalWidth/2)-d.x)/d.logicalWidth,0.,1.)},{"y",std::clamp((cursor.value("y",d.y+d.logicalHeight/2)-d.y)/d.logicalHeight,0.,1.)}};break;}catch(...){} }
+          for(int tries=0;tries<8;tries++){std::this_thread::sleep_for(std::chrono::milliseconds(40));try{auto frame=feedDir()/"frame.bin";if(fs::last_write_time(frame)<requested)continue;std::ifstream file(frame,std::ios::binary);uint32_t header[5]={};file.read((char*)header,20);if(header[1]!=old["pid"].get<uint32_t>())continue;auto dest=token/(std::to_string(n)+".bin");fs::copy_file(frame,dest,fs::copy_options::overwrite_existing);auto& d=displayData[n];config[monitors[n]]={{"file",dest.string()},{"effect",prefs["transition_type"]},{"duration",prefs.value("transition_duration",700)/1000.f},{"direction",prefs.value("transition_direction",0)},{"curve",prefs.value("transition_curve",0)},{"zoom",prefs.value("transition_zoom",30)/100.f},{"x",std::clamp((cursor.value("x",d.x+d.logicalWidth/2)-d.x)/d.logicalWidth,0.,1.)},{"y",std::clamp((cursor.value("y",d.y+d.logicalHeight/2)-d.y)/d.logicalHeight,0.,1.)}};break;}catch(...){} }
          }
          if(!config.empty())args.insert(args.end(),{"--lab-transition",config.dump()});
         }
@@ -287,7 +295,7 @@ const char* lab_library_path(int local){static std::string value;if(local)value=
 int lab_files_start(int action){if(fileJob.valid()||pending.valid()||catalogScan.valid())return 0;fileNotice.clear();std::string title=lab_tr(action==0?"Importa immagini o video":action==1?"Workshop Steam":"Sfondi locali");auto prefs=loadSettings();fileJob=std::async(std::launch::async,[action,title,prefs]{auto files=chooseLocalFiles(action!=0,title);if(files.empty())return json{{"cancelled",true}};if(action!=0){auto directory=fs::canonical(files.front());if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");ControllerLock lock;auto latest=loadSettings();latest[action==1?"workshop_path":"local_path"]=directory.string();writeJson(configDir()/"settings.json",latest);return json{{"changed",true}};}int count=0;for(auto& file:files){importLocalMedia(file,localLibrary(prefs));count++;}return json{{"imported",count}};});return 1;}
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
 int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return 1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
-int lab_caelestia_available(){return executableAvailable("caelestia");}
+int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
 const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):status.value("error",std::string());}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
 void lab_cancel_switcher_preview(){stop(switcherDemoProcess);switcherDemoProcess=json::object();}
 int lab_rescan_start(){return guarded([&]{if(pending.valid()||fileJob.valid()||catalogScan.valid()||stagedCatalogReady)throw std::runtime_error("Attendi la fine del caricamento");auto roots=libraryRoots();catalogScan=std::async(std::launch::async,[roots]{return scan(roots,true);});});}
@@ -329,6 +337,7 @@ int lab_select(int i){
 }
 int lab_poll(){
     if(integrationJob.valid()&&integrationJob.wait_for(std::chrono::seconds(0))==std::future_status::ready)try{integrationJob.get();}catch(...){}
+    if(integrationDirty&&!integrationJob.valid())startIntegrationJob();
     if(!pending.valid()||pending.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;
     errorMessage=pending.get();
     if(deletingIndex>=0){if(errorMessage.empty()){items[deletingIndex].reason="Sfondo spostato nel cestino";carousel=loadCarousel();deletedResult=deletingIndex;}deletingIndex=-1;}
@@ -357,10 +366,10 @@ int lab_supported_count(int i){return items.at(i).supported.size();}
 const char* lab_supported_resolutions(int i){static std::string label;label.clear();for(auto [w,h]:items.at(i).supported){if(!label.empty())label+=" · ";label+=std::to_string(w)+" × "+std::to_string(h);}return label.c_str();}
 int lab_playback(int i,const char* key){return placements.value(items.at(i).path,json::object()).value("playback",json::object()).value(key,true);}
 int lab_playback_set(int i,const char* key,int enabled){return guarded([&]{const std::set<std::string> keys={"audio","reactive","mouse","parallax","particles"};if(!keys.contains(key))throw std::runtime_error("Opzione non valida");ControllerLock lock;auto profiles=loadPlacements();profiles[items.at(i).path]["playback"][key]=bool(enabled);writeJson(configDir()/"wallpaper_profiles.json",profiles);placements=profiles;});}
-float lab_adjust(int i,const char* key){return placements.value(items.at(i).path,json::object()).value("image",json::object()).value(key,std::string(key)=="brightness"?0.f:1.f);}
-int lab_adjust_set(int i,const char* key,float value,int commit){return guarded([&]{std::string k=key;if(k!="brightness"&&k!="contrast"&&k!="saturation")throw std::runtime_error("Regolazione non valida");if(!std::isfinite(value))throw std::runtime_error("Valore non valido");value=std::clamp(value,k=="brightness"?-1.f:0.f,k=="brightness"?1.f:2.f);auto path=items.at(i).path;placements[path]["image"][k]=value;
+float lab_adjust(int i,const char* key){std::string k=key;return placements.value(items.at(i).path,json::object()).value("image",json::object()).value(k,k=="contrast"||k=="saturation"||k=="gamma"?1.f:0.f);}
+int lab_adjust_set(int i,const char* key,float value,int commit){return guarded([&]{std::string k=key;const std::map<std::string,std::pair<float,float>> bounds={{"brightness",{-1,1}},{"contrast",{0,2}},{"saturation",{0,2}},{"hue",{-180,180}},{"temperature",{-1,1}},{"gamma",{.25,3}},{"vignette",{0,1}},{"rotation",{-180,180}},{"flip_x",{0,1}},{"flip_y",{0,1}}};auto range=bounds.find(k);if(range==bounds.end())throw std::runtime_error("Regolazione non valida");if(!std::isfinite(value))throw std::runtime_error("Valore non valido");value=std::clamp(value,range->second.first,range->second.second);auto path=items.at(i).path;placements[path]["image"][k]=value;
  writeJson(stateDir()/"placement-live.json",{{"path",path},{"image",placements[path]["image"]}});
- if(commit){ControllerLock lock;auto latest=loadPlacements();latest[path]["image"]=placements[path]["image"];writeJson(configDir()/"wallpaper_profiles.json",latest);placements=latest;}
+ if(commit){ControllerLock lock;auto latest=loadPlacements();latest[path]["image"]=placements[path]["image"];writeJson(configDir()/"wallpaper_profiles.json",latest);placements=latest;if(settings.value("caelestia_enabled",false)&&i==lab_current())integrationDirty=true;}
 });}
 static const json& propertyOverrides(int i){static const json empty=json::object();auto p=placements.find(items.at(i).path);return p!=placements.end()&&p->contains("properties")?p->at("properties"):empty;}
 static std::string propertyKey(int i,int p){return items.at(i).propertyOrder.at(p);}
@@ -523,7 +532,9 @@ int lab_set_option(const char* key,int value){
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));
     if(k=="carousel_layout")return savePreference(k,std::clamp(value,0,3));
     if(k=="window_opacity"||k=="window_transparency")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int t=std::clamp(k=="window_opacity"?100-value:value,0,30);latest["window_transparency"]=t;latest["window_opacity"]=100-t;writeJson(configDir()/"settings.json",latest);settings=latest;});
-    if(k=="caelestia_enabled"){int ok=guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[k]=bool(value);writeJson(configDir()/"settings.json",latest);settings=latest;if(!value)updateCaelestia("",false);});if(ok&&value){refreshRunning();int i=lab_current();if(i>=0&&!integrationJob.valid()){auto item=items[i];auto prefs=settings;integrationJob=std::async(std::launch::async,[item,prefs]{syncCaelestia(item,prefs);});}}return ok;}
+    if(k=="caelestia_enabled"){int ok=guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[k]=bool(value);writeJson(configDir()/"settings.json",latest);settings=latest;if(!value)updateCaelestia("",false);});integrationDirty=ok&&value;if(integrationDirty&&!integrationJob.valid())startIntegrationJob();return ok;}
+    const std::map<std::string,std::pair<int,int>> animationRanges={{"switcher_size",{70,140}},{"switcher_zoom",{105,150}},{"switcher_fade_in",{60,600}},{"switcher_fade_out",{60,600}},{"switcher_motion",{100,900}},{"switcher_reverse",{0,1}},{"wave_speed",{0,300}},{"wave_height",{0,40}},{"transition_duration",{100,2500}},{"transition_direction",{0,3}},{"transition_curve",{0,2}},{"transition_zoom",{5,60}},{"caelestia_palette",{0,3}},{"caelestia_mode",{0,2}}};
+    if(auto range=animationRanges.find(k);range!=animationRanges.end()){int ok=savePreference(k,std::clamp(value,range->second.first,range->second.second));if(ok&&k.starts_with("caelestia_")&&settings.value("caelestia_enabled",false)){integrationDirty=true;if(!integrationJob.valid())startIntegrationJob();}return ok;}
     if(k=="page_size")return savePreference(k,value<=50?50:value<=100?100:200);
     if(k=="transition_type")return savePreference(k,std::clamp(value,0,8));
     if(k=="fullscreen_policy")return savePreference(k,std::clamp(value,0,2));
@@ -535,6 +546,7 @@ int lab_set_option(const char* key,int value){
     if(k=="muted"||k=="disable_audio_processing"||k=="disable_mouse"||k=="disable_parallax"||k=="disable_particles")return savePreference(k,(bool)value);
     return 0;
 }
+void startIntegrationJob(){integrationDirty=false;refreshRunning();int index=lab_current();auto item=index>=0?items[index]:Item{};auto prefs=settings;integrationJob=std::async(std::launch::async,[item,prefs]{try{prepareCaelestia();if(!item.path.empty())syncCaelestia(item,prefs);else{std::lock_guard lock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}catch(const std::exception& e){std::lock_guard lock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}});}
 const char* lab_shortcut(){shortcutLabel=shortcut.value("combo",std::string("SUPER+Tab"));return shortcutLabel.c_str();}
 int lab_shortcut_enabled(){return shortcut.value("enabled",false);}
 int lab_record_shortcut(int enabled){
@@ -704,7 +716,7 @@ int main(int argc,char**argv) {
                 if(cmd=="--restore"&&settings.value("mode",std::string())=="single"&&settings.contains("monitor_wallpapers")){
                     int selected=settings.value("screen",0);auto saved=settings["monitor_wallpapers"];
                     for(int n=0;n<(int)monitors.size();n++)if(saved.contains(monitors[n])){lab_set_screen(n);auto error=launch(items.at(find(saved[monitors[n]])),settings,false);if(!error.empty())throw std::runtime_error(error);}
-                    lab_set_screen(selected);return 0;
+                    lab_set_screen(selected);if(settings.value("caelestia_enabled",false)&&lab_current()>=0)syncCaelestia(items[lab_current()],settings);return 0;
                 }
                 auto id=cmd=="--restore"?settings.value("path",std::string()):argc>2?argv[2]:"";
                 if(id.empty())throw std::runtime_error("Nessun wallpaper selezionato");

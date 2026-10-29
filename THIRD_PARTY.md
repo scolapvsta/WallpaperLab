@@ -90,3 +90,18 @@ non costituiscono port ufficiali approvati dai progetti di riferimento.
 - FFmpeg/ffprobe installati separatamente per metadata e miniature dei media
   locali, con le rispettive licenze dei pacchetti. I file personali importati non
   sono distribuiti con il progetto.
+
+
+0.16: Material You è generato dall'extra Python **materialyoucolor** e Pillow,
+installati separatamente solo su richiesta di attivazione. Algoritmi di riferimento
+Material Color Utilities con licenza Apache-2.0; wrapper Python materialyoucolor
+con licenza MIT. Pillow mantiene la propria licenza MIT-CMU e gli avvisi PIL. Non sono copiati nel repository o nel runtime base:
+https://github.com/T-Dynamos/materialyoucolor-python
+https://github.com/material-foundation/material-color-utilities
+https://python-pillow.org/
+Il helper e la tinta aggiuntiva delle superfici sono codice Wallpaper Lab.
+Il formato pubblicato è compatibile con `Colours.qml` della shell Caelestia;
+nessun file del pacchetto Caelestia viene sovrascritto.
+
+Manipolazioni del fotogramma, durata/direzione/curva transizioni condivise con la
+preview: `patches/engine-custom-animation-image-transform.patch`.

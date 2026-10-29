@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 0.15.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 0.16.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 set(ENGINE_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/build-engine" CACHE PATH "Built engine tree")
@@ -43,6 +43,7 @@ target_link_libraries(gif-test PRIVATE m)
 add_test(NAME gif-timing COMMAND gif-test)
 
 install(TARGETS wallpaper-lab RUNTIME DESTINATION . COMPONENT app)
+install(FILES assets/caelestia_palette.py DESTINATION . COMPONENT app)
 
 add_executable(preferences-test tests/preferences_test.cpp src/preferences.cpp src/shortcuts.cpp src/catalog.cpp)
 target_include_directories(preferences-test PRIVATE src vendor/engine/src/External/json/include)

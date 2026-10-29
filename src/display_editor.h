@@ -1,11 +1,11 @@
 // Wallpaper-only display calibration. Coordinates are mm or logical pixels;
 // native surface sizes, cursor paths and the compositor layout never change.
 static float displayContentHeight=680;
-static Rectangle displaySaveButton;
+static Rectangle displaySaveButton,displayCards[32];
 static int DisplayEditor(int x,int y,int w){
-    int start=y;
+    int start=y;if(displayDragging<0&&lab_mode()==2)displaySelected=lab_screen();
     UiText(lab_tr("Disposizione dei monitor"),x,y,26,AppTheme.text);y+=36;
-    const char* modes[]={lab_tr("Panoramico"),lab_tr("Duplicato"),lab_tr("Un monitor")};int at=lab_mode();int next=Choice(1,x,&y,w,lab_tr("Modalita"),modes,3,at);if(next!=at)lab_set_mode(next);
+    const char* modes[]={lab_tr("Panoramico"),lab_tr("Duplicato"),lab_tr("Un monitor")};int at=lab_mode();int next=Choice(1,x,&y,w,lab_tr("Modalita"),modes,3,at);if(next!=at){lab_set_mode(next);if(next==2)lab_set_screen(displaySelected);}
     Rectangle chart={x,y,w,Clamp(inputClip.height-350,130,200)};ThemePanel(chart,0.03f,12,control);
     UiText(lab_display_physical()?lab_tr("Dimensioni reali · trascina i monitor"):lab_tr("Pixel logici · trascina i monitor"),chart.x+12,chart.y+8,12,muted);
     Rectangle parent=inputClip;
@@ -32,6 +32,7 @@ static int DisplayEditor(int x,int y,int w){
     for(int i=0;i<lab_monitor_count();i++){
         float px,py,pw,ph;if(!lab_display_rect(i,&px,&py,&pw,&ph))continue;
         Rectangle r={displayMapOrigin.x+px*displayMapScale,displayMapOrigin.y+py*displayMapScale,pw*displayMapScale,ph*displayMapScale};
+        if(i<32)displayCards[i]=r;
         bool hot=Hot(r,!applying)&&CheckCollisionPointRec(GetMousePosition(),chart);
         bool selected=displaySelected==i;
         ThemePanel(r,0.06f,8,surface);

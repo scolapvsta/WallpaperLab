@@ -54,6 +54,8 @@ json loadSettings() {
     int theme=std::clamp(prefs.value("ui_theme",0),0,LAB_THEME_COUNT-1);prefs["ui_theme"]=theme;prefs["light_theme"]=bool(labThemes[theme].light);
     prefs["window_transparency"]=std::clamp(prefs.value("window_transparency",100-prefs.value("window_opacity",100)),0,30);prefs["window_opacity"]=100-prefs["window_transparency"].get<int>();
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
+    const std::pair<const char*,int> animationDefaults[]={{"switcher_size",100},{"switcher_zoom",132},{"switcher_fade_in",140},{"switcher_fade_out",140},{"switcher_motion",350},{"switcher_reverse",0},{"wave_speed",100},{"wave_height",24},{"transition_duration",700},{"transition_direction",0},{"transition_curve",0},{"transition_zoom",30},{"caelestia_palette",0},{"caelestia_mode",0}};
+    for(auto [key,value]:animationDefaults)if(!prefs.contains(key))prefs[key]=value;
     int pageSize=prefs.value("page_size",100);prefs["page_size"]=pageSize<=50?50:pageSize<=100?100:200;
     return prefs;
 }

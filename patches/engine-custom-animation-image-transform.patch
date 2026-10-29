@@ -1,0 +1,86 @@
+--- a/src/WallpaperEngine/Render/Helpers/ImageAdjustments.h
++++ b/src/WallpaperEngine/Render/Helpers/ImageAdjustments.h
+@@ -2,16 +2,18 @@
+ #include <algorithm>
+ #include <cmath>
+ #include <glm/vec3.hpp>
++#include <glm/vec4.hpp>
+ #include <chrono>
+ #include <cstdlib>
+ #include <fstream>
+ #include <filesystem>
+ #include <nlohmann/json.hpp>
+ namespace WallpaperEngine::Render::Helpers {
+-inline glm::vec3 imageAdjustments(){
+- static glm::vec3 result(0,1,1);static auto last=std::chrono::steady_clock::time_point{};auto now=std::chrono::steady_clock::now();if(now-last<std::chrono::milliseconds(40))return result;last=now;
++struct ImageTuning {glm::vec3 basic{0,1,1};glm::vec4 more{0,0,1,0};glm::vec3 geometry{0,1,1};bool neutral()const{return basic==glm::vec3(0,1,1)&&more==glm::vec4(0,0,1,0)&&geometry==glm::vec3(0,1,1);}};
++inline ImageTuning imageAdjustments(){
++ static ImageTuning result;static auto last=std::chrono::steady_clock::time_point{};auto now=std::chrono::steady_clock::now();if(now-last<std::chrono::milliseconds(40))return result;last=now;
+  auto file=std::getenv("WALLPAPER_LAB_PROFILE_FILE"),project=std::getenv("WALLPAPER_LAB_PROJECT"),live=std::getenv("WALLPAPER_LAB_LIVE_FILE");if(!project)return result;
+- auto read=[&](const nlohmann::json& j){float b=j.value("brightness",0.f),c=j.value("contrast",1.f),s=j.value("saturation",1.f);if(std::isfinite(b)&&std::isfinite(c)&&std::isfinite(s))result={std::clamp(b,-1.f,1.f),std::clamp(c,0.f,2.f),std::clamp(s,0.f,2.f)};};
++ auto read=[&](const nlohmann::json& j){auto bounded=[&](const char* key,float def,float lo,float hi){float value=j.value(key,def);return std::isfinite(value)?std::clamp(value,lo,hi):def;};result.basic={bounded("brightness",0,-1,1),bounded("contrast",1,0,2),bounded("saturation",1,0,2)};result.more={bounded("hue",0,-180,180)*.01745329252f,bounded("temperature",0,-1,1),bounded("gamma",1,.25,3),bounded("vignette",0,0,1)};result.geometry={bounded("rotation",0,-180,180)*.01745329252f,bounded("flip_x",0,0,1)>.5f?-1:1,bounded("flip_y",0,0,1)>.5f?-1:1};};
+  try{if(file){std::ifstream f(file);auto profiles=nlohmann::json::parse(f);read(profiles.value(project,nlohmann::json::object()).value("image",nlohmann::json::object()));}}catch(...){}
+  try{if(live&&std::filesystem::file_time_type::clock::now()-std::filesystem::last_write_time(live)<std::chrono::seconds(2)){std::ifstream f(live);auto j=nlohmann::json::parse(f);if(j.value("path",std::string())==project&&j.contains("image"))read(j["image"]);}}catch(...){}
+  return result;
+--- a/src/WallpaperEngine/Render/Helpers/Transition.h
++++ b/src/WallpaperEngine/Render/Helpers/Transition.h
+@@ -4,8 +4,8 @@
+ #include <map>
+ namespace WallpaperEngine::Render::Helpers {
+ inline void transitionFrame(const std::string& output,const glm::ivec4& vp,bool sourceReady){
+- struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0;GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5;std::chrono::steady_clock::time_point start{};};
+- static std::map<std::string,State> states;auto& s=states[output];auto adjustment=imageAdjustments();bool neutral=adjustment==glm::vec3(0,1,1);const char* raw=std::getenv("WALLPAPER_LAB_TRANSITION");if((!raw||s.finished)&&neutral)return;if(vp.z<1||vp.w<1)return;
++ struct State{bool initialized=false,finished=false,snapshot=false;int stable=0,effect=0;GLuint program=0,vao=0,old=0,current=0,fb=0;int w=0,h=0;float x=.5,y=.5,duration=.7f,zoom=.3f;int direction=0,curve=0;std::chrono::steady_clock::time_point start{};};
++ static std::map<std::string,State> states;auto& s=states[output];auto adjustment=imageAdjustments();bool neutral=adjustment.neutral();const char* raw=std::getenv("WALLPAPER_LAB_TRANSITION");if((!raw||s.finished)&&neutral)return;if(vp.z<1||vp.w<1)return;
+  struct Restore {
+   GLint program,vao,active,tex[2],read,draw,unpack,viewport[4];GLboolean blend,depth,scissor;
+   Restore(){glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);for(int n=0;n<2;n++){glActiveTexture(GL_TEXTURE0+n);glGetIntegerv(GL_TEXTURE_BINDING_2D,&tex[n]);}glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);glGetIntegerv(GL_UNPACK_ALIGNMENT,&unpack);glGetIntegerv(GL_VIEWPORT,viewport);blend=glIsEnabled(GL_BLEND);depth=glIsEnabled(GL_DEPTH_TEST);scissor=glIsEnabled(GL_SCISSOR_TEST);}
+@@ -14,7 +14,7 @@
+  glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
+  if(!s.initialized){
+   s.initialized=true;std::vector<unsigned char> bytes(3,0);int width=1,height=1;
+-  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
++  if(raw&&!s.finished)try{auto entry=nlohmann::json::parse(raw).at(output);s.effect=entry.at("effect");s.duration=std::clamp(entry.value("duration",.7f),.1f,2.5f);s.direction=std::clamp(entry.value("direction",0),0,3);s.curve=std::clamp(entry.value("curve",0),0,2);s.zoom=std::clamp(entry.value("zoom",.3f),.05f,.6f);s.x=entry.value("x",.5f);s.y=1-entry.value("y",.5f);std::ifstream f(entry.at("file").get<std::string>(),std::ios::binary);uint32_t header[5]={};f.read((char*)header,20);if(header[0]!=0x574c4631||!header[2]||!header[3]||uint64_t(header[2])*header[3]>40000000)throw std::runtime_error("snapshot");width=header[2];height=header[3];bytes.resize(size_t(width)*height*3);f.read((char*)bytes.data(),bytes.size());if(!f)throw std::runtime_error("snapshot");s.snapshot=true;}catch(...){s.finished=true;s.effect=0;}
+   if(!s.snapshot)s.finished=true;
+   glActiveTexture(GL_TEXTURE0);glGenTextures(1,&s.old);glBindTexture(GL_TEXTURE_2D,s.old);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,bytes.data());
+   glGenTextures(1,&s.current);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);glGenFramebuffers(1,&s.fb);
+@@ -23,9 +23,9 @@
+  }
+  if(!s.program)return;
+  auto now=std::chrono::steady_clock::now();if(!s.finished&&sourceReady&&++s.stable>=3&&s.start==std::chrono::steady_clock::time_point{}){s.start=now;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" started "<<s.effect<<"\n";}
+- float t=s.finished?1:s.start==std::chrono::steady_clock::time_point{}?0:std::chrono::duration<float>(now-s.start).count()/.7f;
++ float t=s.finished?1:s.start==std::chrono::steady_clock::time_point{}?0:std::chrono::duration<float>(now-s.start).count()/s.duration;
+  if(t>=1&&!s.finished){s.finished=true;if(auto trace=std::getenv("WALLPAPER_LAB_TRANSITION_TRACE"))std::ofstream(trace,std::ios::app)<<output<<" completed\n";}
+  glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,s.current);if(s.w!=vp.z||s.h!=vp.w){s.w=vp.z;s.h=vp.w;glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,s.w,s.h,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);}glBindFramebuffer(GL_DRAW_FRAMEBUFFER,s.fb);glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,s.current,0);glBindFramebuffer(GL_READ_FRAMEBUFFER,restore.draw);glBlitFramebuffer(vp.x,vp.y,vp.x+vp.z,vp.y+vp.w,0,0,vp.z,vp.w,GL_COLOR_BUFFER_BIT,GL_NEAREST);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,restore.draw);glViewport(vp.x,vp.y,vp.z,vp.w);
+- glUseProgram(s.program);glUniform1i(glGetUniformLocation(s.program,"previousImage"),0);glUniform1i(glGetUniformLocation(s.program,"currentImage"),1);glUniform1f(glGetUniformLocation(s.program,"progress"),std::clamp(t,0.f,1.f));glUniform1i(glGetUniformLocation(s.program,"effect"),s.finished?0:s.effect);glUniform2f(glGetUniformLocation(s.program,"origin"),s.x,s.y);glUniform2f(glGetUniformLocation(s.program,"aspect"),float(vp.z)/std::min(vp.z,vp.w),float(vp.w)/std::min(vp.z,vp.w));glUniform3f(glGetUniformLocation(s.program,"adjustments"),adjustment.x,adjustment.y,adjustment.z);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s.old);glBindVertexArray(s.vao);glDrawArrays(GL_TRIANGLES,0,3);
++ glUseProgram(s.program);glUniform1i(glGetUniformLocation(s.program,"previousImage"),0);glUniform1i(glGetUniformLocation(s.program,"currentImage"),1);glUniform1f(glGetUniformLocation(s.program,"progress"),std::clamp(t,0.f,1.f));glUniform1i(glGetUniformLocation(s.program,"effect"),s.finished?0:s.effect);glUniform2f(glGetUniformLocation(s.program,"origin"),s.x,s.y);glUniform2f(glGetUniformLocation(s.program,"aspect"),float(vp.z)/std::min(vp.z,vp.w),float(vp.w)/std::min(vp.z,vp.w));glUniform3f(glGetUniformLocation(s.program,"adjustments"),adjustment.basic.x,adjustment.basic.y,adjustment.basic.z);glUniform4f(glGetUniformLocation(s.program,"adjustMore"),adjustment.more.x,adjustment.more.y,adjustment.more.z,adjustment.more.w);glUniform3f(glGetUniformLocation(s.program,"geometry"),adjustment.geometry.x,adjustment.geometry.y,adjustment.geometry.z);glUniform1f(glGetUniformLocation(s.program,"zoomAmount"),s.zoom);glUniform1i(glGetUniformLocation(s.program,"direction"),s.direction);glUniform1i(glGetUniformLocation(s.program,"curve"),s.curve);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s.old);glBindVertexArray(s.vao);glDrawArrays(GL_TRIANGLES,0,3);
+ }
+ }
+--- a/src/WallpaperEngine/Render/Helpers/TransitionShader.h
++++ b/src/WallpaperEngine/Render/Helpers/TransitionShader.h
+@@ -1,15 +1,15 @@
+ #pragma once
+-// Both callers supply bottom-left UVs. Snapshot uploads are top-left, FBOs bottom-left.
++// Snapshot uploads are top-left; current framebuffer UVs are bottom-left.
+ #define LAB_TRANSITION_FRAGMENT "#version 330 core\n" \
+-"in vec2 uv;out vec4 color;uniform sampler2D previousImage,currentImage;uniform float progress;uniform int effect;uniform vec2 origin,aspect;uniform vec3 adjustments;\n" \
+-"vec4 adjusted(vec4 c){float l=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=mix(vec3(l),c.rgb,adjustments.z);c.rgb=(c.rgb-.5)*adjustments.y+.5+adjustments.x;return vec4(clamp(c.rgb,0.,1.),1.);}" \
++"in vec2 uv;out vec4 color;uniform sampler2D previousImage,currentImage;uniform float progress,zoomAmount;uniform int effect,direction,curve;uniform vec2 origin,aspect;uniform vec3 adjustments,geometry;uniform vec4 adjustMore;\n" \
++"vec4 adjusted(vec4 c,vec2 p){float l=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=mix(vec3(l),c.rgb,adjustments.z);c.rgb=(c.rgb-.5)*adjustments.y+.5+adjustments.x;vec3 axis=normalize(vec3(1));c.rgb=c.rgb*cos(adjustMore.x)+cross(axis,c.rgb)*sin(adjustMore.x)+axis*dot(axis,c.rgb)*(1.-cos(adjustMore.x));c.rgb+=vec3(adjustMore.y*.15,0,-adjustMore.y*.15);c.rgb=pow(clamp(c.rgb,0.,1.),vec3(1./max(.25,adjustMore.z)));c.rgb*=1.-adjustMore.w*smoothstep(.25,.72,length(p-.5));return vec4(clamp(c.rgb,0.,1.),1.);}" \
++"vec4 newAt(vec2 p){float c=cos(geometry.x),s=sin(geometry.x);vec2 q=(p-.5)*aspect;float fit=max(abs(c)+abs(s)*aspect.y/aspect.x,abs(c)+abs(s)*aspect.x/aspect.y);q=mat2(c,-s,s,c)*q/max(1.,fit);q=q/aspect*geometry.yz+.5;return adjusted(texture(currentImage,clamp(q,0.,1.)),p);}" \
+ "vec4 oldAt(vec2 p){return texture(previousImage,vec2(clamp(p.x,0.,1.),1.-clamp(p.y,0.,1.)));}" \
+-"void main(){float t=smoothstep(0.,1.,progress);vec4 a=oldAt(uv),b=adjusted(texture(currentImage,uv));color=effect==0?b:mix(a,b,t);" \
++"void main(){float t=curve==1?progress:curve==2?pow(progress,2.)/(pow(progress,2.)+pow(1.-progress,2.)):smoothstep(0.,1.,progress);vec4 a=oldAt(uv),b=newAt(uv);color=effect==0?b:mix(a,b,t);" \
+ "if(effect==2)color=t<.5?vec4(a.rgb*(1.-t*2.),1):vec4(b.rgb*(t*2.-1.),1);" \
+-"if(effect==3){vec2 q=(uv-.5)/(.7+.3*t)+.5;color=mix(a,adjusted(texture(currentImage,clamp(q,0.,1.))),t);}" \
+-"if(effect==4){vec2 q=(uv-.5)/(1.-.3*t)+.5;color=mix(oldAt(q),b,t);}" \
+-"if(effect==5){vec2 q=uv-vec2(1.-t,0);color=q.x>=0.?adjusted(texture(currentImage,q)):a;}" \
+-"if(effect==6)color=uv.x<t?b:a;" \
+-"float r=length((uv-origin)*aspect),radius=length(aspect);" \
+-"if(effect==7)color=r<t*radius?b:a;" \
++"if(effect==3){vec2 q=(uv-.5)/(1.-zoomAmount+zoomAmount*t)+.5;color=mix(a,newAt(q),t);}" \
++"if(effect==4){vec2 q=(uv-.5)/(1.-zoomAmount*t)+.5;color=mix(oldAt(q),b,t);}" \
++"float edge=direction==0?uv.x:direction==1?1.-uv.x:direction==2?1.-uv.y:uv.y;vec2 shift=direction==0?vec2(1,0):direction==1?vec2(-1,0):direction==2?vec2(0,-1):vec2(0,1);" \
++"if(effect==5){vec2 q=uv-shift*(1.-t);color=edge>=1.-t?newAt(q):a;}if(effect==6)color=edge>=1.-t?b:a;" \
++"float r=length((uv-origin)*aspect),radius=length(aspect);if(effect==7)color=r<t*radius?b:a;" \
+ "if(effect==8)color=t<.5?(r<(1.-t*2.)*radius?a:vec4(0,0,0,1)):(r<(t*2.-1.)*radius?b:vec4(0,0,0,1));color.a=1.;}"

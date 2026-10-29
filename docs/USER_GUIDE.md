@@ -1,4 +1,4 @@
-# Wallpaper Lab — guida 0.15
+# Wallpaper Lab — guida 0.16
 
 ## Libreria e monitor
 
@@ -6,10 +6,12 @@ Clicca una card per applicarla. In Display scegli panorama, duplicazione oppure
 un monitor. In modalità singola seleziona il monitor nella mappa, poi clicca lo
 sfondo: gli altri monitor mantengono il proprio renderer e wallpaper. Le
 assegnazioni vengono salvate per nome dell'uscita e ripristinate insieme.
-Il pannello dello sfondo offre anche il campo Monitor: è attivo solo in modalità
-singola. Scegliere un'uscita applica a quella lo sfondo selezionato. Cliccare lo
-sfondo già attivo sull'uscita selezionata non riavvia il renderer e non anima una
-transizione. Le modifiche effettive alle sue proprietà continuano ad applicarsi.
+In modalità Un monitor, clicca il monitor nella mappa Display: quello evidenziato
+resta la destinazione anche dopo aver chiuso il popup con X o Esc. Il prossimo
+wallpaper cliccato viene applicato a quell'uscita. Il pannello dello sfondo mostra
+la destinazione senza aggiungere un secondo selettore. In panorama/duplicato il
+target è il gruppo dei display. Cliccare il wallpaper già attivo non riavvia il
+renderer e non anima una transizione; le modifiche alle proprietà restano effettive.
 
 I menu si aprono sopra gli altri campi, con scrollbar trascinabile quando serve.
 Le risoluzioni sono l'ultima sezione del pannello, raggruppate per monitor singolo,
@@ -20,8 +22,9 @@ Con AND anche gli altri criteri devono corrispondere; con OR basta uno dei crite
 attivi. Nome e autore restringono sempre la ricerca Workshop. Reset cancella le
 selezioni. La barra laterale è ridimensionabile trascinandone il bordo.
 
-Nei filtri scegli 50, 100 o 200 risultati per pagina. Il piede della griglia mostra
-la pagina attuale e il totale. Ctrl + L sposta il cursore sulla ricerca; Ctrl + A,
+Nel piede della griglia scegli 50, 100 o 200 risultati per pagina, accanto alla
+pagina attuale e al totale. Le frecce navigano le pagine. Lo stesso controllo è
+presente nel Workshop; la dimensione pagina non è un criterio di filtro. Ctrl + L sposta il cursore sulla ricerca; Ctrl + A,
 C e V selezionano, copiano e incollano. Tieni premuto il tasto centrale e trascina
 in verticale per scorrere griglia, proprietà, filtri, impostazioni e menu.
 
@@ -79,8 +82,28 @@ shortcut apre lo switcher sullo sfondo attivo del monitor selezionato; quelle
 successive seguono l'ordine dei preferiti nell'app. Se lo sfondo attivo non è tra
 i preferiti, compare come punto di partenza temporaneo e poi si passa al primo
 preferito, senza modificare la lista. Confermarlo nuovamente non cambia il desktop.
-In Griglia l'evidenziazione anima il contorno senza ingrandire le immagini oltre
-il mosaico; contorno delle celle e bordo esterno coincidono.
+In Griglia le immagini tornano a ingrandirsi sopra il mosaico, conservando angoli
+arrotondati e bordi; lo spazio trasparente esterno ospita lo zoom. Il mouse evidenzia
+la cella puntata e un clic la conferma. Negli altri layout il clic può confermare
+una card; il solo passaggio del mouse non sposta la striscia sotto il puntatore.
+Il wallpaper in uso ha un piccolo pallino bianco in tutti i layout e nelle card,
+senza la scritta ATTIVO. Il popup resta aperto durante la navigazione con il mouse.
+
+L'occhio dello switcher apre ora un popup dentro l'app, come quello della
+transizione, con X, Esc e clic esterno. Le miniature si animano con lo stesso
+codice del selettore reale; la demo non cambia il desktop.
+
+La bacchetta accanto a ciascun selettore apre un pannello compatto di personalizzazione:
+
+- Switcher: dimensione 70–140%, zoom 105–150%, entrata/uscita 60–600 ms,
+  movimento 100–900 ms. Nei layout a striscia è disponibile l'inversione; Onda
+  aggiunge velocità 0–300% e ampiezza 0–40 px.
+- Transizioni: durata 100–2500 ms e curva morbida, lineare o accelerazione/frenata.
+  Scorrimento e Tendina offrono quattro direzioni; gli zoom hanno intensità 5–60%.
+
+I controlli si salvano al rilascio o alla scelta e sono condivisi dalla tab
+Carousel e dalle impostazioni principali. Riduci animazioni continua ad avere
+precedenza sul selettore reale e sulle transizioni desktop.
 
 Le transizioni campionano solo il framebuffer del wallpaper precedente, a
 risoluzione nativa: non catturano finestre, notifiche o applicazioni. Se il
@@ -112,8 +135,8 @@ precedenti vengono migrate al tema indipendente più vicino.
 Le 22 lingue comprendono italiano, inglese, tedesco, spagnolo, francese, portoghese,
 olandese, polacco, romeno, svedese, cinese semplificato/tradizionale, giapponese,
 coreano, hindi, russo, arabo, bengalese, indonesiano, turco, vietnamita e urdu.
-Il catalogo contiene 328 messaggi completi, comprese le impostazioni avanzate
-che prima ricadevano sull'inglese. Non sostituisce una revisione madrelingua;
+Il catalogo contiene 367 chiavi; le nuove opzioni avanzate della 0.16 sono in
+italiano/inglese, con testi inglesi nelle altre lingue dove manca una revisione. Non sostituisce una revisione madrelingua;
 i contenuti degli autori e le categorie/tag forniti da Steam restano originali.
 
 Pango/Cairo gestisce shaping, scritture RTL e font di fallback per le scritte
@@ -123,19 +146,38 @@ non viene ancora specchiato nelle lingue RTL.
 
 ## Integrazione Caelestia
 
-Impostazioni → Integrazioni → Caelestia → Colori dal wallpaper è disattivata
-inizialmente. Richiede il comando `caelestia` e la shell Caelestia che legge
-`$XDG_STATE_HOME/caelestia/scheme.json`. Quando è attiva, applicare uno sfondo
-genera una palette dalla sua anteprima e aggiorna barre e widget. L'operazione
-non cambia il wallpaper tramite Caelestia e non ricolora altre applicazioni.
+Impostazioni → Integrazioni → Caelestia → Colori dal wallpaper resta un extra
+facoltativo, inizialmente disattivato sulle nuove installazioni. La shell Caelestia
+va installata separatamente nel desktop. Wallpaper Lab non installa Hyprland,
+non sostituisce il desktop e non avvia servizi. Il generatore colore e i preset
+sono inclusi nel runtime, ma le dipendenze Python vengono preparate soltanto
+all'attivazione: usa i moduli già disponibili oppure un venv privato in
+`$XDG_DATA_HOME/wallpaper-lab/integrations/caelestia/venv`. Può essere necessaria
+una connessione Internet e il modulo venv del Python di sistema; niente sudo o
+modifiche ai pacchetti Python globali.
 
-La palette è globale: con più monitor conta l'ultimo wallpaper applicato al
-monitor selezionato. Usa i colori dell'anteprima, non ogni fotogramma animato;
-le anteprime di prova non cambiano la palette. La generazione avviene fuori dal
-thread grafico e un errore dell'integrazione non interrompe il wallpaper.
-Disattivando l'opzione viene ripristinata la palette precedente, se quella attuale
+Quattro preset dinamici — Vivace, Toni morbidi, Espressiva, Fedele al wallpaper —
+generano colori Material You dal wallpaper, con luminosità automatica, scura o
+chiara. Vivace è il default e non eredita una variante monocromatica dallo schema
+Caelestia precedente. Le superfici ricevono una tinta leggera per rendere visibile
+la tonalità anche su barre e widget. L'app pubblica una palette compatibile con
+lo schema `dynamic/default` esistente; non modifica l'elenco degli schemi fissi
+installati dal pacchetto Caelestia.
+
+Viene campionato il fotogramma effettivo del renderer, con crop e regolazioni;
+se non è disponibile (per esempio in pausa), viene usata l'anteprima del creator.
+La palette si aggiorna al cambio wallpaper e al salvataggio delle regolazioni,
+non a ogni frame o battito musicale. È globale: con più monitor conta l'ultimo
+wallpaper applicato al target selezionato. La pubblicazione riguarda
+`$XDG_STATE_HOME/caelestia/scheme.json`, senza cambiare il wallpaper statico
+Caelestia o i temi delle altre applicazioni. Il browser wallpaper di Caelestia
+continua a mostrare la propria cartella di immagini statiche.
+
+Disattivando l'opzione viene ripristinata la palette precedente se quella attuale
 è ancora l'ultima pubblicata dall'app. Le modifiche manuali successive vengono
-rispettate. Non vengono avviate automaticamente shell o servizi mancanti.
+rispettate. Generazione e installazione opzionale avvengono fuori dal thread UI;
+risultati tardivi dopo disable/cambio wallpaper vengono scartati. Eventuali errori
+appaiono nel pannello Integrazioni e non interrompono il renderer.
 
 ## Media
 
@@ -150,8 +192,14 @@ incluse dal creator nel wallpaper restano distinte dai metadati del player di si
 
 Nell'inspector, Immagine offre luminosità (−100…+100%), contrasto e saturazione
 (0…200%). I cambiamenti si vedono durante il trascinamento e si salvano al rilascio.
-Ripristina immagine rimette i tre valori neutri, senza cambiare proprietà del
-creator, posizione o riproduzione. Le regolazioni sono un passaggio finale sul
+Ripristina immagine rimette tutti i valori neutri, senza cambiare proprietà del
+creator, zoom/posizione o riproduzione. Temperatura (−100…+100%), tonalità
+(−180…+180°), gamma (0,25…3), vignettatura, rotazione (−180…+180°) e specchio
+orizzontale/verticale sono salvati nello stesso profilo. La rotazione ritaglia
+automaticamente il risultato per riempire lo schermo senza angoli neri. Sono
+manipolazioni del fotogramma di ciascuna uscita: in panorama i display vengono
+trasformati separatamente. Non ruotano le coordinate logiche degli oggetti
+interattivi della scena. Le regolazioni sono un passaggio finale sul
 fotogramma: non modificano i file del Workshop e non promettono una gestione HDR.
 
 Le cinque opzioni di Riproduzione per questo sfondo sono salvate separatamente:
@@ -163,3 +211,15 @@ implementa una funzione, abilitarla non la aggiunge. Le opzioni di riproduzione
 individuali ricaricano lo sfondo attivo; gli slider immagine aggiornano lo stesso
 renderer senza riavvio. Le preferenze seguono il progetto quando viene cambiato,
 riaperto o richiamato dal carousel, su qualsiasi modalità display.
+
+
+## Piattaforme
+
+La build corrente è Linux x86_64; l'ambiente verificato è Arch Linux con Hyprland.
+Le parti POSIX, il motore Linux, PipeWire/PulseAudio e l'integrazione dei monitor
+non sono un port Windows/macOS. Raylib e Material You sono multipiattaforma, ma
+questo non rende multipiattaforma l'app completa. Ubuntu e altre distribuzioni
+Linux sono obiettivi possibili compilando con le dipendenze adatte, ancora da
+verificare; su altri compositor anche shortcut e gestione output richiedono prove.
+L'installer attuale installa il runtime già compilato per questo ambiente, con
+backup e ripristino dei renderer; non è un installer universale di sistema.

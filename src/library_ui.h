@@ -10,7 +10,8 @@ static Vector2 displayMapOrigin,displayDragMouse,displayDragPosition;
 static float displayMapScale=1;
 static Color surface,control,controlHover,muted,lineColor;
 static int page=0,settingsTab=4,deleteIndex=-1,filterType=0,filterAudio=0,filterSource=0;
-static bool transitionPreview=false,transitionDrawing=false,switcherPreviewBlocks=false;
+static bool transitionPreview=false,switcherPreview=false,transitionDrawing=false,switcherPreviewBlocks=false;
+static int animationCustomize=0;static double animationOpened=0;
 static int choiceOpen=-1;static bool choiceRendering=false,choiceRegistering=false;
 static bool deleteReady=false;
 static double deleteOpenedAt=0;
@@ -58,7 +59,7 @@ static void UiText(const char* text,int x,int y,int size,Color color){
 }
 static int UiMeasure(const char* text,int size){if(ComplexText(text))return Shape(text,size)->width;float width=0;while(*text){int bytes=0,cp=GetCodepointNext(text,&bytes);if(bytes<1)break;width+=GlyphAdvance(TextFont(cp),cp,size);text+=bytes;}return ceilf(width);}
 static void ButtonText(const char* text,float x,float y,Color color){if(ComplexText(text)){UiText(text,x,y,15,color);return;}DrawTextEx(buttonFont,text,(Vector2){x,y},15,0,color);}
-static bool Hot(Rectangle r,bool enabled){return enabled&&!switcherPreviewBlocks&&(!transitionPreview||transitionDrawing)&&(choiceOpen<0||choiceRendering||choiceRegistering)&&(!inputBlocked||modalDrawing)&&CheckCollisionPointRec(GetMousePosition(),inputClip)&&CheckCollisionPointRec(GetMousePosition(),r);}
+static bool Hot(Rectangle r,bool enabled){return enabled&&(!(switcherPreview||animationCustomize)||transitionDrawing||choiceRendering)&&!switcherPreviewBlocks&&(!transitionPreview||transitionDrawing||choiceRendering)&&(choiceOpen<0||choiceRendering||choiceRegistering)&&(!inputBlocked||modalDrawing)&&CheckCollisionPointRec(GetMousePosition(),inputClip)&&CheckCollisionPointRec(GetMousePosition(),r);}
 static float ScrollInput(Rectangle area){
  static Rectangle owner;static Vector2 lastMiddle;bool over=CheckCollisionPointRec(GetMousePosition(),area);if(choiceOpen>=0&&!choiceRendering)return 0;
  if(over&&IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)){owner=area;lastMiddle=GetMousePosition();}
@@ -80,8 +81,9 @@ static void StarIcon(Vector2 c,float radius,Color color,bool filled){
     Vector2 points[10];for(int n=0;n<10;n++){float a=(-90+n*36)*DEG2RAD,r=radius*(n%2?0.46f:1);points[n]=(Vector2){c.x+cosf(a)*r,c.y+sinf(a)*r};}
     for(int n=0;n<10;n++){if(filled)DrawTriangle(c,points[(n+1)%10],points[n],color);DrawLineEx(points[n],points[(n+1)%10],1.6f,color);}
 }
-typedef enum {UI_STAR,UI_TRASH,UI_GEAR,UI_MOON,UI_SEARCH,UI_FILTER,UI_CLOSE,UI_PLAY,UI_LIVE,UI_LOGO,UI_KEY,UI_EYE,UI_LIBRARY,UI_CAROUSEL,UI_REFRESH,UI_DISPLAY,UI_DOWNLOAD,UI_CHECK,UI_IMPORT} UiIcon;
-static void Icon(UiIcon icon,Vector2 c,Color ink,bool fill){
+typedef enum {UI_STAR,UI_TRASH,UI_GEAR,UI_MOON,UI_SEARCH,UI_FILTER,UI_CLOSE,UI_PLAY,UI_LIVE,UI_LOGO,UI_KEY,UI_EYE,UI_LIBRARY,UI_CAROUSEL,UI_REFRESH,UI_DISPLAY,UI_DOWNLOAD,UI_CHECK,UI_IMPORT,UI_CUSTOM,UI_LEFT,UI_RIGHT} UiIcon;
+static Texture2D iconAtlas;
+static void IconRaw(UiIcon icon,Vector2 c,Color ink,bool fill){
     switch(icon){
     case UI_STAR:StarIcon(c,10,ink,fill);break;
     case UI_TRASH:
@@ -94,16 +96,16 @@ static void Icon(UiIcon icon,Vector2 c,Color ink,bool fill){
         for(int n=0;n<8;n++){float a=n*PI/4;DrawLineEx((Vector2){c.x+cosf(a)*8,c.y+sinf(a)*8},(Vector2){c.x+cosf(a)*11,c.y+sinf(a)*11},3,ink);}break;
     case UI_MOON:
         DrawCircleSector(c,10,50,310,36,ink);DrawCircleSector((Vector2){c.x+4,c.y-3},8,55,305,30,fill?controlHover:control);break;
-    case UI_CHECK:DrawCircleLines(c.x,c.y,10,ink);DrawLineEx((Vector2){c.x-5,c.y},(Vector2){c.x-1,c.y+4},2,ink);DrawLineEx((Vector2){c.x-1,c.y+4},(Vector2){c.x+6,c.y-4},2,ink);break;
+    case UI_CHECK:DrawRing(c,9.2f,10.8f,0,360,48,ink);DrawLineEx((Vector2){c.x-5,c.y},(Vector2){c.x-1,c.y+4},2,ink);DrawLineEx((Vector2){c.x-1,c.y+4},(Vector2){c.x+6,c.y-4},2,ink);break;
     case UI_IMPORT:DrawRectangleRoundedLinesEx((Rectangle){c.x-10,c.y-6,20,15},.15f,6,1.7f,ink);DrawLineEx((Vector2){c.x-9,c.y-9},(Vector2){c.x-2,c.y-9},1.7f,ink);DrawLineEx((Vector2){c.x,c.y-2},(Vector2){c.x,c.y+5},1.7f,ink);DrawLineEx((Vector2){c.x-4,c.y+1},(Vector2){c.x+4,c.y+1},1.7f,ink);break;
     case UI_DOWNLOAD:DrawLineEx((Vector2){c.x,c.y-10},(Vector2){c.x,c.y+3},2,ink);DrawLineEx((Vector2){c.x-5,c.y-1},(Vector2){c.x,c.y+4},2,ink);DrawLineEx((Vector2){c.x,c.y+4},(Vector2){c.x+5,c.y-1},2,ink);DrawLineEx((Vector2){c.x-9,c.y+2},(Vector2){c.x-9,c.y+9},2,ink);DrawLineEx((Vector2){c.x-9,c.y+9},(Vector2){c.x+9,c.y+9},2,ink);DrawLineEx((Vector2){c.x+9,c.y+9},(Vector2){c.x+9,c.y+2},2,ink);break;
-    case UI_SEARCH:DrawCircleLines(c.x-2,c.y-2,6,ink);DrawLineEx((Vector2){c.x+3,c.y+3},(Vector2){c.x+9,c.y+9},2,ink);break;
+    case UI_SEARCH:DrawRing((Vector2){c.x-2,c.y-2},5.2f,6.8f,0,360,40,ink);DrawLineEx((Vector2){c.x+3,c.y+3},(Vector2){c.x+9,c.y+9},2,ink);break;
     case UI_FILTER:
         for(int n=0;n<3;n++){float y=c.y-7+n*7;DrawLineEx((Vector2){c.x-10,y},(Vector2){c.x+10,y},1.6f,ink);DrawCircle(c.x+(n%2?4:-4),y,3,ink);}break;
     case UI_CLOSE:DrawLineEx((Vector2){c.x-6,c.y-6},(Vector2){c.x+6,c.y+6},1.8f,ink);DrawLineEx((Vector2){c.x+6,c.y-6},(Vector2){c.x-6,c.y+6},1.8f,ink);break;
     case UI_PLAY:DrawTriangle((Vector2){c.x-5,c.y-8},(Vector2){c.x-5,c.y+8},(Vector2){c.x+8,c.y},ink);break;
     case UI_LIVE:DrawRectangleRoundedLinesEx((Rectangle){c.x-10,c.y-7,20,14},0.2f,4,1.8f,ink);DrawLineEx((Vector2){c.x-5,c.y+11},(Vector2){c.x+5,c.y+11},1.8f,ink);break;
-    case UI_EYE:DrawEllipseLines(c.x,c.y,11,7,ink);DrawCircle(c.x,c.y,3,ink);break;
+    case UI_EYE:for(int n=0;n<48;n++){float a=n*2*PI/48,b=(n+1)*2*PI/48;DrawLineEx((Vector2){c.x+cosf(a)*11,c.y+sinf(a)*7},(Vector2){c.x+cosf(b)*11,c.y+sinf(b)*7},1.6f,ink);}DrawCircleV(c,3,ink);break;
     case UI_LIBRARY:for(int y=-1;y<=1;y+=2)for(int x=-1;x<=1;x+=2)DrawRectangleRoundedLinesEx((Rectangle){c.x+x*5-3,c.y+y*5-3,7,7},.2f,4,1.5f,ink);break;
     case UI_CAROUSEL:DrawRectangleRoundedLinesEx((Rectangle){c.x-6,c.y-9,12,18},.2f,6,1.6f,ink);DrawLineEx((Vector2){c.x-10,c.y-5},(Vector2){c.x-10,c.y+5},1.6f,ink);DrawLineEx((Vector2){c.x+10,c.y-5},(Vector2){c.x+10,c.y+5},1.6f,ink);break;
     case UI_DISPLAY:DrawRectangleRoundedLinesEx((Rectangle){c.x-10,c.y-8,20,13},.18f,6,1.8f,ink);DrawLineEx((Vector2){c.x,c.y+5},(Vector2){c.x,c.y+9},1.8f,ink);DrawLineEx((Vector2){c.x-6,c.y+10},(Vector2){c.x+6,c.y+10},1.8f,ink);break;
@@ -115,11 +117,16 @@ static void Icon(UiIcon icon,Vector2 c,Color ink,bool fill){
             DrawTriangle((Vector2){tip.x+t.x*3,tip.y+t.y*3},(Vector2){tip.x-t.x*3+n.x*3.6f,tip.y-t.y*3+n.y*3.6f},(Vector2){tip.x-t.x*3-n.x*3.6f,tip.y-t.y*3-n.y*3.6f},ink);
         }}break;
     case UI_KEY:DrawRectangleRoundedLinesEx((Rectangle){c.x-11,c.y-8,22,16},0.2f,4,1.8f,ink);for(int n=0;n<3;n++)DrawCircle(c.x-6+n*6,c.y-2,1.3f,ink);DrawLineEx((Vector2){c.x-5,c.y+4},(Vector2){c.x+5,c.y+4},1.5f,ink);break;
+    case UI_CUSTOM:DrawLineEx((Vector2){c.x-8,c.y+8},(Vector2){c.x+5,c.y-5},3,ink);DrawCircleV((Vector2){c.x+7,c.y-7},3,ink);for(int n=0;n<4;n++){float a=n*PI/2;DrawLineEx((Vector2){c.x-7+cosf(a)*3,c.y-7+sinf(a)*3},(Vector2){c.x-7+cosf(a)*6,c.y-7+sinf(a)*6},1.5f,ink);}break;
+    case UI_LEFT:case UI_RIGHT:{float sign=icon==UI_LEFT?-1:1;DrawLineEx((Vector2){c.x-sign*4,c.y-7},(Vector2){c.x+sign*3,c.y},2,ink);DrawLineEx((Vector2){c.x+sign*3,c.y},(Vector2){c.x-sign*4,c.y+7},2,ink);}break;
     case UI_LOGO:
         DrawRectangleRoundedLinesEx((Rectangle){c.x-16,c.y-16,32,32},0.3f,12,1.8f,ink);
         DrawLineEx((Vector2){c.x-11,c.y+9},(Vector2){c.x-2,c.y-3},2,ink);DrawLineEx((Vector2){c.x-2,c.y-3},(Vector2){c.x+4,c.y+3},2,ink);DrawLineEx((Vector2){c.x+4,c.y+3},(Vector2){c.x+10,c.y-5},2,ink);DrawCircle(c.x+6,c.y-9,2.5f,ink);break;
     }
 }
+static RenderTexture2D iconAtlasTarget;
+static void InitIconAtlas(void){iconAtlasTarget=LoadRenderTexture(40*3*(UI_RIGHT+1),40*3*2);BeginTextureMode(iconAtlasTarget);ClearBackground(BLANK);rlPushMatrix();rlScalef(3,3,1);for(int row=0;row<2;row++)for(int n=0;n<=UI_RIGHT;n++)IconRaw(n,(Vector2){n*40+20,row*40+20},WHITE,row);rlPopMatrix();EndTextureMode();iconAtlas=iconAtlasTarget.texture;GenTextureMipmaps(&iconAtlas);SetTextureFilter(iconAtlas,TEXTURE_FILTER_TRILINEAR);}
+static void Icon(UiIcon icon,Vector2 c,Color ink,bool fill){if(!iconAtlas.id){IconRaw(icon,c,ink,fill);return;}DrawTexturePro(iconAtlas,(Rectangle){icon*120,fill?0:120,120,-120},(Rectangle){c.x-20,c.y-20,40,40},(Vector2){0},0,ink);}
 static bool GlyphButton(Rectangle r,UiIcon icon,bool active,bool enabled,const char* label){
     bool hot=Hot(r,enabled);bool star=icon==UI_STAR;
     Color bg=star?(Color){31,35,41,255}:hot?controlHover:control;if(icon==UI_KEY&&active&&recordingKey)bg=(Color){26,89,55,255};
@@ -128,7 +135,7 @@ static bool GlyphButton(Rectangle r,UiIcon icon,bool active,bool enabled,const c
     if(!enabled)ink=Fade(ink,0.35f);
     Vector2 center={r.x+(label&&*label?23:r.width/2),r.y+r.height/2};
     int index=iconIndex>=0?iconIndex:selected_index;
-    if(star&&index>=0){float p=starPulse[index];StarIcon(center,10+3*sinf(p*PI),ink,active);if(p>0)DrawCircleLines(center.x,center.y,12+(1-p)*8,Fade(ink,p*0.4f));}
+    if(star&&index>=0){float p=starPulse[index];if(p<=0)Icon(UI_STAR,center,ink,active);else StarIcon(center,10+3*sinf(p*PI),ink,active);if(p>0)DrawCircleLines(center.x,center.y,12+(1-p)*8,Fade(ink,p*0.4f));}
     else Icon(icon,center,ink,active);
     if(label&&*label)ButtonText(label,r.x+44,r.y+(r.height-15)/2-1,enabled?(star?WHITE:AppTheme.text):Fade(star?WHITE:AppTheme.text,0.35f));
     if(active&&!star)DrawRectangleRoundedLinesEx(r,0.24f,12,1.2f,Fade(AppTheme.border,0.8f));
@@ -260,6 +267,9 @@ static void SettingsBody(Rectangle area){
     }else if(settingsTab==7){
         UiText("Caelestia",x,y,20,AppTheme.text);y+=34;
         int current=lab_option("caelestia_enabled"),value=BoolChoice(73,x,&y,w,lab_tr("Colori dal wallpaper"),current);if(current!=value)lab_set_option("caelestia_enabled",value);
+        const char* palettes[]={lab_tr("Vivace"),lab_tr("Toni morbidi"),lab_tr("Espressiva"),lab_tr("Fedele al wallpaper")};int palette=lab_option("caelestia_palette"),next=Choice(78,x,&y,w,lab_tr("Palette dinamica"),palettes,4,palette);if(next!=palette)lab_set_option("caelestia_palette",next);
+        const char* modes[]={lab_tr("Automatica"),lab_tr("Scura"),lab_tr("Chiara")};int mode=lab_option("caelestia_mode");next=Choice(79,x,&y,w,lab_tr("Luminosità della palette"),modes,3,mode);if(next!=mode)lab_set_option("caelestia_mode",next);
+        y+=TextLines(lab_tr("L’attivazione prepara solo i componenti colore opzionali. La shell Caelestia resta separata."),x,y,w,12,4,muted)+14;
         y+=TextLines(lab_tr("Aggiorna barre e widget di Caelestia dai colori dell’anteprima. Non cambia le altre applicazioni."),x,y,w,13,4,muted)+18;
         y+=TextLines(lab_caelestia_available()?lab_caelestia_status():lab_tr("Caelestia non rilevato"),x,y,w,12,4,muted)+14;
     }else{
@@ -280,7 +290,6 @@ static void FilterRow(int x,int y,const char* title,const char** labels,int coun
     }
 }
 static int ActiveResolutionCodes(int* codes){int n=0;for(int i=1;i<64;i++)if(selectedResolutions[i])codes[n++]=i;return n;}
-static void PageSizeControl(int x,int* y,int w){const char* options[]={"50","100","200"};int size=lab_option("page_size");int at=size==50?0:size==200?2:1;int value=Choice(57,x,y,w,lab_tr("Risultati per pagina"),options,3,at);if(value!=at)lab_set_option("page_size",value==0?50:value==1?100:200);}
 static void FiltersPanel(Rectangle area){
  DrawRectangleRec(area,surface);Rectangle old=inputClip;inputClip=area;if(Hot(area,true))filterScroll=fmaxf(0,filterScroll-ScrollInput(area)*48);filterScrollDraw=SmoothScroll(filterScrollDraw,filterScroll);BeginScissorMode(area.x,area.y,area.width,area.height);int x=area.x+16,y=area.y+18-filterScrollDraw,w=area.width-32;
  UiText(lab_tr("Filtri"),x,y,20,AppTheme.text);y+=36;
@@ -288,11 +297,18 @@ static void FiltersPanel(Rectangle area){
  const char* logic[]={lab_tr("Tutti i criteri (AND)"),lab_tr("Almeno un criterio (OR)")};int at=lab_option("filter_any"),next=Choice(54,x,&y,w,"AND / OR",logic,2,at);if(next!=at)lab_set_option("filter_any",next);
  const char* sources[]={lab_tr("Tutti"),"Steam",lab_tr("Locale")};filterSource=Choice(58,x,&y,w,lab_tr("Origine"),sources,3,filterSource);
  const char* types[]={lab_tr("Tutti"),lab_tr("Scene"),lab_tr("Video"),lab_tr("Web"),lab_tr("Preset"),lab_tr("Immagine")};filterType=Choice(51,x,&y,w,lab_tr("Tipo di sfondo"),types,6,filterType);
- const char* audio[]={lab_tr("Tutti"),lab_tr("Reattivi"),lab_tr("Non reattivi"),lab_tr("Da verificare")};filterAudio=Choice(52,x,&y,w,lab_tr("Audio"),audio,4,filterAudio);PageSizeControl(x,&y,w);y+=14;
+ const char* audio[]={lab_tr("Tutti"),lab_tr("Reattivi"),lab_tr("Non reattivi"),lab_tr("Da verificare")};filterAudio=Choice(52,x,&y,w,lab_tr("Audio"),audio,4,filterAudio);y+=14;
  UiText(lab_tr("Risoluzioni"),x,y,18,AppTheme.text);y+=30;
  const char* labels[64];int codes[64],groups[64],count=0;bool selected[64];for(int n=0;n<lab_resolution_count();n++){int code=lab_resolution_code(n);if(code>0&&code<64){codes[count]=code;groups[count]=lab_resolution_group(n);labels[count]=lab_resolution_label(n);selected[count]=selectedResolutions[code];count++;}}
  ResolutionPicker(x,&y,w,labels,groups,selected,count,wholeResGroups);for(int n=0;n<count;n++)selectedResolutions[codes[n]]=selected[n];float total=y+filterScrollDraw-area.y+20;filterScroll=Clamp(filterScroll,0,fmaxf(0,total-area.height));EndScissorMode();inputClip=old;
  if(total>area.height){float h=fmaxf(20,area.height*area.height/total);DrawRectangle(area.x+area.width-4,area.y+filterScrollDraw/(total-area.height)*(area.height-h),3,h,muted);}
+}
+static int PageFooter(Rectangle area,int current,int pages,bool busy){
+ int y=area.y+area.height-40;Rectangle left={area.x+12,y,32,32},right={area.x+area.width-44,y,32,32};int change=0;
+ if(GlyphButton(left,UI_LEFT,false,!busy&&current>1,""))change=-1;if(GlyphButton(right,UI_RIGHT,false,!busy&&current<pages,""))change=1;
+ int per=lab_option("page_size"),at=per==50?0:per==200?2:1;char labels[3][80];const char* options[3];for(int n=0;n<3;n++){snprintf(labels[n],80,area.width<420?"%d":"%d %s",n==0?50:n==1?100:200,lab_tr("per pagina"));options[n]=labels[n];}
+ int cy=y;int fw=area.width<420?114:234,cx=area.x+area.width-52-fw;int v=Choice(57,cx,&cy,fw,"",options,3,at);if(v!=at){lab_set_option("page_size",v==0?50:v==1?100:200);change=2;}
+ const char* label=area.width<470?TextFormat("%d / %d",current,pages):TextFormat(lab_tr("Pagina %d di %d"),current,pages);UiText(label,area.x+54,y+9,13,muted);return change;
 }
 static float CompactGlyphWidth(const char* label){return MeasureTextEx(buttonFont,label,15,0).x+54;}
 static float ShortcutInline(float x,float y,float available){
@@ -335,7 +351,7 @@ static void Header(int sw,int top,int count){
         headerFilter=filter;headerMoon=moon;headerRefresh=refresh;headerDisplay=display;
         if(GlyphButton(filter,UI_FILTER,filtersOpen,!scanning,"")){filtersOpen=!filtersOpen;g_scroll.y=g_smoothScrollY=0;}
         headerMoon=(Rectangle){0};
-        if(GlyphButton(display,UI_DISPLAY,displayPopup,!applying&&!scanning,"")){displayPopup=true;choiceOpen=-1;displayPopupScroll=displayPopupScrollDraw=0;displayDragging=-1;SetRecording(false);}
+        if(GlyphButton(display,UI_DISPLAY,displayPopup,!applying&&!scanning,"")){displayPopup=true;displaySelected=lab_screen();choiceOpen=-1;displayPopupScroll=displayPopupScrollDraw=0;displayDragging=-1;SetRecording(false);}
         if(GlyphButton(refresh,UI_REFRESH,scanning||(page==3&&lab_ws_number(-1,"busy")),!applying&&!scanning&&!(page==3&&lab_ws_number(-1,"busy")),"")){if(page==3)WorkshopSearch(wsPage);else StartLibraryScan();}
         if(page==3){wsSearchButton=(Rectangle){search.x+search.width-81,94,74,36};if(Button(wsSearchButton,lab_tr("Cerca"),false,!lab_ws_number(-1,"busy")))WorkshopSearch(1);}
         if(page==1)SwitcherBar(sw);
@@ -384,7 +400,7 @@ static void Grid(Rectangle area,int count,int* indices,float dt){
         iconIndex=-1;
         // All downloaded projects expose the same recoverable delete action.
         bool trashClick=GlyphButton(trash,UI_TRASH,false,!applying,"");
-        if(lab_current()==i){ThemePanel((Rectangle){r.x+8,r.y+r.height-30,75,22},0.24f,8,(Color){22,31,28,255});UiText(lab_tr("ATTIVO"),r.x+19,r.y+r.height-25,12,(Color){169,228,205,255});}
+        if(lab_current()==i){Vector2 dot={r.x+14,r.y+r.height-14};DrawCircleV(dot,6.5f,Fade(BLACK,.65f));DrawCircleV(dot,3.8f,WHITE);}
         if(favoriteClick)ToggleStar(i);
         else if(trashClick){RequestDelete(i);isSearching=false;}
         else if(hot&&!CheckCollisionPointRec(GetMousePosition(),fav)&&!CheckCollisionPointRec(GetMousePosition(),trash)){
@@ -440,8 +456,8 @@ static void Inspector(Rectangle area){
     if(lab_supported_count(i)>1)y+=TextLines(TextFormat(lab_tr("Risoluzioni dichiarate: %s"),lab_supported_resolutions(i)),x,y,w,13,3,muted)+10;
     const char* source=!strcmp(lab_origin(i),"local")?lab_tr("Locale"):"Steam";UiText(source,x,y,12,AppTheme.border);y+=28;
     if(InspectorSection(0,x,&y,w,lab_tr("Display di destinazione"))){
-        const char* monitors[32];int count=fminf(32,lab_monitor_count());for(int n=0;n<count;n++)monitors[n]=lab_monitor(n);int at=lab_screen();choiceEnabled=lab_mode()==2&&count>0;int next=Choice(69,x,&y,w,lab_tr("Monitor"),monitors,count,at);choiceEnabled=true;if(next!=at&&lab_set_screen(next)&&!uiSmoke)applying=lab_select(i);
-        if(lab_mode()!=2)y+=TextLines(lab_mode()==0?lab_tr("Tutti i display · Panoramico"):lab_tr("Tutti i display · Duplicato"),x,y,w,12,2,muted)+10;
+        if(lab_mode()==2&&lab_monitor_count())TextLines(lab_monitor(lab_screen()),x,y,w,13,2,muted);else TextLines(lab_mode()==0?lab_tr("Tutti i display · Panoramico"):lab_tr("Tutti i display · Duplicato"),x,y,w,12,2,muted);y+=28;
+        int next;
         int variant=lab_variant_selected(i),variants=fminf(94,lab_variant_count(i));const char* options[96];options[0]=lab_tr("Originale / automatica");for(int v=0;v<variants;v++)options[v+1]=lab_variant_label(i,v);choiceEnabled=variants>0;next=Choice(70,x,&y,w,lab_tr("Risoluzione dello sfondo"),options,variants+1,variant+1);choiceEnabled=true;if(next!=variant+1&&lab_variant_set(i,next-1)&&!uiSmoke)applying=lab_start(i,0);y+=10;
     }
     if(InspectorSection(1,x,&y,w,lab_tr("Immagine e ritaglio"))){y+=ImageControls(i,x,y,w);y+=PlacementControls(i,x,y,w)+12;}
@@ -542,6 +558,8 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"themes\":");GeometryCenters(f,themeChoices,16);fprintf(f,",\"languages\":");GeometryCenters(f,languageChoices,lab_language_count());fprintf(f,",\"density\":");GeometryCenters(f,densityChoices,3);
     fprintf(f,",\"zoom_track\":[%.1f,%.1f,%.1f],\"creator_reset\":[%.1f,%.1f],\"color_swatch\":[%.1f,%.1f],\"color_box\":[%.1f,%.1f,%.1f,%.1f]",zoomTrack.x,zoomTrack.y,zoomTrack.width,creatorReset.x+creatorReset.width/2,creatorReset.y+creatorReset.height/2,creatorColorSwatch.x+creatorColorSwatch.width/2,creatorColorSwatch.y+creatorColorSwatch.height/2,creatorColorBox.x,creatorColorBox.y,creatorColorBox.width,creatorColorBox.height);
     fprintf(f,",\"color_hue\":[%.1f,%.1f,%.1f,%.1f]",creatorHue.x,creatorHue.y,creatorHue.width,creatorHue.height);
+    fprintf(f,",\"display_cards\":");GeometryCenters(f,displayCards,lab_monitor_count());fprintf(f,",\"display_selected\":%d,\"screen\":%d,\"animation_controls\":",displaySelected,lab_screen());Rectangle animations[]={switcherEye,transitionEye,switcherCustomize,transitionCustomize};GeometryCenters(f,animations,4);
+    fprintf(f,",\"number_tracks\":{");bool firstNumber=true;for(int id=0;id<160;id++)if(numberTracks[id].width){Rectangle r=numberTracks[id];fprintf(f,"%s\"%d\":[%.1f,%.1f,%.1f]",firstNumber?"":",",id,r.x,r.y,r.width);firstNumber=false;}fprintf(f,"}");
     fprintf(f,",\"display_save\":[%.1f,%.1f]",displaySaveButton.x+displaySaveButton.width/2,displaySaveButton.y+displaySaveButton.height/2);
     fprintf(f,",\"display_control\":[%.1f,%.1f]",headerDisplay.x+headerDisplay.width/2,headerDisplay.y+headerDisplay.height/2);
     fprintf(f,",\"language_control\":[%.1f,%.1f]",languageControl.x+languageControl.width/2,languageControl.y+languageControl.height/2);
@@ -583,7 +601,7 @@ int selector_main(int argc,char**argv){
     LoadDefaultConfig();ParseConfigFile();g_base_thumb_size=420;g_max_threads=4;g_max_fps=90;
     SetTraceLogLevel(LOG_WARNING);LoadWallpapers(NULL);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE|FLAG_MSAA_4X_HINT|FLAG_WINDOW_TRANSPARENT);InitWindow(1440,900,"Wallpaper Lab");SetWindowMinSize(1000,720);SetExitKey(KEY_NULL);SetTargetFPS(g_max_fps);
-    ReloadUiFonts();InitBackdrop();
+    ReloadUiFonts();InitBackdrop();InitIconAtlas();
     selected_index=lab_current();detailOpen=false;
     if(argc>1&&!strcmp(argv[1],"--display-settings")){settingsOpen=true;settingsTab=0;}
     if(argc>1&&!strcmp(argv[1],"--appearance-settings")){settingsOpen=true;settingsTab=3;}
@@ -601,7 +619,7 @@ int selector_main(int argc,char**argv){
         WorkshopTick();if(!scanning&&!applying&&lab_ws_installed())StartLibraryScan();
         if(scanning){int ready=lab_rescan_ready();if(ready){scanning=false;if(ready>0)CommitLibraryScan(loaders);}}
         ApplyTheme();int sw=GetScreenWidth(),sh=GetScreenHeight();float dt=fminf(GetFrameTime(),0.05f);SetMouseCursor(MOUSE_CURSOR_DEFAULT);
-        inputClip=(Rectangle){0,0,sw,sh};switcherPreviewBlocks=lab_switcher_preview_active();inputBlocked=transitionPreview||switcherPreviewBlocks||lab_files_busy()||displayPopup||settingsOpen||deleteIndex>=0||scanning;
+        inputClip=(Rectangle){0,0,sw,sh};switcherPreviewBlocks=lab_switcher_preview_active();inputBlocked=transitionPreview||switcherPreview||animationCustomize||switcherPreviewBlocks||lab_files_busy()||displayPopup||settingsOpen||deleteIndex>=0||scanning;
         for(int i=0;i<wallpaper_count;i++)starPulse[i]=fmaxf(0,starPulse[i]-dt*2.8f);
         int completed=lab_poll();
         if(completed==1&&smokeApplyStarted)smokeApplySucceeded=true;
@@ -615,7 +633,7 @@ int selector_main(int argc,char**argv){
         refreshClock+=dt;if(refreshClock>1&&!applying){lab_refresh();refreshClock=0;}
         bool escape=IsKeyPressed(KEY_ESCAPE);
         if(lab_switcher_preview_active()&&(escape||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){lab_cancel_switcher_preview();escape=false;}
-        if(escape&&transitionPreview){transitionPreview=false;escape=false;}
+        if(escape&&(transitionPreview||switcherPreview||animationCustomize)){if(choiceOpen>=0)choiceOpen=-1;else{transitionPreview=switcherPreview=false;animationCustomize=0;}escape=false;}
         if(escape){if(choiceOpen>=0)choiceOpen=-1;else if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}
         if(recordingKey)RecordShortcut();
         else if(!inputBlocked&&(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))&&IsKeyPressed(KEY_L)){FocusSearch(true);creatorEdit=-1;wsAuthorEditing=false;}
@@ -657,14 +675,14 @@ int selector_main(int argc,char**argv){
         if(page==2)SettingsBody((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});
         else{
             if(page==3){if(filtersOpen)WorkshopFilters((Rectangle){0,top,filterWidth,sh-top-statusHeight});WorkshopGrid(content);if(detailWidth>1)WorkshopInspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
-            else{if(filtersOpen)FiltersPanel((Rectangle){0,top,filterWidth,sh-top-statusHeight});Grid((Rectangle){content.x,content.y,content.width,content.height-(page==0?48:0)},count,indices,dt);if(page==0){int per=lab_option("page_size");if(!per)per=100;int pages=fmaxf(1,ceilf(libraryTotal/(float)per));float y=content.y+content.height-40,nav=content.width<380?34:96;if(Button((Rectangle){content.x+16,y,nav,32},content.width<380?"‹":lab_tr("Indietro"),false,libraryPage>1)){libraryPage--;g_scroll.y=g_smoothScrollY=0;}if(Button((Rectangle){content.x+content.width-16-nav,y,nav,32},content.width<380?"›":lab_tr("Avanti"),false,libraryPage<pages)){libraryPage++;g_scroll.y=g_smoothScrollY=0;}const char* label=TextFormat(lab_tr("Pagina %d di %d"),libraryPage,pages);UiText(label,content.x+(content.width-UiMeasure(label,14))/2,y+8,14,muted);}if(detailWidth>1)Inspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
+            else{if(filtersOpen)FiltersPanel((Rectangle){0,top,filterWidth,sh-top-statusHeight});Grid((Rectangle){content.x,content.y,content.width,content.height-(page==0?48:0)},count,indices,dt);if(page==0){int per=lab_option("page_size");if(!per)per=100;int pages=fmaxf(1,ceilf(libraryTotal/(float)per));int move=PageFooter(content,libraryPage,pages,false);if(move){libraryPage=move==2?1:libraryPage+move;g_scroll.y=g_smoothScrollY=0;}}if(detailWidth>1)Inspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
         }
         if(filterWidth>1)ThemePanel((Rectangle){filterWidth-2,top+(sh-top-statusHeight)/2-24,4,48},1,8,filterResizing?AppTheme.border:muted);
         if(detailWidth>1){float dx=sw-detailWidth;ThemePanel((Rectangle){dx-2,top+(sh-top-statusHeight)/2-24,4,48},1,8,detailResizing?AppTheme.border:muted);}
-        Header(sw,top,count);StatusBar(sw,sh);ThemeWindowTrim(sw,sh);Modals(sw,sh);ChoiceOverlay();TransitionPreview();EndBlendMode();if(uiCanvasActive){EndTextureMode();ClearBackground(BLANK);BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);DrawTexturePro(uiCanvas.texture,(Rectangle){0,0,sw,-sh},(Rectangle){0,0,sw,sh},(Vector2){0},0,WHITE);EndBlendMode();}EndDrawing();
+        Header(sw,top,count);StatusBar(sw,sh);ThemeWindowTrim(sw,sh);Modals(sw,sh);TransitionPreview();SwitcherPreview();AnimationCustomization();ChoiceOverlay();EndBlendMode();if(uiCanvasActive){EndTextureMode();ClearBackground(BLANK);BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);DrawTexturePro(uiCanvas.texture,(Rectangle){0,0,sw,-sh},(Rectangle){0,0,sw,sh},(Vector2){0},0,WHITE);EndBlendMode();}EndDrawing();
         // Opt-in state evidence for isolated desktop interaction tests.
         stateClock+=dt;const char* stateOutput=getenv("WALLPAPER_LAB_UI_STATE");
-        if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"transition_preview\":%s,\"transparency\":%d,",transitionPreview?"true":"false",lab_option("window_transparency"));fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"theme\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
+        if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"transition_preview\":%s,\"switcher_preview\":%s,\"customize\":%d,\"transparency\":%d,",transitionPreview?"true":"false",switcherPreview?"true":"false",animationCustomize,lab_option("window_transparency"));fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"theme\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
             for(int n=0;n<6;n++)fprintf(geometry,"%s\"%d\":[%.1f,%.1f]",n?",":"",n,resolutionHeaders[n].x+resolutionHeaders[n].width/2,resolutionHeaders[n].y+18);
             fprintf(geometry,"},\"resolutions\":{");bool comma=false;
             for(int n=0;n<64;n++)if(resolutionRows[n].width>0){fprintf(geometry,"%s\"%d\":[%.1f,%.1f]",comma?",":"",n,resolutionRows[n].x+resolutionRows[n].width/2,resolutionRows[n].y+25);comma=true;}
@@ -693,5 +711,5 @@ int selector_main(int argc,char**argv){
     WorkshopCleanup();if(uiCanvas.id)UnloadRenderTexture(uiCanvas);if(transitionCanvas.id)UnloadRenderTexture(transitionCanvas);if(transitionShader.id)UnloadShader(transitionShader);for(int n=0;n<1024;n++){if(shapedCache[n].texture.id)UnloadTexture(shapedCache[n].texture);free(shapedCache[n].text);}if(backdropShader.id)UnloadShader(backdropShader);if(liveTexture.id)UnloadTexture(liveTexture);lab_shutdown();atomic_store(&loader_running,false);for(int n=0;n<4;n++)pthread_join(loaders[n],NULL);
     for(int i=0;i<wallpaper_count;i++){if(atomic_load(&wallpapers[i].loaded))UnloadTexture(wallpapers[i].texture);if(atomic_load(&imagePending[i]))UnloadImage(pendingImages[i]);free(wallpapers[i].path);free(wallpapers[i].filename);}
     for(int i=0;i<96;i++)if(fontPreview[i].texture.id&&fontPreview[i].texture.id!=GetFontDefault().texture.id)UnloadFont(fontPreview[i]);
-    if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;
+    if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);if(iconAtlasTarget.id)UnloadRenderTexture(iconAtlasTarget);CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;
 }

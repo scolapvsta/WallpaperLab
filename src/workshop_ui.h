@@ -65,7 +65,7 @@ static void WorkshopFilters(Rectangle area){
  if(Button((Rectangle){x,y,w,34},lab_tr("Azzera filtri"),true,true)){memset(wsTagSelected,0,sizeof(wsTagSelected));wsAuthor[0]=0;searchBuffer[0]=0;searchBufferCount=0;memset(wsWholeGroups,0,sizeof(wsWholeGroups));wsSort=0;wsAny=false;wsFiltersDirty=true;}y+=48;
  const int starts[]={0,4,10,24,40,43},ids[]={61,62,63,55,56};const char* groupNames[]={lab_tr("Tipo di sfondo"),lab_tr("Caratteristiche"),lab_tr("Genere"),lab_tr("Risoluzioni"),lab_tr("Classificazione dei contenuti")};
  for(int group=0;group<5;group++){if(group==3)continue;bool selected[64],before[64];const char* labels[64];char resolutionLabels[64][128];int count=starts[group+1]-starts[group];for(int n=0;n<count;n++){int index=starts[group]+n;selected[n]=before[n]=wsTagSelected[index];labels[n]=wsTags[index];if(group==3){const char* digit=wsTags[index];while(*digit&&(*digit<'0'||*digit>'9'))digit++;snprintf(resolutionLabels[n],128,"%s",digit);labels[n]=resolutionLabels[n];}}MultiChoice(ids[group],x,&y,w,groupNames[group],labels,count,selected);for(int n=0;n<count;n++){if(selected[n]!=before[n])wsFiltersDirty=true;wsTagSelected[starts[group]+n]=selected[n];}}
- int oldSize=lab_option("page_size");PageSizeControl(x,&y,w);if(oldSize!=lab_option("page_size"))wsFiltersDirty=true;y+=12;UiText(lab_tr("Risoluzioni"),x,y,18,AppTheme.text);y+=30;
+ y+=12;UiText(lab_tr("Risoluzioni"),x,y,18,AppTheme.text);y+=30;
  bool selected[16],before[16];const char* labels[16];int groups[16];for(int n=0;n<16;n++){selected[n]=before[n]=wsTagSelected[24+n];const char* t=wsTags[24+n];groups[n]=!strncmp(t,"Dual",4)?1:!strncmp(t,"Ultrawide",9)?2:!strncmp(t,"Triple",6)?3:!strncmp(t,"Portrait",8)?4:0;while(*t&&(*t<'0'||*t>'9'))t++;labels[n]=t;}ResolutionPicker(x,&y,w,labels,groups,selected,16,wsWholeGroups);for(int n=0;n<16;n++){if(selected[n]!=before[n])wsFiltersDirty=true;wsTagSelected[n+24]=selected[n];}
  float total=y+wsFilterDraw-area.y+24;wsFilterScroll=Clamp(wsFilterScroll,0,fmaxf(0,total-area.height));EndScissorMode();inputClip=saved;
  if(total>area.height){float h=area.height*area.height/total;DrawRectangle(area.x+area.width-4,area.y+wsFilterDraw/(total-area.height)*(area.height-h),3,h,muted);}
@@ -92,10 +92,7 @@ static void WorkshopGrid(Rectangle area){
   if(hot&&!CheckCollisionPointRec(GetMousePosition(),download)&&CheckCollisionPointRec(GetMousePosition(),viewport)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){wsSelected=i;wsDetailScroll=wsDetailDraw=0;isSearching=wsAuthorEditing=false;}
  }
  EndScissorMode();
- int py=area.y+area.height-42;float nav=area.width<380?34:96;wsPrevButton=(Rectangle){area.x+16,py,nav,32};wsNextButton=(Rectangle){area.x+area.width-16-nav,py,nav,32};
- if(Button(wsPrevButton,area.width<380?"‹":lab_tr("Indietro"),false,!busy&&wsPage>1))WorkshopSearch(wsPage-1);
- if(Button(wsNextButton,area.width<380?"›":lab_tr("Avanti"),false,!busy&&wsPage*(lab_option("page_size")?lab_option("page_size"):100)<lab_ws_number(-1,"total")))WorkshopSearch(wsPage+1);
- const char* summary=TextFormat(lab_tr("Pagina %d di %.0f"),wsPage,ceil(lab_ws_number(-1,"total")/(lab_option("page_size")?lab_option("page_size"):100)));UiText(summary,area.x+(area.width-UiMeasure(summary,14))/2,py+9,14,muted);inputClip=saved;
+ int pages=fmaxf(1,ceil(lab_ws_number(-1,"total")/(lab_option("page_size")?lab_option("page_size"):100)));int move=PageFooter(area,wsPage,pages,busy);if(move)WorkshopSearch(move==2?1:wsPage+move);inputClip=saved;
 }
 static void WorkshopInspector(Rectangle area){
  if(wsSelected<0||wsSelected>=lab_ws_count()||area.width<120)return;int i=wsSelected;DrawRectangleRec(area,surface);DrawLine(area.x,area.y,area.x,area.y+area.height,lineColor);Rectangle saved=inputClip;Rectangle viewport={area.x+16,area.y+16,area.width-32,area.height-92};inputClip=viewport;

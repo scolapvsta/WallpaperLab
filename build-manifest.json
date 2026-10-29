@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "date": "2026-10-29",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -20,11 +20,12 @@
     "patches/engine-web-compatibility.patch": "a545834b12eb7fafa2544fd39c6ac0b085d4f6ebaa0cc95f72cd1577a5cc32b8",
     "patches/engine-sound-controls.patch": "4037748670cde367828ae95991ae91bf8d5ae30d8242d68535a05d70e4574c61",
     "patches/engine-transitions-media-text.patch": "60c857ba7c76aba60b64f6bd20da95019f8e25e5eeb70b53edf29e42df3a2461",
-    "patches/engine-stable-transitions-image-controls.patch": "8e30b95ca1219e51dfb15df534510b7a65744aca289ea27b614710e0233b7472"
+    "patches/engine-stable-transitions-image-controls.patch": "8e30b95ca1219e51dfb15df534510b7a65744aca289ea27b614710e0233b7472",
+    "patches/engine-custom-animation-image-transform.patch": "9de1189154abc10be7c0c5cfc4661de89db559673390bcf7964b802b81af790f"
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",
   "workshop": "Native Steam UGC020 via locally installed libsteam_api.so; HTTPS static preview cache via libcurl",
   "local_media": "Managed image/web and native video imports; ffprobe metadata and ffmpeg thumbnails; configurable local and Steam scan roots",
-  "caelestia": "Optional installed CLI palette generation; shell scheme.json only; disabled by default"
+  "caelestia": "Optional on-demand Material You helper; rendered frame preferred, thumbnail fallback; chromatic shell palettes and conditional restore"
 }

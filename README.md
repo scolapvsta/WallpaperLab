@@ -10,7 +10,7 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Versione attuale: 0.15
+## Versione attuale: 0.16
 
 La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
 versionate successive conservano anche la storia delle implementazioni.
@@ -20,8 +20,8 @@ versionate successive conservano anche la storia delle implementazioni.
   bianca gestisce i preferiti, il cestino richiede conferma; eliminando l'attivo
   viene applicato il primo preferito disponibile o, in assenza, il primo della libreria.
 - **Monitor**: panorama, duplicato o singolo. In singolo ogni uscita mantiene il
-  proprio wallpaper. La mappa Display gestisce disposizione e scala; il campo
-  Monitor nell'inspector applica lo sfondo a un'altra uscita solo in modalità singola.
+  proprio wallpaper. La mappa Display gestisce disposizione e scala; il monitor
+  evidenziato nella mappa resta il target in modalità singola, anche dopo la chiusura.
 - **Inspector**: sezioni richiudibili per destinazione, immagine/ritaglio,
   riproduzione e proprietà del creator. Zoom, posizione, risoluzione e regolazioni
   sono salvati per progetto, con aggiornamento live dove supportato.
@@ -36,7 +36,7 @@ versionate successive conservano anche la storia delle implementazioni.
   della UI va da 0% opaco a 30%, senza sbiadire immagini o scene live. Font e peso
   restano personalizzabili, con fallback Unicode e 22 lingue.
 - **Caelestia**: integrazione facoltativa e inizialmente spenta. Genera i colori
-  di barre e widget dalla miniatura dello sfondo applicato, senza cambiare altre
+  di barre e widget dal frame renderizzato (miniatura come ripiego), senza cambiare altre
   applicazioni. Disattivandola ripristina la palette precedente se ancora gestita
   dall'app; rispetta eventuali modifiche manuali. Vedi limiti e dettagli nella guida.
 
@@ -46,8 +46,8 @@ solo come punto di partenza temporaneo, senza aggiungerlo ai preferiti.
 Confermare il corrente non produce transizioni. Le anteprime di switcher e
 transizioni si chiudono con Esc o clic esterno.
 
-I quattro layout restano disponibili. **Griglia** accosta le celle al bordo del
-mosaico e anima il contorno senza ingrandire le immagini all'esterno. **Fiume** e
+I quattro layout restano disponibili. **Griglia** torna a ingrandire la selezione sopra il mosaico e permette
+hover/clic con il mouse. Il pallino bianco indica il wallpaper in uso. **Fiume** e
 **Verticale** mantengono lo scorrimento continuo e lo zoom con spazio trasparente
 attorno al gruppo; **Onda** conserva il movimento e gli angoli morbidi. Le liste
 lunghe vengono paginate in base alle dimensioni del monitor. Il popup usa le
@@ -678,3 +678,28 @@ La [guida](docs/USER_GUIDE.md) descrive impostazioni e precedenze; i
 Prove native di selezione, ordine, doppio monitor, trasparenza e importazione;
 verifica reale della CLI Caelestia in XDG isolato, più test contrattuali di
 annullamento e ripristino. Dettagli e limiti in [tests/RESULTS.md](tests/RESULTS.md).
+
+
+## Versione 0.16 — animazioni e manipolazioni personalizzabili
+
+- Zoom ripristinato in Griglia; pallino bianco uniforme nei quattro layout.
+  Hover/clic nella griglia e conferma col mouse anche nelle strisce, senza far
+  scorrere una card sotto il puntatore al solo passaggio.
+- Anteprima switcher dentro un popup dell'app, con X/Esc/clic esterno, come la
+  transizione. Bacchetta dedicata per dimensioni, zoom, fade, movimento e Onda;
+  durata/curva/direzione/intensità per le transizioni pertinenti.
+- Icone rasterizzate a 3× e filtrate con mipmap; testo UI Pango/Cairo anche ASCII,
+  con antialiasing e hinting leggero. Fotografie e live preview restano opache.
+- Target scelto evidenziando il monitor nella mappa; rimosso il secondo selettore
+  dall'inspector. Dimensione pagina nel footer con pagina/totale e frecce, anche Workshop.
+- Temperatura, tonalità, gamma, vignettatura, rotazione e specchio aggiunti ai
+  profili immagine, aggiornati live senza riavviare il renderer.
+- Caelestia: preset Material You cromatici indipendenti dalla variante corrente,
+  fotogramma renderizzato con fallback all'anteprima e ripristino condizionale.
+  Componenti Python opzionali preparati solo all'attivazione, in venv privato se
+  necessari. Nessuna installazione automatica del desktop Caelestia o di servizi.
+
+**Piattaforme:** Linux x86_64, verificato su Arch/Hyprland. Ubuntu e altri desktop
+Linux ancora da validare; Windows/macOS non supportati dalla build corrente.
+Il normale installer include tutte le funzioni native e il helper opzionale;
+non scarica le dipendenze Caelestia finché la funzione non viene abilitata.

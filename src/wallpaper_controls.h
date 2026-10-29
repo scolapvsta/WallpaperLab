@@ -1,14 +1,13 @@
 // Local preferences are independent of the global playback switches.
-static int adjustmentItem=-1;static float adjustmentDraft[3]={0,1,1};
+static int adjustmentItem=-1;static float adjustmentDraft[8];
 static int ImageControls(int i,int x,int y,int w){
- int start=y;const char* imageKeys[]={"brightness","contrast","saturation"};const char* imageNames[]={"Luminosità","Contrasto","Saturazione"};
- for(int n=0;n<3;n++){
-  if(adjustmentItem!=i||uiSliderDrag!=n+1)adjustmentDraft[n]=lab_adjust(i,imageKeys[n]);
-  bool commit=ValueSlider(n+1,x,&y,w,lab_tr(imageNames[n]),&adjustmentDraft[n],n==0?-1:0,n==0?1:2,n==0);
-  static double lastSent[3];if(commit||(uiSliderDrag==n+1&&GetTime()-lastSent[n]>.033)){lab_adjust_set(i,imageKeys[n],adjustmentDraft[n],commit);lastSent[n]=GetTime();}
+ int start=y;const char* keys[]={"brightness","contrast","saturation","temperature","hue","gamma","vignette","rotation"};const char* names[]={"Luminosità","Contrasto","Saturazione","Temperatura","Tonalità","Gamma","Vignettatura","Rotazione"};float lo[]={-1,0,0,-1,-180,.25,0,-180},hi[]={1,2,2,1,180,3,1,180};
+ for(int n=0;n<8;n++){int id=n<3?n+1:n+117;if(adjustmentItem!=i||uiSliderDrag!=id)adjustmentDraft[n]=lab_adjust(i,keys[n]);bool commit;
+ if(n<3)commit=ValueSlider(id,x,&y,w,lab_tr(names[n]),&adjustmentDraft[n],lo[n],hi[n],n==0);else{float display=adjustmentDraft[n]*(n==3||n==6?100:1);commit=NumberSlider(id,x,&y,w,lab_tr(names[n]),&display,lo[n]*(n==3||n==6?100:1),hi[n]*(n==3||n==6?100:1),n==4||n==7?"°":n==3||n==6?"%":"×");adjustmentDraft[n]=display/(n==3||n==6?100:1);}
+ static double lastSent[8];if(commit||(uiSliderDrag==id&&GetTime()-lastSent[n]>.033)){lab_adjust_set(i,keys[n],adjustmentDraft[n],commit);lastSent[n]=GetTime();}
  }
- adjustmentItem=i;
- if(Button((Rectangle){x,y,w,30},lab_tr("Ripristina immagine"),false,true)){uiSliderDrag=-1;for(int n=0;n<3;n++)lab_adjust_set(i,imageKeys[n],n==0?0:1,1);}y+=44;
+ adjustmentItem=i;const char* flipKeys[]={"flip_x","flip_y"},*flipNames[]={"Specchia orizzontalmente","Specchia verticalmente"};for(int n=0;n<2;n++){int at=lab_adjust(i,flipKeys[n])>.5f,v=BoolChoice(81+n,x,&y,w,lab_tr(flipNames[n]),at);if(v!=at)lab_adjust_set(i,flipKeys[n],v,1);}
+ if(Button((Rectangle){x,y,w,30},lab_tr("Ripristina immagine"),false,true)){uiSliderDrag=-1;for(int n=0;n<8;n++)lab_adjust_set(i,keys[n],n==1||n==2||n==5?1:0,1);for(int n=0;n<2;n++)lab_adjust_set(i,flipKeys[n],0,1);}y+=44;
  return y-start;
 }
 static int WallpaperPlayback(int i,int x,int y,int w){int start=y;

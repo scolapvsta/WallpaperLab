@@ -34,10 +34,14 @@ steam.mkdir(exist_ok=True)
 config.write_text(json.dumps({'mode': 'single', 'screen': 0, 'fps': 30, 'muted': True,
                               'transition_type': 0, 'workshop_path': str(steam), 'caelestia_enabled': True}))
 path = json.loads(run(app, '--import', red))[0]
+# Deliberately wrong creator thumbnail: the palette must use the rendered red media.
+Image.new('RGB', (640, 360), '#246dc0').save(pathlib.Path(path) / 'preview.png')
+expected = json.loads(run('python3', app.parent / 'caelestia_palette.py', red))['colours']['primary']
 try:
     run(app, '--apply', path)
     generated = json.loads(scheme.read_text())
     assert generated['colours']['primary'] != original['colours']['primary']
+    assert generated['colours']['primary'] == expected, 'thumbnail used instead of rendered wallpaper'
     assert len(generated['colours']) > 30
     assert json.loads((out / 'state/wallpaper-lab/integration-status.json').read_text())['ok']
     assert not (out / 'state/caelestia/wallpaper').exists(), 'Caelestia wallpaper command was used'
@@ -51,7 +55,7 @@ finally:
     run(app, '--stop')
 assert fingerprint() == before, 'personal Caelestia scheme changed'
 assert subprocess.check_output([pathlib.Path.home() / '.local/bin/wallpaper-lab', '--status'], text=True) == personal
-results = {'real_caelestia_palette_generated': True, 'own_renderer_changes_shell_scheme_only': True,
+results = {'real_caelestia_palette_generated': True, 'rendered_frame_preferred_over_wrong_thumbnail': True, 'own_renderer_changes_shell_scheme_only': True,
            'disable_restores_previous_scheme': True, 'personal_scheme_and_renderers_preserved': True}
 (out / 'results.json').write_text(json.dumps(results, indent=2))
 print(json.dumps(results, indent=2))
