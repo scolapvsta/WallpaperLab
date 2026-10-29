@@ -1288,3 +1288,43 @@ ripristinato e vecchio PID ritirato. Evidenza: `local/ui19/install/`.
   e preferenza globale muted=true. Aperta UI con Oxanium, Crimson Protocol ed
   Edge Signal; le vecchie finestre UI sono state chiuse solo dopo verifica di
   identità e avvio della sostituta. Nessuna modifica all'avvio automatico.
+
+## 0.23 — Default, Pixel Theme e switcher tematici — 29 ottobre 2026
+
+- Build Release completata; **11/11 CTest superati**. Nessuna modifica al motore
+  o ai pin upstream rispetto alla 0.22. Cache grafica del testo verificata su
+  1100 etichette con capacità 1024: **0 pixel differenti**, 187909 pixel di testo;
+  3000 misure CPU senza creazione di texture.
+- Quattro temi, **21 palette**: Default 3, Strawberry core 3, 2077 11, Pixel Theme
+  4. Aggiunte cinque palette 2077 senza rinumerare le precedenti. Quattro sfondi
+  nativi per tema; confrontate le preview dei **16 preset**, tutte distinte anche
+  all'interno di ciascun tema. Strawberry ora comprende quadretti, nastri,
+  giardino e pizzi. Preview renderizzata su una scena canonica, poi ridotta.
+- Silkscreen originale incluso con licenza OFL e hash verificati nel manifest;
+  registrazione Fontconfig limitata all'app. Suggested Theme Fonts mantiene la
+  scelta per tema. General Fonts conserva una scelta indipendente, applicata
+  soltanto con checkbox attiva; verificati attivazione, cambio font suggerito
+  durante l'override e ritorno al font del tema disabilitando il checkbox.
+- `theme_rework_integration.py`, esecuzione finale in `local/ui23-release-test/`:
+  **tutte le verifiche superate**. Controllate palette/modalità/font dei quattro
+  temi, sfondi distinti, feedback hover dei biscotti, animazioni Pixel e Riduci
+  movimento, **16 anteprime e 16 popup reali** dei quattro layout switcher.
+  Per i popup confrontati tema, palette, font effettivo e pixel del bordo con il
+  colore selezionato; incluso Wave 2077 con override General Fonts attivo.
+- Pixel impiega sprite originali, bordi a pixel interi e scene animate. Nel crop
+  di verifica l'animazione cambia più di 20 pixel oltre 3 livelli RGB; Riduci
+  movimento congela la scena (tolleranza di 1 livello per dithering compositor).
+  Glitch e decorazioni rispettano la preferenza Riduci movimento.
+- Biscotti Strawberry a capsula con hover/pressione visibili e icone contenute.
+  Accenti 2077 laterali solo sui pulsanti testuali, esclusi quelli con icona;
+  testate riviste e glitch più frequente. Verifica grafica mirata di impostazioni,
+  thumbnail, caratteri, preview e popup reali.
+- Limiti: fixture con tre progetti sintetici, non benchmark di grandi librerie;
+  i 32 controlli switcher verificano preview/popup, senza applicare wallpaper.
+  Personaggi Pixel originali, non asset estratti da videogiochi. Screenshot,
+  backup e fixture restano in local/, senza asset personali nel repository.
+- Installati binario 0.23.0 e font con licenze. Nuovo renderer avviato sullo stesso
+  progetto prima di ritirare il precedente, verificando PID/start time/executable
+  e readiness. Libreria motore 0.22 conservata. Confermato renderer vivo dopo il
+  passaggio; aperta la nuova UI su Pixel Theme prima di chiudere le vecchie
+  finestre identificate. Preferenze audio e avvio automatico non modificati.

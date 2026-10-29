@@ -7,6 +7,7 @@ static int themeId=0;
 static Color ThemeHex(unsigned int rgb){return (Color){rgb>>16,(rgb>>8)&255,rgb&255,255};}
 #include "strawberry_ui.h"
 #include "cyber_ui.h"
+#include "pixel_ui.h"
 static void ApplyTheme(void){
  themeId=lab_option("ui_theme");if(themeId<0||themeId>=LAB_THEME_COUNT)themeId=0;LabTheme resolved=LabResolvedPalette(themeId,lab_option("light_theme"));const LabTheme* t=&resolved;
  uiSurfaceAlpha=1-Clamp(themeTransparencyPreview>=0?themeTransparencyPreview:lab_option("window_transparency"),0,30)/100.f;
@@ -17,6 +18,8 @@ static void ApplyTheme(void){
 }
 static void ThemePanel(Rectangle r,float roundness,int segments,Color color){
  if(CyberTheme()){CyberPanel(r,color);return;}
+ if(PixelTheme()){PixelPanel(r,color);return;}
+ if(DefaultTheme()){DrawRectangleRounded(r,Clamp(roundness,0,1),segments,color);if(r.width>28&&r.height>24)DrawRectangleRoundedLinesEx(r,Clamp(roundness,0,1),segments,1,Fade(AppTheme.border,.13f));return;}
  if(StrawberryTheme()){
   DrawRectangleRounded(r,Clamp(roundness*1.7f,.08f,1),segments,color);
   if(r.width>90&&r.height>28)DrawRectangleRoundedLinesEx(r,Clamp(roundness*1.7f,.08f,1),segments,1,Fade(AppTheme.border,.25f));
@@ -35,7 +38,16 @@ static void ThemePanel(Rectangle r,float roundness,int segments,Color color){
  if(effect==2&&r.width>28&&r.height>24){DrawRectangleRoundedLinesEx(r,radius,segments,1,Fade(AppTheme.border,.22f));DrawLine(r.x+8,r.y+1,r.x+r.width-8,r.y+1,Fade(WHITE,.13f));}
  if(effect==10&&r.width>90&&r.height>34)DrawRectangleRoundedLinesEx(r,radius,segments,1,Fade(AppTheme.border,.12f));
 }
-static void ThemeButton(Rectangle r,Color color){if(StrawberryTheme())BerryCookie(r,color);else ThemePanel(r,.22f,12,color);}
+static void ThemeButton(Rectangle r,Color color,bool textOnly){
+ if(StrawberryTheme())BerryCookie(r,color);else ThemePanel(r,.22f,12,color);
+ if(CyberTheme()&&textOnly&&r.width>70){DrawRectangle(r.x+6,r.y+8,2,fminf(12,r.height-16),Fade(CyberSecondary(),.65f));}
+}
+static void ButtonFeedback(Rectangle r,bool hot,bool pressed,bool active){
+ if(StrawberryTheme()){
+  if(hot||active)DrawRectangleRoundedLinesEx((Rectangle){r.x+1,r.y+1,r.width-2,r.height-2},1,20,hot?2:1.3f,Fade(AppTheme.border,pressed?.9f:hot?.75f:.5f));
+  if(hot)DrawRectangleRounded((Rectangle){r.x+5,r.y+4,r.width-10,r.height-8},1,20,Fade(pressed?ThemeHex(0xc9974f):WHITE,pressed?.15f:.2f));
+ }else if(PixelTheme()&&hot){DrawRectangleLinesEx(r,2,AppTheme.border);if(pressed)DrawRectangle(r.x+2,r.y+2,r.width-4,r.height-4,Fade(AppTheme.border,.2f));}
+}
 static void InitBackdrop(void){
  const char* fs="#version 330 core\nin vec2 fragTexCoord;out vec4 finalColor;uniform vec2 resolution;uniform float time,style,alpha;uniform vec3 base,accent;\n"
  "void main(){vec2 uv=gl_FragCoord.xy/resolution;float t=time*.04;float halo=exp(-length(uv-vec2(.15+.05*sin(t),.8))*4.)*.08+exp(-length(uv-vec2(.85,.2))*5.)*.035;vec3 c=base;"
@@ -67,9 +79,9 @@ static void DrawBackgroundPreview(Rectangle r){
  const char* path=lab_app_background();int preset=lab_option("app_background_preset"),design=lab_option("ui_design");
  if(!backgroundPreview.id||previewTheme!=themeId||previewDesign!=design||previewPreset!=preset||strcmp(path,previewPath)){
   if(!backgroundPreview.id)backgroundPreview=LoadRenderTexture(320,180);
-  rlDisableScissorTest();BeginTextureMode(backgroundPreview);ClearBackground(AppTheme.bg);
-  if(!DrawAppBackground(320,180)){if(CyberTheme())CyberCityArtwork(320,180);else BerryBackdrop(320,180);}
-  EndTextureMode();if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);BeginScissorMode(inputClip.x,inputClip.y,inputClip.width,inputClip.height);
+  rlDisableScissorTest();BeginTextureMode(backgroundPreview);ClearBackground(AppTheme.bg);rlPushMatrix();rlScalef(.25f,.25f,1);
+  if(!DrawAppBackground(1280,720)){if(CyberTheme())CyberCityArtwork(1280,720);else if(PixelTheme())PixelBackdrop(1280,720);else if(DefaultTheme())DefaultBackdrop(1280,720);else BerryBackdrop(1280,720);}
+  rlPopMatrix();EndTextureMode();if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);BeginScissorMode(inputClip.x,inputClip.y,inputClip.width,inputClip.height);
   previewTheme=themeId;previewDesign=design;previewPreset=preset;snprintf(previewPath,sizeof(previewPath),"%s",path);
  }
  ThemePanel(r,.1f,8,control);DrawTexturePro(backgroundPreview.texture,(Rectangle){0,0,320,-180},(Rectangle){r.x+2,r.y+2,r.width-4,r.height-4},(Vector2){0},0,WHITE);
@@ -77,6 +89,8 @@ static void DrawBackgroundPreview(Rectangle r){
 static void DrawBackdrop(int width,int height){
  if(DrawAppBackground(width,height))return;
  if(CyberTheme()){CyberBackdrop(width,height);return;}
+ if(PixelTheme()){PixelBackdrop(width,height);return;}
+ if(DefaultTheme()){DefaultBackdrop(width,height);return;}
  if(StrawberryTheme()){BerryBackdrop(width,height);return;}
  int effect=labThemes[themeId].effect;
  if(!effect||!backdropShader.id){DrawRectangle(0,0,width,height,AppTheme.bg);return;}
@@ -94,4 +108,22 @@ static void ThemeWindowTrim(int sw,int sh){
  int effect=labThemes[themeId].effect;if(!effect)return;
  if(effect==7){for(int x=0;x<sw;x+=8)DrawRectangle(x,0,8,2,ColorFromHSV(fmodf(x*360.f/sw+(lab_option("reduce_motion")?0:GetTime()*10),360),.6f,.9f));}
  else DrawRectangleRoundedLinesEx((Rectangle){1,1,sw-2,sh-2},effect==6||effect==11?.002f:.018f,12,effect==1||effect==3?1.5f:1,Fade(AppTheme.border,effect==1||effect==3?.48f:.2f));
+}
+// Compact switcher skin shared by the live popup and all four UI previews.
+static void SwitcherBackdrop(int w,int h,bool wave){
+ Rectangle tray=wave?(Rectangle){0,h*.29f,w,h*.42f}:(Rectangle){0,0,w,h};ThemePanel(tray,.12f,12,Fade(surface,.96f));
+ if(StrawberryTheme()){
+  if(w>60){BerryLace(tray.x+5,tray.y+1,w-10);BerryBow(w-18,tray.y+12,.45f);}
+ }else if(CyberTheme()){
+  for(int x=10;x<w-10;x+=34)DrawRectangle(x,tray.y+tray.height-5,12,2,Fade(AppTheme.border,.38f));
+  DrawLine(5,tray.y+5,5,tray.y+tray.height-5,Fade(CyberSecondary(),.5f));
+ }else if(PixelTheme()){
+  for(int x=4;x<w;x+=16)DrawRectangle(x,tray.y+tray.height-6,10,3,Fade(AppTheme.border,.26f));
+  if(w>60)PixelCharacter(8,tray.y+8,1,2,lab_option("reduce_motion")?0:(int)(GetTime()*4));
+ }
+}
+static void SwitcherCardDecoration(Rectangle r,bool current){
+ if(StrawberryTheme())BerryBow(r.x+r.width-15,r.y+r.height-15,.3f);
+ else if(PixelTheme()){PixelCharacter(r.x+r.width-19,r.y+r.height-19,1,2,0);if(current)DrawRectangleLinesEx((Rectangle){r.x+3,r.y+3,r.width-6,r.height-6},2,AppTheme.border);}
+ else if(CyberTheme()){DrawLine(r.x+6,r.y+r.height-7,r.x+22,r.y+r.height-7,Fade(AppTheme.border,.8f));DrawLine(r.x+6,r.y+r.height-7,r.x+6,r.y+r.height-20,Fade(CyberSecondary(),.7f));}
 }

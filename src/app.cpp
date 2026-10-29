@@ -85,14 +85,19 @@ void syncCaelestia(const Item& item,const json& prefs,bool alreadyLocked=false){
 }
 
 
+std::string effectiveFont(){
+ int design=settings.value("ui_design",0);
+ if(settings.value("general_font_enabled",false))return settings.value("font_family",std::string()).empty()?"Sans":settings["font_family"].get<std::string>();
+ return settings.value(LabFontKey(design),std::string(LabDefaultFont(design)));
+}
 void resolveFonts(bool discover=false){
     registerThemeFonts();
     if(discover){
         auto list=capture({"fc-list",":lang=en","-f","%{family[0]}\n"});
         if(!list.empty()){std::set<std::string> families;std::istringstream lines(list[0]);std::string family;
             while(std::getline(lines,family))if(!family.empty()&&family.size()<100&&family.find("Symbols")==std::string::npos&&family.find("Emoji")==std::string::npos&&family.find("Math")==std::string::npos&&family.find("Rotated")==std::string::npos)families.insert(family);
-            fontFamilies={"Default","Rajdhani","Oxanium","Orbitron"};for(auto& name:families){
-                if(name=="Rajdhani"||name=="Oxanium"||name=="Orbitron")continue;
+            fontFamilies={"Default","Rajdhani","Oxanium","Orbitron","Silkscreen"};for(auto& name:families){
+                if(name=="Rajdhani"||name=="Oxanium"||name=="Orbitron"||name=="Silkscreen")continue;
                 if(name.find("Nerd Font")!=std::string::npos&&(name.ends_with(" Mono")||name.ends_with(" Propo")||name.find("MonoNL")!=std::string::npos))continue;
                 if(name.find("CJK ")!=std::string::npos&&!name.ends_with(" SC"))continue;
                 if(fontFamilies.size()>=96)break;fontFamilies.push_back(name);
@@ -100,13 +105,13 @@ void resolveFonts(bool discover=false){
             auto selected=settings.value("font_family",std::string());if(!selected.empty()&&std::find(fontFamilies.begin(),fontFamilies.end(),selected)==fontFamilies.end()&&families.contains(selected)){if(fontFamilies.size()>=96)fontFamilies.pop_back();fontFamilies.push_back(selected);}
         }
     }
-    std::string family=settings.value("font_family",std::string());if(family.empty())family=settings.value("ui_design",1)==2?"Oxanium":"Sans";
+    std::string family=effectiveFont();
     auto match=[](const std::string& name){auto colon=name.find(':');auto bundled=bundledFont(name.substr(0,colon));if(!bundled.empty())return bundled;auto result=capture({"fc-match","-f","%{index}|%{file}",name});if(result.empty())return std::string();auto split=result[0].find('|');if(split==std::string::npos)return result[0];return "@"+result[0].substr(0,split)+":"+result[0].substr(split+1);};
     std::string weight=settings.value("font_weight",1)==0?"medium":settings.value("font_weight",1)==2?"bold":"demibold";
     fontPath=match((family.empty()?"Adwaita Sans":family)+":weight="+weight);
     buttonFontPath=match(family.empty()?"DejaVu Sans:style=Bold":family+":weight=demibold");
     brandFontPath=match((family.empty()?"Noto Serif":family)+":weight="+weight);
-    fallbackFontPath=match("Noto Sans CJK SC");appliedFamily=settings.value("font_family",std::string());appliedWeight=settings.value("font_weight",1);fontRevision++;
+    fallbackFontPath=match("Noto Sans CJK SC");appliedFamily=effectiveFont();appliedWeight=settings.value("font_weight",1);fontRevision++;
 }
 std::string executable() {return fs::read_symlink("/proc/self/exe").string();}
 std::string startTime(pid_t pid) {
@@ -292,7 +297,10 @@ int find(const std::string& id) {for(size_t i=0;i<items.size();++i)if(items[i].i
 extern "C" {
 int lab_language_count(){return languageCount();}
 const char* lab_language_name(int i){return languageName(i);}
-const char* lab_font_family(){static std::string family;family=settings.value("font_family",std::string());if(family.empty())family=settings.value("ui_design",1)==2?"Oxanium":"Sans";return family.c_str();}
+const char* lab_font_family(){static std::string family;family=effectiveFont();return family.c_str();}
+const char* lab_theme_font(){static std::string family;int d=settings.value("ui_design",0);family=settings.value(LabFontKey(d),std::string(LabDefaultFont(d)));return family.c_str();}
+int lab_set_theme_font(const char* name){return guarded([&]{int d=settings.value("ui_design",0);const char* allowed[3];LabSuggestedFonts(d,allowed);bool valid=false;for(auto candidate:allowed)if(candidate==std::string(name))valid=true;if(!valid)throw std::runtime_error("Font non pertinente al tema");if(!savePreference(LabFontKey(d),name))throw std::runtime_error(errorMessage);resolveFonts();});}
+
 int lab_font_count(){return fontFamilies.size();}
 const char* lab_font_name(int i){return fontFamilies.at(i).c_str();}
 const char* lab_font_preview_path(int i){static std::map<std::string,std::string> cache;auto family=i?fontFamilies.at(i):"Adwaita Sans";auto name=family+":weight="+(settings.value("font_weight",1)==0?"medium":settings.value("font_weight",1)==2?"bold":"demibold");if(!cache.contains(name)){auto v=capture({"fc-match","-f","%{index}|%{file}",name});if(v.empty())cache[name]="";else{auto split=v[0].find('|');cache[name]="@"+v[0].substr(0,split)+":"+v[0].substr(split+1);}}return cache[name].c_str();}
@@ -478,7 +486,7 @@ int lab_next(int direction){
 }
 void lab_refresh(){
     if(pending.valid())return;
-    try{settings=loadSettings();setLanguage(languageIndex(settings.value("language",std::string("it"))));if(appliedFamily!=settings.value("font_family",std::string())||appliedWeight!=settings.value("font_weight",1))resolveFonts();placements=loadPlacements();carousel=loadCarousel();shortcut=shortcutSettings();refreshRunning();if(!displayDirty)displayDraft=displayCanvas(displayData,settings);}catch(const std::exception& e){errorMessage=e.what();}
+    try{settings=loadSettings();setLanguage(languageIndex(settings.value("language",std::string("it"))));if(appliedFamily!=effectiveFont()||appliedWeight!=settings.value("font_weight",1))resolveFonts();placements=loadPlacements();carousel=loadCarousel();shortcut=shortcutSettings();refreshRunning();if(!displayDirty)displayDraft=displayCanvas(displayData,settings);}catch(const std::exception& e){errorMessage=e.what();}
 }
 static json workshopView;
 void lab_ws_tick(){workshopView=workshop::snapshot();}
@@ -546,27 +554,27 @@ int lab_monitor_count(){return monitors.size();}
 const char* lab_monitor(int i){return monitorLabels.at(i).c_str();}
 int lab_mode(){auto m=settings.value("mode",std::string("span"));return m=="span"?0:m=="mirror"?1:2;}
 int lab_screen(){return settings.value("screen",0);}
-int lab_option(const char* key){if(std::string(key)=="app_background_preset")return settings.value(settings.value("ui_design",1)==2?"cyber_background":"strawberry_background",0);if(std::string(key)=="light_theme")return settings.value("ui_design",1)==1;if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
+int lab_option(const char* key){if(std::string(key)=="app_background_preset")return settings.value(LabBackgroundKey(settings.value("ui_design",0)),0);if(std::string(key)=="light_theme")return settings.value("ui_design",1)==1;if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
 int lab_set_mode(int mode){return savePreference("mode",mode==0?"span":mode==1?"mirror":"single");}
 int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 0;int ok=savePreference("screen",screen);refreshRunning();return ok;}
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
     if(k=="ui_theme"||k=="ui_design")return guarded([&]{
-        ControllerLock lock;auto latest=loadSettings();int old=latest.value("ui_design",1);
+        ControllerLock lock;auto latest=loadSettings();int old=latest.value("ui_design",0);
         if(k=="ui_design"){
-            int design=std::clamp(value,1,2);
+            int design=std::clamp(value,0,3);
             if(design!=old){
-                latest[old==1?"strawberry_palette":"cyber_palette"]=latest["ui_theme"];
+                latest[LabPaletteKey(old)]=latest["ui_theme"];
                 latest[old==1?"strawberry_light":"cyber_light"]=latest["light_theme"];
-                latest["ui_theme"]=LabPaletteForDesign(latest.value(design==1?"strawberry_palette":"cyber_palette",LabDefaultPalette(design)),design);
+                latest["ui_theme"]=LabPaletteForDesign(latest.value(LabPaletteKey(design),LabDefaultPalette(design)),design);
                 latest["light_theme"]=design==1;
                 latest[k]=design;
             }
         }else latest[k]=LabPaletteForDesign(value,old);
         writeJson(configDir()/"settings.json",latest);settings=latest;if(k=="ui_design")resolveFonts();
     });
-    if(k=="app_background_preset")return guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[latest.value("ui_design",1)==2?"cyber_background":"strawberry_background"]=std::clamp(value,0,3);latest["app_background"]="";writeJson(configDir()/"settings.json",latest);settings=latest;});
+    if(k=="app_background_preset")return guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[LabBackgroundKey(latest.value("ui_design",0))]=std::clamp(value,0,3);latest["app_background"]="";writeJson(configDir()/"settings.json",latest);settings=latest;});
     if(k=="layout_density")return savePreference(k,std::clamp(value,0,2));
     if(k=="carousel_layout")return savePreference(k,std::clamp(value,0,3));
     if(k=="window_opacity"||k=="window_transparency")return guarded([&]{ControllerLock lock;auto latest=loadSettings();int t=std::clamp(k=="window_opacity"?100-value:value,0,30);latest["window_transparency"]=t;latest["window_opacity"]=100-t;writeJson(configDir()/"settings.json",latest);settings=latest;});
@@ -578,6 +586,7 @@ int lab_set_option(const char* key,int value){
     if(k=="fullscreen_policy")return savePreference(k,std::clamp(value,0,2));
     if(k=="filter_width")return savePreference(k,std::clamp(value,220,600));
     if(k=="filter_any"||k=="reduce_motion"||k=="workshop_mature")return savePreference(k,(bool)value);
+    if(k=="general_font_enabled"){int ok=savePreference(k,bool(value));if(ok)resolveFonts();return ok;}
     if(k=="font_weight"){int ok=savePreference(k,std::clamp(value,0,2));if(ok)resolveFonts();return ok;}
     if(k=="inspector_width")return savePreference(k,std::clamp(value,280,1600));
     if(k=="fps")return savePreference(k,std::clamp(value,15,120));

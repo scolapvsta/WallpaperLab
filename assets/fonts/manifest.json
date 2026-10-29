@@ -10,6 +10,9 @@
     "assets/fonts/rajdhani/Rajdhani-SemiBold.ttf": "94bbd25a18ca665999feb05a537de9fd2b860dcfb78bbe9ca00270825bf235da",
     "assets/fonts/oxanium/DESCRIPTION.en_us.html": "6973a6ada413b78457a755d74a08b9ccac7c7364e2ea78a660f4be2e06370f1c",
     "assets/fonts/oxanium/OFL.txt": "fe17c0f2581d71b4e1ea7e636e7f4877c29223e11bb1dd1a871e8c3f2a86336b",
-    "assets/fonts/oxanium/Oxanium[wght].ttf": "2ce01d946e1e1ffc8d7eecfffbda8623bedd63eaf811a20488c4b69af45babb0"
+    "assets/fonts/oxanium/Oxanium[wght].ttf": "2ce01d946e1e1ffc8d7eecfffbda8623bedd63eaf811a20488c4b69af45babb0",
+    "assets/fonts/silkscreen/Silkscreen-Regular.ttf": "c845473330b94c2079ce9af01c51ac8ba2d99c24f4d14c039843bbb8e642ebd8",
+    "assets/fonts/silkscreen/OFL.txt": "86c5e9c9382cdcc5948704fdfe60f2aa164a719746931219a42736ecd9cefbd3",
+    "assets/fonts/silkscreen/DESCRIPTION.en_us.html": "a66bbbd1a5f9c58872a439887eb8872770216bf0134aa5044bf315ab64a3a940"
   }
 }

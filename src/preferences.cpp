@@ -54,12 +54,13 @@ json loadSettings() {
         if(!prefs.value("theme_ui_v2",false))prefs["light_theme"]=old==1||old==5||old==11||old==12||old==13||old==19||old==20||old==21||old==23||old==26||old>=29;
         prefs["ui_design"]=1;prefs["ui_theme"]=old>=29&&old<=31?old-29:0;
         int saved=prefs.value("strawberry_palette",29);prefs["strawberry_palette"]=saved>=29&&saved<=31?saved-29:0;
-        if(!hadTheme)prefs["light_theme"]=true;
+        if(!hadTheme){prefs["ui_design"]=0;prefs["ui_theme"]=14;}
         prefs["theme_scoped_v3"]=true;prefs["theme_ui_v2"]=true;
     }
-    int design=std::clamp(prefs.value("ui_design",1),1,2);prefs["ui_design"]=design;
+    int design=std::clamp(prefs.value("ui_design",0),0,3);prefs["ui_design"]=design;
     prefs["ui_theme"]=LabPaletteForDesign(prefs.value("ui_theme",LabDefaultPalette(design)),design);
     prefs["light_theme"]=design==1;
+    prefs["general_font_enabled"]=prefs.value("general_font_enabled",false);
     prefs["window_transparency"]=std::clamp(prefs.value("window_transparency",100-prefs.value("window_opacity",100)),0,30);prefs["window_opacity"]=100-prefs["window_transparency"].get<int>();
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
     const std::pair<const char*,int> animationDefaults[]={{"switcher_size",100},{"switcher_zoom",132},{"switcher_fade_in",140},{"switcher_fade_out",140},{"switcher_motion",350},{"switcher_reverse",0},{"wave_speed",100},{"wave_height",24},{"transition_duration",700},{"transition_direction",0},{"transition_curve",0},{"transition_zoom",30},{"caelestia_palette",0},{"caelestia_mode",0}};

@@ -11,8 +11,8 @@ static void CyberPanel(Rectangle r,Color color){
  Vector2 center={r.x+r.width/2,r.y+r.height/2};for(int n=0;n<6;n++){int next=(n+1)%6;DrawTriangle(center,points[next],points[n],color);}
  if(r.width>26&&r.height>22){
   for(int n=0;n<6;n++)CyberGlowLine(points[n],points[(n+1)%6],Fade(AppTheme.border,.55f));
-  if(!lab_option("reduce_motion")&&r.width>90&&fmodf(GetTime()+r.x*.0007f+r.y*.001f,7)<.08f)DrawRectangle(r.x+r.width*.3f,r.y+r.height-2,r.width*.3f,1,Fade(CyberSecondary(),.8f));
-  DrawRectangle(r.x+9,r.y+3,fminf(27,r.width-18),2,Fade(CyberSecondary(),.8f));
+  if(!lab_option("reduce_motion")&&r.width>90&&r.height>60&&fmodf(GetTime()+r.x*.0007f+r.y*.001f,3.5f)<.14f)DrawRectangle(r.x+r.width*.3f,r.y+r.height-2,r.width*.3f,1,Fade(CyberSecondary(),.8f));
+
   if(r.width>180&&r.height>200){for(int n=0;n<5;n++)DrawRectangle(r.x+r.width-8,r.y+24+n*9,3,4,Fade(AppTheme.border,n%2?.6f:.25f));}
  }
 }

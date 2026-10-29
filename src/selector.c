@@ -632,25 +632,29 @@ static void PopupImages(PopupLayout layout,int count,int* indices,int position,f
 static Rectangle popupHitRects[MAX_POSSIBLE_WALLPAPERS];
 typedef struct {int index;Rectangle rect;} PopupHit;static PopupHit popupHits[MAX_POSSIBLE_WALLPAPERS*8];static int popupHitCount;static float popupHitOffset;
 static Shader popupImageShader;
-static int popupSizeLoc,popupRadiusLoc,popupBorderLoc,popupCoverLoc,popupCapsLoc;
+static int popupSizeLoc,popupRadiusLoc,popupBorderLoc,popupCoverLoc,popupCapsLoc,popupRimLoc,popupSkinLoc;
 static const char* popupImageFs=
     "#version 330 core\n"
     "in vec2 fragTexCoord; in vec4 fragColor; out vec4 finalColor;\n"
-    "uniform sampler2D texture0; uniform vec4 colDiffuse;\n"
+    "uniform sampler2D texture0; uniform vec4 colDiffuse; uniform vec4 rimColor; uniform float skinStyle;\n"
     "uniform vec2 cardSize; uniform vec2 cover; uniform float radius; uniform float border; uniform float edgeCaps;\n"
     "void main(){\n"
     " vec2 uv=fragTexCoord; vec2 q=abs((uv-0.5)*cardSize)-(cardSize*0.5-vec2(radius));\n"
     " float d=length(max(q,vec2(0)))+min(max(q.x,q.y),0.0)-radius;\n"
+    " if(skinStyle==2.0){vec2 p=abs((uv-.5)*cardSize);d=max(d,(p.x+p.y-cardSize.x*.5-cardSize.y*.5+8.)*.7071); }\n"
     " float aa=max(fwidth(d),0.65); float mask=1.0-smoothstep(-aa,0.0,d);\n"
     " vec4 pixel=texture(texture0,(uv-0.5)*cover+0.5);\n"
     " float line=border>0.0?smoothstep(-border-aa,-border,d):0.0;\n"
     " float originalAlpha=pixel.a;\n"
     " if(edgeCaps>0.5){float edge=min(uv.x,1.0-uv.x)*cardSize.x;line=1.0-smoothstep(border-aa,border+aa,edge); }\n"
-    " pixel=mix(pixel,vec4(0.97,0.98,1.0,1.0),line); if(edgeCaps>0.5)pixel.a=originalAlpha;\n"
+    " pixel=mix(pixel,rimColor,line); if(edgeCaps>0.5)pixel.a=originalAlpha;\n"
     " finalColor=pixel*colDiffuse*fragColor; finalColor.a*=mask;\n"
     "}\n";
-static void InitPopupImages(void){if(popupImageShader.id)return;popupImageShader=LoadShaderFromMemory(NULL,popupImageFs);popupSizeLoc=GetShaderLocation(popupImageShader,"cardSize");popupCoverLoc=GetShaderLocation(popupImageShader,"cover");popupRadiusLoc=GetShaderLocation(popupImageShader,"radius");popupBorderLoc=GetShaderLocation(popupImageShader,"border");popupCapsLoc=GetShaderLocation(popupImageShader,"edgeCaps");}
+static void InitPopupImages(void){if(popupImageShader.id)return;popupImageShader=LoadShaderFromMemory(NULL,popupImageFs);popupSizeLoc=GetShaderLocation(popupImageShader,"cardSize");popupCoverLoc=GetShaderLocation(popupImageShader,"cover");popupRadiusLoc=GetShaderLocation(popupImageShader,"radius");popupBorderLoc=GetShaderLocation(popupImageShader,"border");popupCapsLoc=GetShaderLocation(popupImageShader,"edgeCaps");popupRimLoc=GetShaderLocation(popupImageShader,"rimColor");popupSkinLoc=GetShaderLocation(popupImageShader,"skinStyle");}
 static void PopupTexture(Texture2D texture, Rectangle source, Rectangle rect, float radius, float border, bool crop, Color tint) {
+    if(PixelTheme())radius=0;else if(CyberTheme())radius=3;else if(StrawberryTheme())radius=crop?13:10;
+    float rim[]={AppTheme.border.r/255.f,AppTheme.border.g/255.f,AppTheme.border.b/255.f,1};float skin=lab_option("ui_design");
+    SetShaderValue(popupImageShader,popupRimLoc,rim,SHADER_UNIFORM_VEC4);SetShaderValue(popupImageShader,popupSkinLoc,&skin,SHADER_UNIFORM_FLOAT);
     Vector2 size={rect.width,rect.height},cover={1,1};
     if(crop){
         float aspect=rect.width/rect.height;
@@ -674,9 +678,10 @@ static void PopupCard(int index, Rectangle rect, float radius, Vector2 origin) {
         PopupTexture(texture,(Rectangle){0,0,texture.width,texture.height},rect,radius,2.6f,true,WHITE);
     } else {
         DrawRectangleRounded(rect,2*radius/fminf(rect.width,rect.height),12,AppTheme.idle);
-        DrawRectangleRoundedLinesEx(rect,2*radius/fminf(rect.width,rect.height),12,2.6f,WHITE);
+        DrawRectangleRoundedLinesEx(rect,2*radius/fminf(rect.width,rect.height),12,2.6f,AppTheme.border);
     }
-    if(index==lab_current()){Vector2 dot={rect.x+14,rect.y+rect.height-14};DrawCircleV(dot,6.5f,Fade(BLACK,.6f));DrawCircleV(dot,3.8f,WHITE);}
+    SwitcherCardDecoration(rect,index==lab_current());
+    if(index==lab_current()){Vector2 dot={rect.x+14,rect.y+rect.height-14};DrawCircleV(dot,6.5f,Fade(BLACK,.6f));DrawCircleV(dot,3.8f,AppTheme.border);}
 }
 static void PopupImages(PopupLayout layout, int count, int* indices, int position, float phase, bool enlarged, Vector2 origin) {
     if(g_targetMode==MODE_GRID) {
@@ -686,10 +691,10 @@ static void PopupImages(PopupLayout layout, int count, int* indices, int positio
                 Rectangle cell={(n%layout.columns)*layout.tile,(n/layout.columns)*layout.tile,layout.tile,layout.tile};
                 if(start+n<count)PopupCard(indices[start+n],cell,10,origin);
                 else{
-                    cell.x+=origin.x;cell.y+=origin.y;DrawRectangleRounded(cell,0.13f,12,AppTheme.idle);
-                    DrawRectangleRoundedLinesEx(cell,0.13f,12,1.2f,Fade(WHITE,0.25f));
-                    StarIcon((Vector2){cell.x+cell.width/2,cell.y+cell.height/2-12},14,Fade(WHITE,0.4f),false);
-                    const char* label=lab_tr("Spazio libero");UiText(label,cell.x+(cell.width-UiMeasure(label,14))/2,cell.y+cell.height/2+14,14,Fade(WHITE,0.55f));
+                    cell.x+=origin.x;cell.y+=origin.y;DrawRectangleRounded(cell,PixelTheme()?0:.13f,12,AppTheme.idle);
+                    DrawRectangleRoundedLinesEx(cell,0.13f,12,1.2f,Fade(AppTheme.border,0.25f));
+                    StarIcon((Vector2){cell.x+cell.width/2,cell.y+cell.height/2-12},14,Fade(AppTheme.border,0.4f),false);
+                    const char* label=lab_tr("Spazio libero");UiText(label,cell.x+(cell.width-UiMeasure(label,14))/2,cell.y+cell.height/2+14,14,Fade(AppTheme.text,0.55f));
                 }
             }
             return;
@@ -731,7 +736,7 @@ static void DrawSwitcherDemo(Rectangle area,float elapsed){
  int baseline=0;for(int j=0;j<count;j++)if(order[j]==lab_current())baseline=j;
  float duration=lab_option("switcher_motion")/1000.f,cycle=duration+.7f,step=floorf(elapsed/cycle),t=Clamp(fmodf(elapsed,cycle)/duration,0,1),phase=baseline+step+popup_ease(t);int position=(baseline+(int)step+1)%count;
  for(int j=0;j<count;j++)wallpapers[order[j]].hoverAnim=popup_focus(popup_distance(j,phase,count));
- BeginTextureMode(panel);ClearBackground(BLANK);if(g_targetMode!=MODE_WAVE)DrawBackdrop(layout.width,layout.height);PopupImages(layout,count,order,position,fmodf(phase,count),false,(Vector2){0});if(g_targetMode==MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){0});EndTextureMode();
+ BeginTextureMode(panel);ClearBackground(BLANK);SwitcherBackdrop(layout.width,layout.height,g_targetMode==MODE_WAVE);PopupImages(layout,count,order,position,fmodf(phase,count),false,(Vector2){0});if(g_targetMode==MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){0});EndTextureMode();
  BeginTextureMode(canvas);ClearBackground(BLANK);PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);if(g_targetMode!=MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){frame.padding,frame.padding});EndTextureMode();
  if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);PopupFrame reference=popup_frame_scaled(g_targetMode,count,1100,660,140,150);float scale=fminf(area.width/reference.width,area.height/reference.height);Rectangle dest={area.x+(area.width-frame.width*scale)/2,area.y+(area.height-frame.height*scale)/2,frame.width*scale,frame.height*scale};float fadeIn=lab_option("switcher_fade_in")/1000.f,fadeOut=lab_option("switcher_fade_out")/1000.f,loop=fmodf(elapsed,cycle*count+fadeIn+fadeOut+.5f),visibility=loop<fadeIn?loop/fadeIn:loop>cycle*count+fadeIn?1-(loop-cycle*count-fadeIn)/fadeOut:1;
  DrawTexturePro(canvas.texture,(Rectangle){0,0,frame.width,-frame.height},dest,(Vector2){0},0,Fade(WHITE,Clamp(visibility,0,1)));g_targetMode=old;
@@ -818,11 +823,11 @@ int carousel_popup_main(void) {
             int i=indices[(position+n)%count];
             if(atomic_load(&imagePending[i])){wallpapers[i].texture=LoadTextureFromImage(pendingImages[i]);SetTextureFilter(wallpapers[i].texture,TEXTURE_FILTER_BILINEAR);UnloadImage(pendingImages[i]);atomic_store(&wallpapers[i].loaded,true);atomic_store(&imagePending[i],false);loaded++;}
         }
-        const char* popupTrace=getenv("WALLPAPER_LAB_POPUP_STATE");if(popupTrace){FILE* f=fopen(popupTrace,"w");if(f){fprintf(f,"{\"selected\":%d,\"position\":%d,\"baseline\":%d,\"steps\":%d,\"padding\":%d,\"width\":%d,\"height\":%d,\"tile\":%d,\"focus\":%.3f,\"hits\":[",position>=0?indices[position]:-1,position,baseline,steps,frame.padding,layout.width,layout.height,layout.tile,position>=0?wallpapers[indices[position]].hoverAnim:0);for(int hit=0;hit<popupHitCount;hit++){PopupHit h=popupHits[hit];fprintf(f,"%s[%d,%.1f,%.1f,%.1f,%.1f]",hit?",":"",h.index,h.rect.x,h.rect.y,h.rect.width,h.rect.height);}fprintf(f,"]}\n");fclose(f);}}
+        const char* popupTrace=getenv("WALLPAPER_LAB_POPUP_STATE");if(popupTrace){FILE* f=fopen(popupTrace,"w");if(f){fprintf(f,"{\"design\":%d,\"theme\":%d,\"font\":\"%s\",\"general_font_override\":%s,\"selected\":%d,\"position\":%d,\"baseline\":%d,\"steps\":%d,\"padding\":%d,\"width\":%d,\"height\":%d,\"tile\":%d,\"focus\":%.3f,\"hits\":[",lab_option("ui_design"),lab_option("ui_theme"),lab_font_family(),lab_option("general_font_enabled")?"true":"false",position>=0?indices[position]:-1,position,baseline,steps,frame.padding,layout.width,layout.height,layout.tile,position>=0?wallpapers[indices[position]].hoverAnim:0);for(int hit=0;hit<popupHitCount;hit++){PopupHit h=popupHits[hit];fprintf(f,"%s[%d,%.1f,%.1f,%.1f,%.1f]",hit?",":"",h.index,h.rect.x,h.rect.y,h.rect.width,h.rect.height);}fprintf(f,"]}\n");fclose(f);}}
 
         memset(popupHitRects,0,sizeof(popupHitRects));popupHitCount=0;popupHitOffset=frame.padding;
         BeginTextureMode(panel);ClearBackground(BLANK);
-        if(g_targetMode!=MODE_WAVE)DrawBackdrop(layout.width,layout.height);
+        SwitcherBackdrop(layout.width,layout.height,g_targetMode==MODE_WAVE);
         if(count)PopupImages(layout,count,indices,position,phase,false,(Vector2){0,0});
         if(count&&g_targetMode==MODE_WAVE)PopupImages(layout,count,indices,position,phase,true,(Vector2){0,0});
         if(!count) {

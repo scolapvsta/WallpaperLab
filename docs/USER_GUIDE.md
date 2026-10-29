@@ -129,25 +129,22 @@ lo sfondo senza transizione. Le immagini temporanee rimangono nello stato XDG lo
 
 ## Aspetto e lingue
 
-**Themes** è una dropdown con Strawberry core e **2077**. **Color Palettes**
-mostra solo le tre palette Strawberry o le sei palette cyberpunk del tema
-selezionato, inclusa Crimson Protocol rossa. La modalità è decisa dal tema:
-Strawberry chiaro, 2077 scuro; il controllo Mode non è più presente.
-I vecchi preset sono rimossi dalla scelta attiva e conservati nei backup.
-**Theme Font**, subito sotto Themes, offre i font pertinenti e “Mostra tutti i font”.
-2077 include Oxanium, Rajdhani e Orbitron; il peso del testo resta separato.
+**Themes** propone Default, Strawberry core, 2077 e Pixel Theme. Default ha tre
+palette sobrie, Strawberry tre pastello, 2077 undici neon e Pixel quattro palette
+da gioco. Ogni tema ricorda palette e background. La modalità è stabilita dal
+tema: Strawberry chiaro, gli altri scuri. Le nuove installazioni partono da Default.
 
-Strawberry usa biscotti giallo miele arrotondati e coniglietti con fiocco; 2077 ha
-una città al neon, pannelli a taglio, LED, pioggia e glitch sullo sfondo.
-Riduci animazioni ferma gli effetti decorativi in movimento.
+**Suggested Theme Fonts** sceglie il font del tema. **General Fonts**, subito sotto,
+è un override facoltativo: soltanto con la spunta attiva applica la famiglia
+selezionata a tutta la UI e allo switcher. La spunta e il menu rientrano nella
+stessa larghezza degli altri campi. Spegnendo la spunta torna il font del tema.
 
-**Sfondo dell’app** propone quattro fondi inclusi con una preview vicina. I due
-pulsanti sottostanti hanno dimensioni compatte nella stessa colonna degli altri
-controlli. **Carica dal PC** permette di sostituire il fondo illustrato
-con una tua immagine. L'app ne conserva una copia nei dati XDG, indipendente dal
-file originale. **Ripristina tema** torna al primo fondo incluso del tema. Il caricamento
-non importa un wallpaper desktop e non cambia i progetti della libreria.
-[Dettagli, backup e limiti](THEMES.md).
+Quattro background inclusi per ogni tema, con una preview vicina, più **Carica dal
+PC**. **Ripristina tema** torna al primo fondo incluso. Strawberry ha composizioni
+più diverse, Pixel sprite originali e scenari da gioco. Riduci animazioni ferma gli
+effetti decorativi. I quattro stili dello switcher usano ora cornici, colori e
+dettagli del tema selezionato, anche nel popup reale.
+[Dettagli e limiti](THEMES.md).
 
 La Trasparenza della UI è indipendente dal tema: 0% è opaco, 30% è il massimo.
 Il cursore occupa la stessa colonna degli altri campi. Varia soltanto le superfici

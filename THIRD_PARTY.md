@@ -125,3 +125,8 @@ i riferimenti visivi dei nuovi temi sono elencati in docs/THEMES.md.
   font del gioco o dell'anime è stato estratto o ridistribuito.
 - La correzione del mute live CEF/MPV è conservata in
   `patches/engine-live-audio-mute.patch`; i pin upstream sono invariati.
+
+- **Silkscreen**, The Silkscreen Project Authors / Jason Kottke, SIL OFL 1.1:
+  font pixel originale non modificato, incluso da `google/fonts` allo stesso
+  commit fissato nel manifest. Licenza in `assets/fonts/silkscreen/OFL.txt`.
+  Personaggi, scenari e decorazioni Pixel Theme sono disegnati nel codice dell'app.

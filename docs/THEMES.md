@@ -1,106 +1,109 @@
-# Themes e palette dedicate — 0.22
+# Themes, font e switcher — 0.23
 
-**Themes** è sempre una dropdown, anche con due sole voci. I temi attivi sono
-Strawberry core e **2077**. **Color Palettes** contiene esclusivamente le palette
-del tema selezionato. La modalità appartiene al tema: Strawberry è chiaro,
-2077 è scuro. Il controllo Mode è rimosso, incluse le varianti opposte. Ogni tema
-ricorda la propria palette; il peso del testo resta configurabile.
+| Theme | Modalità | Palette | Font suggerito iniziale | Background inclusi |
+| --- | --- | ---: | --- | ---: |
+| Default | Scura | 3 | Sans di sistema | 4 |
+| Strawberry core | Chiara | 3 | Sans di sistema | 4 |
+| 2077 | Scura | 11 | Oxanium | 4 |
+| Pixel Theme | Scura | 4 | Silkscreen | 4 |
 
-Le 29 palette storiche e Originale sono stati rimossi dal catalogo attivo, su
-richiesta dell'utente. Il backup locale `local/backups/themes-0.20/` e il commit
-0.20 (`78bc1ec`) ne conservano l'implementazione. Le vecchie preferenze Strawberry
-Milk/Raspberry Ribbon/Vanilla Shortcake migrano mantenendo la selezione; gli altri
-preset passano a Strawberry Milk. Le palette salvate vengono conservate; la modalità viene normalizzata a quella del tema.
+Themes e Color Palettes sono dropdown. Le palette dipendono dal tema; la modalità
+è stabilita dal tema. La nuova installazione parte da Default/Graphite. Gli ID
+Strawberry e 2077 esistenti restano invariati; palette e background sono ricordati
+separatamente per ciascun tema. I vecchi preset anteriori al rework rimangono nel
+backup locale e nella cronologia, fuori dal catalogo attivo.
+
+## Default
+
+UI sobria, superfici morbide e bordi discreti. Palette **Graphite**, **Blue Slate**,
+**Forest Ink**. Fondi **Quiet Gradient**, **Blueprint**, **Contour**, **Night Dots**:
+gradiente, piccoli segni a griglia, curve di livello o punti. Font suggeriti:
+Sans, Adwaita Sans e Noto Sans, con fallback di sistema dove necessario.
 
 ## Strawberry core
 
-Tre palette: **Strawberry Milk**, **Raspberry Ribbon**, **Vanilla Shortcake**.
-Fondo vichy, fragole, fiocchi e pizzi. Pulsanti a biscotto giallo miele con estremità
-arrotondate, incisione interna e piccoli puntini; il testo sui biscotti rimane
-marrone per il contrasto. Coniglietti interi con orecchio
-piegato, occhi lucidi, guance rosa, grande fiocco a quadretti e biscottino in mano.
-Il font può essere scelto in Theme Font, senza corsivo forzato.
+**Strawberry Milk**, **Raspberry Ribbon**, **Vanilla Shortcake**. I quattro sfondi
+ora cambiano composizione: **Strawberry Gingham** a quadretti, **Ribbon Atelier**
+con nastri diagonali e grandi fiocchi, **Strawberry Garden** crema con fragole,
+fiori e coniglietto, **Tea Party Lace** con fasce di pizzo e piccoli centrini.
+
+I biscotti sono capsule lisce con estremità interamente arrotondate; tolte le
+piccole smerlature che rendevano irregolare il bordo. Hover con luce e bordo rosa,
+pressione più scura e selezione evidenziata. Icone ridotte per rimanere dentro i
+biscotti e niente anello della stella all'esterno del tasto.
 
 ## 2077
 
-| Palette | Accento | Atmosfera |
-| --- | --- | --- |
-| Violet Afterglow | Viola | Grattacieli e foschia notturna |
-| Pink Voltage | Fucsia | Insegne rosa acceso |
-| Electric Blue | Ciano | Blu elettrico e rosa |
-| Night Drive | Rosa | Blu notte e neon rosa/ciano |
-| Hazard Yellow | Giallo | Segnaletica gialla e arancio |
-| Crimson Protocol | Rosso | Rosso segnale, ambra e superfici scure |
+**Violet Afterglow**, **Pink Voltage**, **Electric Blue**, **Night Drive**,
+**Hazard Yellow**, **Crimson Protocol**, più cinque nuove palette: **Toxic Lime**,
+**Amber Circuit**, **Ice Chrome**, **Ultraviolet**, **Copper Sunset**.
 
-Scena urbana originale disegnata in raylib e memorizzata in una texture: skyline
-su tre livelli, finestre pixel, insegne geometriche ispirate al katakana,
-cartelloni, cavi e prospettiva della strada con riflessi. Pannelli con angoli
-smussati a taglio, contorni luminosi, pioggia animata, trama a scansione, LED in
-movimento e brevi glitch discreti confinati allo sfondo. Riduci animazioni ferma
-pioggia e LED e disabilita i glitch. I contenuti e i testi restano stabili.
-La variante Light è stata rimossa. Il marchio 2077 usa Orbitron, taglio grafico,
-codici binari, barcode, separazione cromatica breve e dettagli LED. I glitch
-dell’interfaccia rimangono sui bordi e nella testata: i testi dei controlli non saltano.
+Skyline al neon, pioggia, LED e bit; fondi **Neon District**, **Afterlife Alley**,
+**Binary Rain**, **Edge Signal**. La testata sinistra usa una composizione compatta
+WALLPAPER LAB / CONTROL DECK; il marchio destro 2077 è più grande, con separazione
+cromatica e fasce glitch per circa 0,32 s ogni 1,8 s. Riduci animazioni li ferma.
+L'accento dei pulsanti è un piccolo segno laterale, solo per i controlli di testo:
+nessun segno sui pulsanti con icona, né la vecchia striscia su ogni pannello.
 
-I riferimenti allegati ispirano l'atmosfera e le forme. Non sono incorporati
-come fotografie né copiati come asset; le illustrazioni sono vettoriali originali.
+## Pixel Theme
 
-## Theme Font
+UI a pixel, pannelli squadrati con ombra a gradini, sprite originali (avventuriero,
+slime, robot e fantasma), nuvole, torce, stelle e piccoli glitch. Non sono sprite
+estratti da videogiochi. Palette **Arcade Berry**, **Dungeon Moss**, **Coin Rush**,
+**CRT Ocean**. Background **Overworld**, **Dungeon**, **Arcade**, **Star Quest**.
+Animazioni rispettano Riduci animazioni. Silkscreen è incluso con licenza SIL OFL,
+provenienza e SHA-256 nel manifest; font alternativi suggeriti Oxanium e DejaVu Sans Mono.
 
-Subito sotto Themes, **Theme Font** mostra Predefinito e i font pertinenti, più
-l'eventuale font personale già selezionato. Per 2077 sono inclusi **Oxanium**
-(predefinito per l'interfaccia), **Rajdhani** e **Orbitron**; il titolo 2077 usa
-Orbitron anche se viene scelto un altro font per i controlli. **Mostra tutti i font**
-espande la stessa dropdown alle famiglie disponibili; **Solo font del tema**
-ripristina il filtro. La selezione duplicata in fondo ad Aspetto è stata rimossa.
+## Suggested Theme Fonts e General Fonts
 
-Font scaricati dal repository ufficiale Google Fonts, commit e SHA-256 registrati
-in `assets/fonts/manifest.json`, licenze SIL OFL incluse nel pacchetto. Sono
-registrati soltanto nel processo dell'app, senza installazioni globali né download
-al successivo avvio. Le famiglie mancanti negli alfabeti non coperti usano il
-fallback Pango. La dropdown disegna una sola etichetta per riga e usa superfici
-opache per evitare il testo sovrapposto visto con trasparenza al 30%.
+Subito sotto Themes:
 
-- [Oxanium: descrizione ufficiale](https://github.com/google/fonts/blob/main/ofl/oxanium/DESCRIPTION.en_us.html)
-- [Orbitron: descrizione ufficiale](https://github.com/google/fonts/blob/main/ofl/orbitron/DESCRIPTION.en_us.html)
-- [Rajdhani: descrizione ufficiale](https://github.com/google/fonts/blob/main/ofl/rajdhani/DESCRIPTION.en_us.html)
-- [Edgerunners: riferimento ufficiale](https://www.cyberpunk.net/en/edgerunners)
+1. **Suggested Theme Fonts** sceglie il font pertinente al tema, ricordato per tema.
+2. **General Fonts** contiene tutte le famiglie della lista dell'app, più la spunta
+   affiancata. Menu e spunta occupano insieme la stessa colonna degli altri campi.
 
-## Sfondi inclusi e preview
+La scelta General Fonts è salvata anche quando la spunta è spenta, ma non viene
+applicata. Solo con la spunta attiva sostituisce il font suggerito in tutta la UI,
+comprese le testate e il popup dello switcher. Spegnendola ritorna immediatamente
+il font suggerito. I font personali già salvati rimangono selezionabili nel menu
+General Fonts; il nuovo override è inizialmente spento. Nessuna installazione globale.
 
-Il campo Sfondo dell’app ha la stessa larghezza e altezza degli altri menu. A fianco
-c'è una preview del fondo selezionato; sotto, due pulsanti compatti nella stessa
-colonna: Carica dal PC e Ripristina tema. Per 2077 sono disponibili **Neon District**,
-**Afterlife Alley**, **Binary Rain** e **Edge Signal**: skyline con strada, vicoli
-più fitti, colonne binarie o città con segnale geometrico acido. La scelta del
-preset è ricordata separatamente per tema. Ripristina tema torna al primo preset.
-Strawberry mantiene quattro variazioni procedurali di vichy, righe, giardino e pizzi.
-Le illustrazioni sono originali: non includono immagini o personaggi dell'anime.
+2077 suggerisce Oxanium, Rajdhani e Orbitron; Strawberry e Default Sans, Adwaita Sans,
+Noto Sans. Font scaricati dal repository ufficiale Google Fonts al commit fissato in
+`assets/fonts/manifest.json`, con licenze OFL nel runtime. Sono font per l'app, non
+font estratti dal gioco o dall'anime. Font non disponibili e alfabeti non coperti
+usano il fallback Fontconfig/Pango.
 
-## Sfondo dell'app dal PC
+- [Silkscreen, fonte ufficiale](https://github.com/google/fonts/tree/main/ofl/silkscreen)
+- [Oxanium](https://github.com/google/fonts/tree/main/ofl/oxanium)
+- [Orbitron](https://github.com/google/fonts/tree/main/ofl/orbitron)
+- [Rajdhani](https://github.com/google/fonts/tree/main/ofl/rajdhani)
+- [Edgerunners, riferimento d'atmosfera](https://www.cyberpunk.net/en/edgerunners)
 
-Aspetto → **Sfondo dell’app → Carica dal PC** (nel menu o nel pulsante) apre il selettore di immagini.
-L'immagine viene decodificata e salvata come PNG entro 2048 × 2048 pixel nei dati
-XDG `wallpaper-lab/app-backgrounds/`; il file originale rimane intatto e non è
-necessario conservarlo nello stesso percorso. L'importazione è asincrona. Un file
-non valido conserva la selezione precedente. **Ripristina tema** torna al fondo
-illustrato del tema; le copie precedenti restano nei dati locali.
+## Switcher coerenti con la UI
 
-Il fondo personalizzato è comune ai temi, riempie la finestra con ritaglio centrale
-e riceve una leggera tinta del tema. Sostituisce la scena/vichy dello sfondo, mentre
-pannelli, tasti e testata mantengono il proprio stile. Non modifica il wallpaper
-desktop, le miniature, l'inspector o il catalogo dei progetti. GIF e altri formati
-animati sono importati come immagine statica (primo frame). Serve zenity o kdialog
-per la scelta e FFmpeg per la conversione, già usati per i media locali.
+**Griglia, Fiume, Verticale e Onda** condividono il disegno fra anteprima e popup
+reale: palette delle cornici, pannello, tagli degli angoli e decorazioni seguono
+il tema. Strawberry aggiunge fiocchi/pizzo; 2077 angoli a taglio e neon; Pixel
+cornici squadrate e sprite; Default una cornice sobria. La scelta General Fonts
+attiva vale anche nel popup. Immagini e preview dei wallpaper conservano i propri
+colori: si modifica la cornice, non si ricolora il contenuto.
 
-## Layout e limiti
+Le forme e gli effetti non cambiano ordine, rotazione, hitbox, dimensionamento o
+logica di commit. Onda conserva il fondo trasparente attorno alle carte. Il fondo
+dello switcher è una versione compatta del tema, non una copia integrale dello
+sfondo personalizzato importato per la finestra principale.
 
-Le etichette dei controlli usano la stessa misura e lo stesso rendering Pango,
-centratura basata sull'altezza effettiva, troncamento UTF-8 e spazio riservato alla
-freccia nei menu. La testata usa la stessa misura per disporre testi e icone.
-I quattro layout del carousel conservano struttura e animazioni. Il popup
-transitorio mantiene la geometria precedente e riceve i colori; i decori completi
-sono nella finestra principale e nelle sue anteprime.
+## App background dal PC
+
+Dropdown con quattro fondi inclusi e Carica dal PC, preview vicina e pulsanti
+compatti Carica dal PC / Ripristina tema. Il file viene copiato come PNG statico
+entro 2048 × 2048 nei dati XDG `wallpaper-lab/app-backgrounds/`; l'originale rimane
+intatto e può essere spostato. Ripristina tema torna al primo preset del tema.
+Un'immagine non valida conserva la selezione precedente. Il fondo importato è
+comune ai temi e non viene importato nel catalogo wallpaper desktop. Miniature
+costruite su uno scenario 1280 × 720 per includere anche i decori in basso.
+GIF importate al primo frame; servono zenity/kdialog e FFmpeg come per i media locali.
 
 # Archivio: collezioni e palette — 0.18
 

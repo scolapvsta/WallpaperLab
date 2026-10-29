@@ -44,19 +44,20 @@ static Font fontPreview[96];
 static float SmoothScroll(float current,float target){if(lab_option("reduce_motion"))return target;return fabsf(current-target)<.1f?target:Lerp(current,target,1-expf(-GetFrameTime()*15));}
 #include "shaped_text.h"
 static void CyberWordmark(float x,float y){
- ShapedText* title=ShapeFamily("2077",40,"Orbitron");
- bool glitch=!lab_option("reduce_motion")&&fmodf(GetTime(),6.5f)<.12f;
+ ShapedText* title=ShapeFamily("2077",54,lab_option("general_font_enabled")?lab_font_family():"Orbitron");
+ bool glitch=!lab_option("reduce_motion")&&fmodf(GetTime(),1.8f)<.32f;
  if(glitch){DrawTexture(title->texture,x-3,y+1,Fade(CyberSecondary(),.55f));DrawTexture(title->texture,x+3,y-1,Fade(AppTheme.border,.45f));}
  DrawTexture(title->texture,x,y,AppTheme.border);
- ShapedText* tag=ShapeFamily("N E O N  /  D I S T R I C T",12,"Rajdhani");DrawTexture(tag->texture,x+2,y+47,CyberSecondary());
- DrawLine(x+2,y+64,x+title->width+20,y+64,Fade(AppTheme.border,.5f));
- for(int n=0;n<9;n++)DrawRectangle(x+title->width+26+n*4,y+5,n%3?1:2,30,Fade(CyberSecondary(),.4f));
+ if(glitch){for(int n=0;n<3;n++){float sy=9+n*13,dx=sinf(GetTime()*75+n)*7;DrawTextureRec(title->texture,(Rectangle){0,sy,title->width,3},(Vector2){x+dx,y+sy},CyberSecondary());}}
+ ShapedText* tag=ShapeFamily("N E O N  /  D I S T R I C T",14,lab_option("general_font_enabled")?lab_font_family():"Rajdhani");DrawTexture(tag->texture,x+2,y+62,CyberSecondary());
+ DrawLine(x+2,y+82,x+title->width+20,y+82,Fade(AppTheme.border,.5f));
+ for(int n=0;n<9;n++)DrawRectangle(x+title->width+26+n*4,y+5,n%3?1:2,43,Fade(CyberSecondary(),.4f));
 }
 static void CyberInterfaceFX(int w,int h){
  static const char* codes[]={"01001","10110","00101","11010","01100","10011"};
  float t=lab_option("reduce_motion")?0:GetTime();int phase=(int)(t*3)%6;
  for(int n=0;n<3;n++){
-  ShapedText* bits=ShapeFamily(codes[(phase+n)%6],10,"Rajdhani");DrawTexture(bits->texture,w-42,185+n*90,Fade(CyberSecondary(),.24f));
+  ShapedText* bits=ShapeFamily(codes[(phase+n)%6],10,lab_option("general_font_enabled")?lab_font_family():"Rajdhani");DrawTexture(bits->texture,w-42,185+n*90,Fade(CyberSecondary(),.24f));
   DrawRectangle(w-6,185+n*90+(int)(t*16)%20,2,16,Fade(AppTheme.border,.35f));
  }
  if(!lab_option("reduce_motion")&&fmodf(t,5.2f)<.10f){DrawRectangle(12,70,w*.14f,2,Fade(CyberSecondary(),.6f));DrawRectangle(w-220,h-46,120,2,Fade(AppTheme.border,.6f));}
@@ -80,7 +81,7 @@ static int buttonTrailing=0;
 // All control captions share shaping, UTF-8 truncation and actual line-height centering.
 static void ControlCaption(Rectangle r,const char* label,int leading,int trailing,Color ink){
  char shown[512];snprintf(shown,sizeof(shown),"%s",label);int size=15;int left=leading?leading:12,right=trailing?trailing:12;float available=fmaxf(0,r.width-left-right);
- if(UiMeasure(shown,size)>available)size=14;
+ while(size>(PixelTheme()?12:14)&&UiMeasure(shown,size)>available)size--;
  while(*shown&&UiMeasure(shown,size)>available){int n=strlen(shown);if(n>=3&&!strcmp(shown+n-3,"..."))shown[n-=3]=0;if(!n)break;do{n--;}while(n>0&&((unsigned char)shown[n]&0xc0)==0x80);shown[n]=0;if(n)strcat(shown,"...");}
  ShapedText* shaped=Shape(shown,size);UiText(shown,r.x+left+(leading?0:(available-shaped->width)/2),r.y+(r.height-shaped->height)/2,size,ink);
 }
@@ -95,7 +96,7 @@ static float ScrollInput(Rectangle area){
 }
 static bool Button(Rectangle r,const char* label,bool active,bool enabled){
     bool hot=Hot(r,enabled);Color bg=active?AppTheme.border:hot?controlHover:control;if(active)bg.a=control.a;
-    ThemeButton(r,enabled?bg:Fade(bg,0.45f));
+    ThemeButton(r,enabled?bg:Fade(bg,0.45f),true);ButtonFeedback(r,hot,hot&&IsMouseButtonDown(MOUSE_BUTTON_LEFT),active);
     Color ink=active?(lab_option("light_theme")?WHITE:(Color){17,30,25,255}):AppTheme.text;
     if(StrawberryTheme())ink=ThemeHex(0x654325);
     ControlCaption(r,label,0,buttonTrailing,enabled?ink:Fade(ink,.45f));
@@ -103,7 +104,7 @@ static bool Button(Rectangle r,const char* label,bool active,bool enabled){
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 }
 static bool DangerButton(Rectangle r,const char* label,bool enabled){
- Color before=control,hover=controlHover,ink=AppTheme.text;Color red=lab_option("light_theme")?(Color){181,45,65,255}:(Color){169,48,69,255};red.a=before.a;control=red;controlHover=ColorLerp(red,WHITE,.09f);AppTheme.text=(Color){255,245,247,255};bool clicked=Button(r,label,false,enabled);DrawRectangleRoundedLinesEx(r,.22f*themeRoundness,12,1,Fade((Color){247,131,145,255},.7f));control=before;controlHover=hover;AppTheme.text=ink;return clicked;
+ Color before=control,hover=controlHover,ink=AppTheme.text;Color red=lab_option("light_theme")?(Color){181,45,65,255}:(Color){169,48,69,255};red.a=before.a;control=red;controlHover=ColorLerp(red,WHITE,.09f);AppTheme.text=(Color){255,245,247,255};bool clicked=Button(r,label,false,enabled);if(!CyberTheme())DrawRectangleRoundedLinesEx(r,StrawberryTheme()?1:.22f*themeRoundness,20,1,Fade((Color){247,131,145,255},.7f));control=before;controlHover=hover;AppTheme.text=ink;return clicked;
 }
 static void StarIcon(Vector2 c,float radius,Color color,bool filled){
     Vector2 points[10];for(int n=0;n<10;n++){float a=(-90+n*36)*DEG2RAD,r=radius*(n%2?0.46f:1);points[n]=(Vector2){c.x+cosf(a)*r,c.y+sinf(a)*r};}
@@ -157,22 +158,23 @@ static void InitIconAtlas(void){iconAtlasTarget=LoadRenderTexture(40*3*(UI_RIGHT
 static void Icon(UiIcon icon,Vector2 c,Color ink,bool fill){if(!iconAtlas.id){IconRaw(icon,c,ink,fill);return;}DrawTexturePro(iconAtlas,(Rectangle){icon*120,fill?0:120,120,-120},(Rectangle){c.x-20,c.y-20,40,40},(Vector2){0},0,ink);}
 static bool GlyphButton(Rectangle r,UiIcon icon,bool active,bool enabled,const char* label){
     bool hot=Hot(r,enabled);bool star=icon==UI_STAR;
-    Color bg=star&&!StrawberryTheme()?(Color){31,35,41,255}:hot?controlHover:control;if(icon==UI_KEY&&active&&recordingKey)bg=(Color){26,89,55,255};
-    ThemeButton(r,enabled?bg:Fade(bg,0.5f));
+    Color bg=star&&!StrawberryTheme()?(Color){31,35,41,255}:active?controlHover:hot?controlHover:control;if(icon==UI_KEY&&active&&recordingKey)bg=(Color){26,89,55,255};
+    ThemeButton(r,enabled?bg:Fade(bg,0.5f),false);ButtonFeedback(r,hot,hot&&IsMouseButtonDown(MOUSE_BUTTON_LEFT),active);
     Color ink=icon==UI_TRASH?(Color){236,105,115,255}:star&&!StrawberryTheme()?WHITE:AppTheme.text;
     if(StrawberryTheme()&&icon!=UI_TRASH)ink=ThemeHex(0x654325);
     if(!enabled)ink=Fade(ink,0.35f);
     Vector2 center={r.x+(label&&*label?23:r.width/2),r.y+r.height/2};
     int index=iconIndex>=0?iconIndex:selected_index;
-    if(star&&index>=0){float p=starPulse[index];if(p<=0)Icon(UI_STAR,center,ink,active);else StarIcon(center,10+3*sinf(p*PI),ink,active);if(p>0)DrawCircleLines(center.x,center.y,12+(1-p)*8,Fade(ink,p*0.4f));}
+    if(star&&index>=0){float pulse=StrawberryTheme()?0:starPulse[index];StarIcon(center,StrawberryTheme()?fminf(8,r.height*.23f):10+3*sinf(pulse*PI),ink,active);}
+    else if(StrawberryTheme()&&iconAtlas.id){float size=fminf(34,r.height-6);if(!label||!*label)size=fminf(size,r.width-6);DrawTexturePro(iconAtlas,(Rectangle){icon*120,active?0:120,120,-120},(Rectangle){center.x-size/2,center.y-size/2,size,size},(Vector2){0},0,ink);}
     else Icon(icon,center,ink,active);
     if(label&&*label)ControlCaption(r,label,42,10,ink);
-    if(active&&!star)DrawRectangleRoundedLinesEx(r,0.24f,12,1.2f,Fade(AppTheme.border,0.8f));
+    if(active&&!star&&!CyberTheme()&&!StrawberryTheme())DrawRectangleRoundedLinesEx(r,0.24f,12,1.2f,Fade(AppTheme.border,0.8f));
     if(hot)SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     return hot&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 }
 static bool ActionGlyphButton(Rectangle r,UiIcon icon,bool enabled,const char* label){
- Color before=control,hover=controlHover;Color tone=icon==UI_TRASH?(Color){232,94,113,255}:AppTheme.border;control=ColorLerp(surface,tone,.2f);controlHover=ColorLerp(surface,tone,.34f);bool clicked=GlyphButton(r,icon,false,enabled,label);DrawRectangleRoundedLinesEx(r,.24f*themeRoundness,12,1,Fade(tone,.45f));control=before;controlHover=hover;return clicked;
+ Color before=control,hover=controlHover;Color tone=icon==UI_TRASH?(Color){232,94,113,255}:AppTheme.border;control=ColorLerp(surface,tone,.2f);controlHover=ColorLerp(surface,tone,.34f);bool clicked=GlyphButton(r,icon,false,enabled,label);if(!CyberTheme())DrawRectangleRoundedLinesEx(r,StrawberryTheme()?1:.24f*themeRoundness,20,1,Fade(tone,.45f));control=before;controlHover=hover;return clicked;
 }
 static void ToggleStar(int i){if(lab_favorite_change(i,0))starPulse[i]=1;}
 // Draw a bounded number of lines, preserving UTF-8 boundaries when truncating.
@@ -251,16 +253,20 @@ static float CompactGlyphWidth(const char* label);
 #include "resolution_picker.h"
 #include "display_editor.h"
 #include "transition_ui.h"
-static bool fontShowAll=false;
+static Rectangle generalFontCheck;
 static void AppearanceFonts(int x,int* y,int w){
- const char* options[128];int ids[128],count=0,selected=0,current=lab_font_selected();
- for(int i=0;i<lab_font_count();i++){
-  const char* name=lab_font_name(i);bool thematic=CyberTheme()?(!strcmp(name,"Rajdhani")||!strcmp(name,"Oxanium")||!strcmp(name,"Orbitron")):(!strcmp(name,"Sans")||!strcmp(name,"Adwaita Sans")||!strcmp(name,"Noto Sans"));
-  if(i==0||thematic||fontShowAll||i==current){options[count]=i?name:lab_tr("Predefinito");ids[count]=i;if(i==current)selected=count;count++;}
- }
- options[count]=lab_tr(fontShowAll?"Solo font del tema":"Mostra tutti i font");ids[count]=-1;count++;
- fontControl=(Rectangle){x+w-fminf(292,w*.6f),*y,fminf(292,w*.6f),34};int chosen=Choice(33,x,y,w,"Theme Font",options,count,selected);fontMenu=choiceOpen==33;
- if(chosen!=selected){if(ids[chosen]<0)fontShowAll=!fontShowAll;else lab_set_font(ids[chosen]);}
+ const char* suggested[3];int count=LabSuggestedFonts(lab_option("ui_design"),suggested),selected=0;
+ for(int i=0;i<count;i++)if(!strcmp(suggested[i],lab_theme_font()))selected=i;
+ int chosen=Choice(33,x,y,w,"Suggested Theme Fonts",suggested,count,selected);if(chosen!=selected)lab_set_theme_font(suggested[chosen]);
+ const char* fonts[128];for(int i=0;i<lab_font_count();i++)fonts[i]=i?lab_font_name(i):lab_tr("Predefinito");
+ int top=*y;bool enabled=lab_option("general_font_enabled");choiceReserve=36;choiceEnabled=enabled;
+ chosen=Choice(35,x,y,w,"General Fonts",fonts,lab_font_count(),lab_font_selected());choiceReserve=0;choiceEnabled=true;
+ if(chosen!=lab_font_selected())lab_set_font(chosen);
+ generalFontCheck=(Rectangle){x+w-26,top+4,26,26};bool hot=Hot(generalFontCheck,!applying);
+ ThemeButton(generalFontCheck,enabled?controlHover:control,false);ButtonFeedback(generalFontCheck,hot,hot&&IsMouseButtonDown(MOUSE_BUTTON_LEFT),enabled);
+ if(enabled){Color ink=StrawberryTheme()?ThemeHex(0x654325):AppTheme.text;DrawLineEx((Vector2){generalFontCheck.x+6,top+17},(Vector2){generalFontCheck.x+11,top+22},2,ink);DrawLineEx((Vector2){generalFontCheck.x+11,top+22},(Vector2){generalFontCheck.x+21,top+11},2,ink);}
+ if(hot){SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT))lab_set_option("general_font_enabled",!enabled);}
+ fontControl=choiceControls[35];fontMenu=choiceOpen==33||choiceOpen==35;
 }
 static float opacityDraft=0;static Rectangle backgroundPick,backgroundClear;
 static void SettingsBody(Rectangle area){
@@ -285,16 +291,18 @@ static void SettingsBody(Rectangle area){
         UiText(lab_tr("Shortcut del carousel"),x,y,18,AppTheme.text);y+=30;ShortcutInline(x,y,w);y+=50;
         int current=lab_shortcut_enabled();int value=BoolChoice(21,x,&y,w,lab_tr("Shortcut attivo"),current);if(value!=current)lab_set_shortcut(lab_shortcut(),value);
     }else if(settingsTab==3){
-        const char* designs[]={"Strawberry core","2077"};int design=lab_option("ui_design");int value=Choice(38,x,&y,w,"Themes",designs,2,design-1);if(value!=design-1)lab_set_option("ui_design",value+1);
+        int design=lab_option("ui_design");int value=Choice(38,x,&y,w,"Themes",labDesignNames,LAB_DESIGN_COUNT,design);if(value!=design)lab_set_option("ui_design",value);
         AppearanceFonts(x,&y,w);
         const char* palettes[LAB_THEME_COUNT];int ids[LAB_THEME_COUNT],count=0,selected=0;
         for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==lab_option("ui_design")){ids[count]=i;palettes[count]=labThemes[i].name;if(i==lab_option("ui_theme"))selected=count;count++;}
         value=Choice(30,x,&y,w,"Color Palettes",palettes,count,selected);if(value!=selected)lab_set_option("ui_theme",ids[value]);
         int backgroundTop=y,cw=fminf(292,w*.6f),bx=x+w-cw;bool custom=*lab_app_background();
         const char* cyberBackgrounds[]={"Neon District","Afterlife Alley","Binary Rain","Edge Signal",lab_tr("Carica dal PC")};
-        const char* berryBackgrounds[]={"Strawberry Gingham","Ribbon Paper","Cream Garden","Berry Lace",lab_tr("Carica dal PC")};
+        const char* berryBackgrounds[]={"Strawberry Gingham","Ribbon Atelier","Strawberry Garden","Tea Party Lace",lab_tr("Carica dal PC")};
+        const char* defaultBackgrounds[]={"Quiet Gradient","Blueprint","Contour","Night Dots",lab_tr("Carica dal PC")};
+        const char* pixelBackgrounds[]={"Overworld","Dungeon","Arcade","Star Quest",lab_tr("Carica dal PC")};
         TextLines(lab_tr("Sfondo dell’app"),x,y+8,fmaxf(60,w-cw-108),13,2,AppTheme.text);
-        int bg=custom?4:lab_option("app_background_preset"),next=Choice(39,bx,&y,cw,"",CyberTheme()?cyberBackgrounds:berryBackgrounds,5,bg);
+        int bg=custom?4:lab_option("app_background_preset"),next=Choice(39,bx,&y,cw,"",CyberTheme()?cyberBackgrounds:PixelTheme()?pixelBackgrounds:DefaultTheme()?defaultBackgrounds:berryBackgrounds,5,bg);
         if(next!=bg){if(next==4)lab_files_start(3);else lab_set_option("app_background_preset",next);}
         DrawBackgroundPreview((Rectangle){bx-96,backgroundTop,84,73});
         backgroundPick=(Rectangle){bx,y,cw/2-4,34};backgroundClear=(Rectangle){bx+cw/2+4,y,cw/2-4,34};
@@ -396,12 +404,14 @@ static void Header(int sw,int top,int count){
         for(int x=0;x<sw;x+=32)DrawRectangle(x,0,16,top,Fade(AppTheme.border,.035f));
         BerryLace(0,top-11,sw);BerryBunny(40,31,.48f);
         if(sw>1160){BerryBow(sw-144,29,.8f);BerryFruit(sw-80,37,20);BerryBunny(sw-52,88,.9f);}
-    }else if(CyberTheme()){
+    }else if(PixelTheme()){PixelCharacter(28,21,3,2,lab_option("reduce_motion")?0:(int)(GetTime()*4));}else if(CyberTheme()){
         for(int x=0;x<sw;x+=8)DrawRectangle(x,0,3,2,Fade(AppTheme.border,.45f));
-        CyberPanel((Rectangle){22,20,36,40},control);DrawText("77",29,31,20,AppTheme.border);
-        if(sw>1160)CyberWordmark(sw-232,17);
+
+        if(sw>1160)CyberWordmark(sw-286,12);
     }else Icon(UI_LOGO,(Vector2){44,40},AppTheme.text,false);
-    UiText("Wallpaper Lab",72,22,25,AppTheme.text);
+    if(CyberTheme()){
+        DrawRectangle(24,22,3,31,AppTheme.border);ShapedText* brand=ShapeFamily("WALLPAPER LAB",22,lab_option("general_font_enabled")?lab_font_family():"Oxanium");DrawTexture(brand->texture,39,20,AppTheme.text);
+    }else UiText("Wallpaper Lab",72,22,25,AppTheme.text);
     float navX=fmaxf(285,72+UiMeasure("Wallpaper Lab",25)+30);const char* navNames[]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop"};UiIcon navIcons[]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD};
     for(int i=0;i<3;i++){int navPage=i==2?3:i;float width=UiMeasure(lab_tr(navNames[i]),15)+62;if(i==0)headerLibrary=(Rectangle){navX,22,width,38};else if(i==1)headerCarousel=(Rectangle){navX,22,width,38};else headerWorkshop=(Rectangle){navX,22,width,38};if(GlyphButton((Rectangle){navX,22,width,38},navIcons[i],page==navPage,!applying,lab_tr(navNames[i])))ChangePage(navPage);navX+=width+8;}
     headerSettings=(Rectangle){navX,22,40,38};if(GlyphButton(headerSettings,UI_GEAR,settingsOpen||page==2,!applying,"")){settingsOpen=!settingsOpen;choiceOpen=-1;settingsScroll=settingsScrollDraw=0;SetRecording(false);}
@@ -425,7 +435,7 @@ static void Header(int sw,int top,int count){
 
     }
     if(StrawberryTheme())UiText("strawberry core",72,53,11,muted);
-    if(CyberTheme())UiText("2077 / AFTER HOURS",72,53,11,muted);
+    if(CyberTheme())UiText("DESKTOP // CONTROL DECK",39,48,10,CyberSecondary());
     DrawLine(28,top-1,sw-28,top-1,lineColor);
 }
 static void Grid(Rectangle area,int count,int* indices,float dt){
@@ -620,6 +630,7 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"creator_binary\":[");for(int n=0;n<creatorBinaryCount;n++){Rectangle r=creatorBinaryRows[n];fprintf(f,"%s{\"property\":%d,\"value\":%d,\"control\":[%.1f,%.1f]}",n?",":"",creatorBinaryProps[n],creatorBinaryValues[n],r.x+r.width-30,r.y+r.height/2);}fprintf(f,"]");
     fprintf(f,",\"mirror_toggles\":");GeometryCenters(f,mirrorToggles,2);fprintf(f,",\"image_resets\":");GeometryCenters(f,imageResetButtons,1);
     fprintf(f,",\"image_tracks\":[");for(int n=0;n<3;n++)fprintf(f,"%s[%.1f,%.1f,%.1f]",n?",":"",adjustmentTracks[n].x,adjustmentTracks[n].y,adjustmentTracks[n].width);fprintf(f,"],\"opacity_track\":[%.1f,%.1f,%.1f],\"library_total\":%d,\"library_page\":%d",opacityTrack.x,opacityTrack.y,opacityTrack.width,libraryTotal,libraryPage);
+    fprintf(f,",\"general_font_check\":[%.1f,%.1f],\"effective_font\":\"%s\",\"general_font_enabled\":%s",generalFontCheck.x+13,generalFontCheck.y+13,lab_font_family(),lab_option("general_font_enabled")?"true":"false");
     fprintf(f,",\"background_button_size\":[%.1f,%.1f],\"workshop_scroll\":[%.2f,%.2f],\"text_rasterizations\":%u",backgroundPick.width,backgroundPick.height,wsScroll,wsScrollDraw,shapedRasterizations);
     fprintf(f,",\"app_background_controls\":[[%.1f,%.1f],[%.1f,%.1f]]",backgroundPick.x+backgroundPick.width/2,backgroundPick.y+backgroundPick.height/2,backgroundClear.x+backgroundClear.width/2,backgroundClear.y+backgroundClear.height/2);
     fprintf(f,",\"resolution_groups\":");GeometryCenters(f,groupChecks,6);

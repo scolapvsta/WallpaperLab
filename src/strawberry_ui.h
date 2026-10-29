@@ -56,25 +56,30 @@ static void BerryLace(float x,float y,float width){
  DrawLine(x,y,x+width,y,Fade(AppTheme.border,.28f));
 }
 static void BerryBackdrop(int width,int height){
- DrawRectangle(0,0,width,height,AppTheme.bg);
- int preset=lab_option("app_background_preset");Color check=Fade(AppTheme.border,preset==2?.02f:.045f);
- if(preset!=1)for(int x=0;x<width;x+=48)DrawRectangle(x,0,24,height,check);
- for(int y=0;y<height;y+=preset==1?36:48)DrawRectangle(0,y,width,preset==1?4:24,check);
- if(preset==3)for(int y=20;y<height;y+=90)BerryLace(0,y,width);
- for(int row=0,y=195;y<height;y+=144,row++)for(int x=35+(row%2)*95;x<width;x+=190){
-  if((x/190+row)%3==0)BerryBow(x,y,.46f);else if((x/190+row)%3==1)BerryFruit(x,y,10);
-  else {DrawCircle(x,y,2,Fade(AppTheme.border,.23f));DrawCircle(x+12,y+14,1,Fade(AppTheme.border,.2f));}
+ int p=lab_option("app_background_preset");DrawRectangle(0,0,width,height,AppTheme.bg);
+ if(p==0){
+  Color check=Fade(AppTheme.border,.045f);for(int x=0;x<width;x+=48)DrawRectangle(x,0,24,height,check);for(int y=0;y<height;y+=48)DrawRectangle(0,y,width,24,check);
+  for(int row=0,y=195;y<height;y+=144,row++)for(int x=35+(row%2)*95;x<width;x+=190){if((x/190+row)%2)BerryFruit(x,y,10);else BerryBow(x,y,.46f);}
+ }else if(p==1){
+  DrawRectangleGradientV(0,0,width,height,ColorLerp(surface,AppTheme.bg,.4f),AppTheme.bg);
+  for(int x=-height;x<width;x+=180)DrawLineEx((Vector2){x,0},(Vector2){x+height*.6f,height},24,Fade(AppTheme.border,.07f));
+  for(int y=200;y<height;y+=170){DrawRectangle(0,y,width,12,Fade(AppTheme.border,.1f));DrawLine(0,y+5,width,y+5,Fade(WHITE,.6f));BerryBow(width-75,y+6,1.2f);}
+ }else if(p==2){
+  DrawRectangleGradientV(0,0,width,height,ThemeHex(0xfffaf0),AppTheme.bg);
+  for(int y=225;y<height;y+=130)for(int x=55+(y/130%2)*70;x<width;x+=160){
+   DrawLine(x,y+8,x-6,y+34,Fade(ThemeHex(0x91ad7d),.45f));BerryFruit(x,y,18);
+   for(int n=0;n<5;n++){float a=n*2*PI/5;DrawCircle(x+44+cosf(a)*6,y+25+sinf(a)*6,4,Fade(WHITE,.8f));}DrawCircle(x+44,y+25,3,ThemeHex(0xefc870));
+  }
+  if(width>500)BerryBunny(width-100,height-112,1.8f);
+ }else{
+  DrawRectangleGradientV(0,0,width,height,surface,ColorLerp(surface,AppTheme.bg,.35f));
+  for(int y=190;y<height;y+=180){DrawRectangle(0,y,width,52,Fade(AppTheme.border,.075f));BerryLace(0,y,width);BerryLace(0,y+47,width);}
+  for(int x=90;x<width;x+=260)for(int y=265;y<height;y+=240){for(int n=0;n<24;n++){float a=n*PI/12;DrawCircle(x+cosf(a)*44,y+sinf(a)*32,5,Fade(AppTheme.border,.09f));}BerryBow(x,y,.9f);}
  }
 }
 static void BerryCookie(Rectangle r,Color state){
- // Honey shortbread stays yellow in every palette and mode, including hover/selection.
- float radius=fminf(r.height*.48f,r.width*.25f),tooth=fminf(3.2f,r.height*.085f);
- Color crust=ThemeHex(0xc99953),dough=ColorLerp(ThemeHex(0xffe4a0),state,.08f);crust.a=dough.a=state.a;
- DrawRectangleRounded((Rectangle){r.x,r.y+1,r.width,r.height-1},.92f,18,crust);
- Rectangle body={r.x+2,r.y+1,r.width-4,r.height-4};DrawRectangleRounded(body,.95f,18,dough);
- // Gentle scallops along the straight center, rounded ends keep the biscuit soft.
- for(float x=r.x+radius;x<r.x+r.width-radius;x+=7){DrawCircle(x,r.y+tooth+1,tooth,dough);DrawCircle(x,r.y+r.height-tooth-3,tooth,dough);}
- Rectangle stitch={r.x+7,r.y+5,r.width-14,r.height-11};
- DrawRectangleRoundedLinesEx(stitch,.9f,16,1,Fade(crust,.45f));
- if(r.width>60){for(int n=0;n<3;n++){DrawCircle(r.x+8+n*5,r.y+r.height/2+(n%2?3:-3),.7f,Fade(crust,.6f));DrawCircle(r.x+r.width-8-n*5,r.y+r.height/2+(n%2?-3:3),.7f,Fade(crust,.6f));}}
+ Color crust=ThemeHex(0xc99953),dough=ColorLerp(ThemeHex(0xffe4a0),state,.06f);crust.a=dough.a=state.a;
+ DrawRectangleRounded((Rectangle){r.x,r.y+1,r.width,r.height-1},1,24,crust);
+ DrawRectangleRounded((Rectangle){r.x+2,r.y+1,r.width-4,r.height-4},1,24,dough);
+ if(r.width>16&&r.height>16)DrawRectangleRoundedLinesEx((Rectangle){r.x+5,r.y+4,r.width-10,r.height-9},1,24,1,Fade(crust,.38f));
 }

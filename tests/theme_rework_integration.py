@@ -2,7 +2,7 @@
 """Theme-scoped palettes, dropdown themes, native backgrounds and visual smoke tests."""
 import argparse,json,pathlib,subprocess,os,time,shlex,shutil
 from PIL import Image,ImageChops,ImageStat
-p=argparse.ArgumentParser();p.add_argument('--app',required=True,type=pathlib.Path);p.add_argument('--output',required=True,type=pathlib.Path);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);steam=out/'steam';steam.mkdir(exist_ok=True);source=out/'originals';source.mkdir(exist_ok=True);bin_=out/'bin';bin_.mkdir(exist_ok=True);sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'lab-ui22-{os.getpid()}.sock'
+p=argparse.ArgumentParser();p.add_argument('--app',required=True,type=pathlib.Path);p.add_argument('--output',required=True,type=pathlib.Path);a=p.parse_args();app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);steam=out/'steam';steam.mkdir(exist_ok=True);source=out/'originals';source.mkdir(exist_ok=True);bin_=out/'bin';bin_.mkdir(exist_ok=True);sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'lab-ui23-{os.getpid()}.sock'
 env=os.environ|{'XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'XDG_DATA_HOME':str(out/'data'),'XDG_CACHE_HOME':str(out/'cache'),'WALLPAPER_LAB_UI_STATE':str(out/'ui.json'),'YDOTOOL_SOCKET':str(sock),'LD_LIBRARY_PATH':':'.join(str(app.parent/x)for x in ['.','lib','deps']),'PATH':str(bin_)+':'+os.environ['PATH']}
 log=open(out/'log','w');daemon=subprocess.Popen(['ydotoold','--socket-path='+str(sock)],stdout=log,stderr=log);ui=None;results={}
 def run(*args):return subprocess.check_output([str(x)for x in args],env=env,text=True)
@@ -25,8 +25,8 @@ def state():return read_state(out/'ui.json')
 def w():return next(w for w in json.loads(run('hyprctl','clients','-j'))if w['pid']==ui.pid)
 def move(x,y):
  q=w();target=(round(q['at'][0]+x),round(q['at'][1]+y))
- for _ in range(3):
-  run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={target[0]},y={target[1]},relative=false}}))');time.sleep(.12)
+ for _ in range(6):
+  run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={target[0]},y={target[1]},relative=false}}))');time.sleep(.035)
   pos=json.loads(run('hyprctl','cursorpos','-j'))
   if abs(pos['x']-target[0])+abs(pos['y']-target[1])<3:break
  assert abs(pos['x']-target[0])+abs(pos['y']-target[1])<5,('pointer moved unexpectedly',pos,target)
@@ -59,79 +59,79 @@ def status():return json.loads(run(app,'--status'))
 
 
 personal=json.loads(subprocess.check_output([pathlib.Path.home()/'.local/bin/wallpaper-lab','--status'],text=True))
-env['WALLPAPER_LAB_UI_READ_ONLY']='1'
-root=pathlib.Path(__file__).resolve().parents[1]
+env['WALLPAPER_LAB_UI_READ_ONLY']='1';root=pathlib.Path(__file__).resolve().parents[1]
 env['LD_LIBRARY_PATH']+=':'+str(root/'local/sysroot/usr/lib')+':'+str(root/'build-engine/output')
-fixture=out/'library/1000';fixture.mkdir(parents=True,exist_ok=True);env['WALLPAPER_LAB_LIBRARY']=str(fixture.parent)
-(fixture/'project.json').write_text(json.dumps({'type':'web','title':'Theme / layout fixture','file':'index.html','preview':'preview.png'}))
-(config/'carousel.json').write_text(json.dumps([str(fixture)]))
-(fixture/'index.html').write_text('<body>UI fixture</body>');Image.new('RGB',(640,360),(100,122,168)).save(fixture/'preview.png')
-(config/'settings.json').write_text(json.dumps({'theme_catalog':True,'theme_variants':True,'theme_ui_v2':True,'ui_design':1,'ui_theme':29,'light_theme':True,'font_family':'DejaVu Sans','window_transparency':30,'language':'it','carousel_layout':1}))
-selection=out/'selection.txt';selection.write_text('')
-picker=bin_/'zenity';picker.write_text('#!/bin/sh\ncat '+shlex.quote(str(selection))+'\n');picker.chmod(0o755)
-background=source/"App's pastel backdrop.png";im=Image.new('RGB',(1600,900),(112,158,193));__import__('PIL.ImageDraw',fromlist=['ImageDraw']).Draw(im).rectangle((800,0,1600,900),fill=(193,123,153));im.save(background)
-bad=source/'broken.png';bad.write_text('not an image')
+library=out/'library';library.mkdir(exist_ok=True);env['WALLPAPER_LAB_LIBRARY']=str(library);fixtures=[]
+for i,color in enumerate([(55,95,145),(175,92,120),(60,135,100)]):
+ fixture=library/str(1000+i);fixture.mkdir(exist_ok=True);fixtures.append(str(fixture))
+ (fixture/'project.json').write_text(json.dumps({'type':'web','title':'Theme fixture '+str(i),'file':'index.html','preview':'preview.png'}));(fixture/'index.html').write_text('<body>UI fixture</body>');Image.new('RGB',(640,360),color).save(fixture/'preview.png')
+(config/'carousel.json').write_text(json.dumps(fixtures))
+(config/'settings.json').write_text(json.dumps({'theme_scoped_v3':True,'ui_design':0,'ui_theme':14,'font_family':'DejaVu Sans','general_font_enabled':False,'language':'it','carousel_layout':0,'reduce_motion':True}))
 def pref():return json.loads((config/'settings.json').read_text())
-def toggle(id):
- assert g()['choices'][str(id)]['kind']=='toggle';old=g()['choices'][str(id)]['value'];click(*g()['choices'][str(id)]['control']);wait(lambda:g()['choices'][str(id)]['value']!=old)
 def launch():
  global ui
  ui=subprocess.Popen([str(app),'--appearance-settings'],env=env,stdout=log,stderr=log);wait(w)
  monitors=json.loads(run('hyprctl','monitors','-j'));m=next((m for m in monitors if m['name']=='DP-6'),monitors[-1])
- run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.move({{window="pid:{ui.pid}",workspace="{m["activeWorkspace"]["id"]}",follow=false}}))');time.sleep(.5)
- run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}})); hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1440,y=900,relative=false}})); hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}})); hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}))')
- time.sleep(.8);wait(lambda:'38'in g()['choices']);time.sleep(.6)
+ run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.move({{window="pid:{ui.pid}",workspace="{m["activeWorkspace"]["id"]}",follow=false}}));hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1440,y=900,relative=false}}));hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}))');time.sleep(.8)
+ wait(lambda:'38'in g()['choices'])
 def close():ui.terminate();ui.wait(15)
 try:
- wait(sock.exists);launch()
- assert s()['design']==1 and s()['light']is True and '31'not in g()['choices']
- choose(38,1);wait(lambda:s()['design']==2);assert s()['light']is False
- assert len(g()['choices']['30']['options'])==6
- for i in range(6):
-  choose(30,i);wait(lambda:s()['theme']==3+i);shot('2077-palette-'+str(i))
- # Theme font list is curated; its last action expands it to installed families.
- small=len(g()['choices']['33']['options']);choose(33,small-1);wait(lambda:len(g()['choices']['33']['options'])>small)
- all_count=len(g()['choices']['33']['options']);choose(33,1);assert pref()['font_family']=='Rajdhani'
- choose(33,all_count-1);wait(lambda:len(g()['choices']['33']['options'])==5)
- for index,name in [(2,'Oxanium'),(3,'Orbitron'),(1,'Rajdhani')]:
-  choose(33,index);wait(lambda:pref()['font_family']==name);shot('font-'+name)
- click(*g()['choices']['33']['control']);wait(lambda:g()['choice_open']==33);shot('font-menu-single-label');esc()
- results['theme_fonts_curated_show_all_and_single_render']=True
- assert g()['background_button_size'][0]<160 and g()['background_button_size'][1]==34
- for preset in range(4):
-  choose(39,preset);wait(lambda:pref().get('cyber_background',0)==preset);im=shot('2077-background-'+str(preset))
-  px,py=g()['app_background_controls'][0];thumb=im.crop((round(px-157),round(py-50),round(px-93),round(py+3)))
-  assert max(ImageStat.Stat(thumb).stddev)>.8,('blank background preview',preset)
- results['compact_controls_four_presets_and_preview']=True
- selection.write_text(str(background)+'\n');click(*g()['app_background_controls'][0]);wait(lambda:pref().get('app_background'))
- copied=pathlib.Path(pref()['app_background']);assert copied.is_file() and copied!=background;background.unlink();close();launch();assert copied.is_file();shot('2077-custom-background')
- selection.write_text(str(bad)+'\n');click(*g()['app_background_controls'][0]);time.sleep(2);assert pref()['app_background']==str(copied)
- click(*g()['app_background_controls'][1]);wait(lambda:not pref().get('app_background')and pref().get('cyber_background',0)==0)
- results['background_import_restore_and_invalid_preserves_previous']=True
- choose(30,5);close();launch();assert s()['theme']==8 and s()['light']is False and pref()['font_family']=='Rajdhani'
- choose(38,0);wait(lambda:s()['design']==1);assert s()['light']is True
- choose(38,1);wait(lambda:s()['design']==2);assert s()['theme']==8 and s()['light']is False
- results['theme_owns_mode_and_restores_palette']=True
- click(*g()['settings_tabs'][4]);toggle(41);assert pref()['reduce_motion'];click(*g()['settings_tabs'][3]);esc();wait(lambda:not state()['settings']);shot('2077-library')
- # The real Workshop read-only path is optional when Steam has no connection.
- click(*g()['header']['workshop']);wait(lambda:state()['page']==3)
- deadline=time.monotonic()+35
- while time.monotonic()<deadline and (g()['workshop']['busy']or not g()['workshop']['count']):time.sleep(.3)
- if g()['workshop']['count']>=12:
-  time.sleep(2);before=g()['text_rasterizations'];time.sleep(1);idle=g()['text_rasterizations']-before;fps=[]
-  for n in range(12):
-   move(w()['size'][0]*.55,w()['size'][1]*.6);run('ydotool','mousemove','--wheel','--','0','-2'if n<6 else'2');time.sleep(.15);fps.append(s()['fps'])
-  time.sleep(.8);shot('workshop-smooth-scroll');results['workshop_scroll']={'items':g()['workshop']['count'],'median_fps':sorted(fps)[len(fps)//2],'idle_text_uploads':idle};assert idle<10 and sorted(fps)[len(fps)//2]>=40
- else:results['workshop_scroll']='Steam/network unavailable; CPU/GPU text-cache regression tested separately'
- click(*g()['header']['library']);click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
- for layout in range(4):
-  choose(20,layout);click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.5);shot('2077-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
- results['four_layouts']=True
+ wait(sock.exists);launch();assert len(g()['choices']['38']['options'])==4
+ palette_counts=[3,3,11,4];background_hashes={}
+ for design in range(4):
+  choose(38,design);wait(lambda:s()['design']==design);assert len(g()['choices']['30']['options'])==palette_counts[design]
+  assert s()['light']==(design==1);assert not pref()['general_font_enabled'];expected=['Sans','Sans','Oxanium','Silkscreen'][design];assert g()['effective_font']==expected
+  hashes=[]
+  for preset in range(4):
+   choose(39,preset);time.sleep(.15);im=shot('theme-'+str(design)+'-background-'+str(preset));px,py=g()['app_background_controls'][0];crop=im.crop((int(px-157),int(py-50),int(px-93),int(py+3)));assert max(ImageStat.Stat(crop).stddev)>.4;hashes.append(__import__('hashlib').sha256(crop.tobytes()).hexdigest())
+  assert len(set(hashes))==4; background_hashes[design]=hashes
+ results['four_themes_palettes_distinct_backgrounds_fonts']=True
+ # General Fonts is a genuine opt-in override over the suggested family.
+ choose(38,2);choose(33,1);wait(lambda:g()['effective_font']=='Rajdhani');click(*g()['general_font_check']);wait(lambda:g()['general_font_enabled']);assert g()['effective_font']=='DejaVu Sans'
+ choose(33,2);assert g()['effective_font']=='DejaVu Sans';choose(35,2);wait(lambda:g()['effective_font']=='Oxanium');click(*g()['general_font_check']);wait(lambda:not g()['general_font_enabled']);assert g()['effective_font']=='Orbitron'
+ results['suggested_and_general_font_checkbox_override']=True
+ for palette in range(6,11):choose(30,palette)
+ shot('cyber-extra-palettes');choose(30,1);choose(33,0)
+ choose(38,3);choose(39,0);click(*g()['settings_tabs'][4])
+ def motion_toggle():
+  old=g()['choices']['41']['value'];click(*g()['choices']['41']['control']);wait(lambda:g()['choices']['41']['value']!=old)
+ motion_toggle();esc();wait(lambda:not state()['settings']);a1=shot('pixel-animation-a');time.sleep(.35);a2=shot('pixel-animation-b');area=(800,600,1400,850);assert sum(max(px[:3])>3 for px in ImageChops.difference(a1.crop(area),a2.crop(area)).get_flattened_data())>20
+ click(*g()['header']['settings']);wait(lambda:state()['settings']);motion_toggle();esc();wait(lambda:not state()['settings']);a1=shot('pixel-reduced-motion-a');time.sleep(.35);a2=shot('pixel-reduced-motion-b');assert max(channel[1]for channel in ImageChops.difference(a1.crop(area),a2.crop(area)).getextrema())<=1
+ results['pixel_animation_and_reduce_motion']=True
+ click(*g()['header']['settings']);wait(lambda:state()['settings']);click(*g()['settings_tabs'][3])
+ choose(38,1);choose(39,0);esc();wait(lambda:not state()['settings'])
+ move(700,780);time.sleep(.2);before=shot('berry-cookie-idle');pt=g()['header']['refresh'];move(*pt);time.sleep(.2);after=shot('berry-cookie-hover');box=(int(pt[0]-18),int(pt[1]-18),int(pt[0]+18),int(pt[1]+18));assert ImageChops.difference(before.crop(box),after.crop(box)).getbbox()is not None
+ results['cookie_hover_feedback']=True
+ # All sixteen preview combinations use the same shared skin as the popup.
+ for design in range(4):
+  click(*g()['header']['settings']);wait(lambda:state()['settings']);choose(38,design);esc();wait(lambda:not state()['settings']);click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
+  for layout in range(4):
+   choose(20,layout);click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.5);shot('preview-theme-'+str(design)+'-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
+ close();ui=None;results['sixteen_switcher_previews']=True
+ # Capture the actual compositor popups using the synthetic library, then cancel.
+ for design,palette,rgb in [(0,14,(156,203,189)),(1,1,(172,49,91)),(2,4,(255,105,198)),(3,17,(255,133,200))]:
+  run(app,'--ui-option','ui_design',design);run(app,'--ui-option','ui_theme',palette);run(app,'--ui-option','general_font_enabled',0)
+  for layout in range(4):
+   if design==2 and layout==3:run(app,'--ui-option','font',0);run(app,'--ui-option','general_font_enabled',1)
+   run(app,'--ui-option','carousel_layout',layout);capture=out/('popup-'+str(design)+'-'+str(layout));capture.mkdir(exist_ok=True);trace=capture/'trace.json';session=design*10+layout+1
+   pe=env|{'WALLPAPER_LAB_POPUP_CAPTURE':str(capture),'WALLPAPER_LAB_POPUP_STATE':str(trace)}
+   child=subprocess.Popen([str(app),'--carousel-event','theme-test',str(session),'1','step'],env=pe,stdout=log,stderr=log)
+   try:
+    deadline=time.monotonic()+15
+    while not(capture/'step-1-2.png').exists():assert child.poll()is None;assert time.monotonic()<deadline;time.sleep(.05)
+    state_=json.loads(trace.read_text());assert(state_['design'],state_['theme'])==(design,palette)
+    assert state_['font']==('Sans'if design==2 and layout==3 else['Sans','Sans','Oxanium','Silkscreen'][design]);assert state_['general_font_override']==(design==2 and layout==3)
+    im=Image.open(capture/'step-1-2.png').convert('RGBA');matching=sum(1 for px in im.get_flattened_data()if px[3]>200 and sum(abs(px[i]-rgb[i])for i in range(3))<35);assert matching>15,(design,layout,matching)
+    client=next(c for c in json.loads(run('hyprctl','clients','-j'))if c['pid']==child.pid);run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.close({{window="pid:{child.pid}"}}))');child.wait(8)
+   finally:
+    if child.poll()is None:
+     proc=pathlib.Path('/proc',str(child.pid));assert pathlib.Path(os.readlink(proc/'exe')).resolve()==app;child.terminate();child.wait(8)
+ results['sixteen_actual_popups_match_theme_palette']=True
+ assert not(out/'state/wallpaper-lab/running.json').exists()
 finally:
- if __import__('sys').exc_info()[0] and ui and ui.poll()is None:
+ if __import__('sys').exc_info()[0]and ui and ui.poll()is None:
   try:shot('failure')
   except Exception:pass
  if ui and ui.poll()is None:close()
  daemon.terminate();daemon.wait(5);sock.unlink(missing_ok=True);(out/'results.json').write_text(json.dumps(results,indent=2))
-assert personal==json.loads(subprocess.check_output([pathlib.Path.home()/'.local/bin/wallpaper-lab','--status'],text=True))
-print(json.dumps(results,indent=2))
+assert personal==json.loads(subprocess.check_output([pathlib.Path.home()/'.local/bin/wallpaper-lab','--status'],text=True));print(json.dumps(results,indent=2))

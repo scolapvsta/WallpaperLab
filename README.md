@@ -10,13 +10,13 @@ anteprime e rendering. Il wallpaper continua in una seconda istanza dello stesso
 eseguibile quando il selettore si chiude. Questo permette di isolare il rendering
 e lasciare libera la memoria dell'interfaccia.
 
-## Versione attuale: 0.22
+## Versione attuale: 0.23
 
-2077 aggiunge Crimson Protocol rossa, quattro sfondi inclusi con preview,
-font tematici Oxanium/Rajdhani/Orbitron e testata ridisegnata. La modalità è decisa
-dal tema: Strawberry chiaro, 2077 scuro. Risolti il doppio testo nella dropdown
-font e il costo delle texture intermedie durante lo scroll Workshop.
-Il mute globale o locale ora silenzia subito anche i wallpaper web, senza riavvio.
+Quattro temi completi: Default, Strawberry core, 2077 e Pixel Theme, con 21
+palette e quattro background per tema. Font suggeriti per tema e override
+General Fonts con spunta. Le quattro modalità dello switcher seguono lo stile
+selezionato, anche nel popup reale. Restano le correzioni del mute live dei web
+wallpaper e dello scroll Workshop della 0.22.
 
 La [guida utente](docs/USER_GUIDE.md) descrive il comportamento attuale; le sezioni
 versionate successive conservano anche la storia delle implementazioni.
