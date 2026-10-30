@@ -166,3 +166,14 @@ The public GitHub repository is now named `WallpaperLab`. Clone, release and bug
 report links use the new canonical location. Application branding, executable
 (`wallpaper-lab`), configuration paths and existing release artifacts are
 unchanged; existing checkouts can update their `origin` remote to the new URL.
+
+## 0.25 — Independent switcher themes and Arcade
+
+Added Theme and Color palette to switcher customization, with separate saved
+preferences and per-theme palette recall. Removed automatic UI-to-switcher
+appearance changes. All four layouts share decorative tray, card and margin
+artwork in preview and real popups. Simplified Strawberry core's rabbit and added
+miniature cakes. Renamed Pixel Theme to Arcade without changing saved IDs;
+redesigned its four scenes with neon cabinets, prize machines and candy/starlit
+pixel scenery. Added a reduced-motion-aware scripted Pac-Man chase, power pellet,
+frightened ghosts, capture scores and returning eyes.

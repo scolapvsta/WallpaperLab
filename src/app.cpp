@@ -560,6 +560,16 @@ int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
+    if(k=="switcher_theme"||k=="switcher_palette")return guarded([&]{
+        ControllerLock lock;auto latest=loadSettings();int old=latest.value("switcher_theme",0);
+        if(k=="switcher_theme"){
+            int design=std::clamp(value,0,3);
+            latest["switcher_palette_"+std::to_string(old)]=latest["switcher_palette"];
+            latest[k]=design;
+            latest["switcher_palette"]=LabPaletteForDesign(latest.value("switcher_palette_"+std::to_string(design),LabDefaultPalette(design)),design);
+        }else latest[k]=LabPaletteForDesign(value,old);
+        writeJson(configDir()/"settings.json",latest);settings=latest;
+    });
     if(k=="ui_theme"||k=="ui_design")return guarded([&]{
         ControllerLock lock;auto latest=loadSettings();int old=latest.value("ui_design",0);
         if(k=="ui_design"){

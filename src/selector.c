@@ -653,7 +653,7 @@ static const char* popupImageFs=
 static void InitPopupImages(void){if(popupImageShader.id)return;popupImageShader=LoadShaderFromMemory(NULL,popupImageFs);popupSizeLoc=GetShaderLocation(popupImageShader,"cardSize");popupCoverLoc=GetShaderLocation(popupImageShader,"cover");popupRadiusLoc=GetShaderLocation(popupImageShader,"radius");popupBorderLoc=GetShaderLocation(popupImageShader,"border");popupCapsLoc=GetShaderLocation(popupImageShader,"edgeCaps");popupRimLoc=GetShaderLocation(popupImageShader,"rimColor");popupSkinLoc=GetShaderLocation(popupImageShader,"skinStyle");}
 static void PopupTexture(Texture2D texture, Rectangle source, Rectangle rect, float radius, float border, bool crop, Color tint) {
     if(PixelTheme())radius=0;else if(CyberTheme())radius=3;else if(StrawberryTheme())radius=crop?13:10;
-    float rim[]={AppTheme.border.r/255.f,AppTheme.border.g/255.f,AppTheme.border.b/255.f,1};float skin=lab_option("ui_design");
+    float rim[]={AppTheme.border.r/255.f,AppTheme.border.g/255.f,AppTheme.border.b/255.f,1};float skin=ActiveThemeDesign();
     SetShaderValue(popupImageShader,popupRimLoc,rim,SHADER_UNIFORM_VEC4);SetShaderValue(popupImageShader,popupSkinLoc,&skin,SHADER_UNIFORM_FLOAT);
     Vector2 size={rect.width,rect.height},cover={1,1};
     if(crop){
@@ -730,6 +730,7 @@ static void PopupImages(PopupLayout layout, int count, int* indices, int positio
 static void DrawSwitcherDemo(Rectangle area,float elapsed){
  static RenderTexture2D panel={0},canvas={0};int order[MAX_POSSIBLE_WALLPAPERS],count=0;for(int j=0;j<lab_carousel_count();j++)order[count++]=lab_carousel_item(j);
  if(!count){UiText(lab_tr("Aggiungi preferiti dalla Libreria"),area.x+24,area.y+90,18,muted);return;}
+ themeDesignOverride=lab_option("switcher_theme");ApplyTheme();
  LayoutMode old=g_targetMode;g_targetMode=lab_option("carousel_layout");InitPopupImages();PopupFrame frame=popup_frame_scaled(g_targetMode,count,1100,660,lab_option("switcher_size"),lab_option("switcher_zoom"));PopupLayout layout=frame.content;
  if(panel.texture.width!=layout.width||panel.texture.height!=layout.height){if(panel.id)UnloadRenderTexture(panel);panel=LoadRenderTexture(layout.width,layout.height);}
  if(canvas.texture.width!=frame.width||canvas.texture.height!=frame.height){if(canvas.id)UnloadRenderTexture(canvas);canvas=LoadRenderTexture(frame.width,frame.height);SetTextureFilter(canvas.texture,TEXTURE_FILTER_BILINEAR);}
@@ -737,14 +738,15 @@ static void DrawSwitcherDemo(Rectangle area,float elapsed){
  float duration=lab_option("switcher_motion")/1000.f,cycle=duration+.7f,step=floorf(elapsed/cycle),t=Clamp(fmodf(elapsed,cycle)/duration,0,1),phase=baseline+step+popup_ease(t);int position=(baseline+(int)step+1)%count;
  for(int j=0;j<count;j++)wallpapers[order[j]].hoverAnim=popup_focus(popup_distance(j,phase,count));
  BeginTextureMode(panel);ClearBackground(BLANK);SwitcherBackdrop(layout.width,layout.height,g_targetMode==MODE_WAVE);PopupImages(layout,count,order,position,fmodf(phase,count),false,(Vector2){0});if(g_targetMode==MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){0});EndTextureMode();
- BeginTextureMode(canvas);ClearBackground(BLANK);PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);if(g_targetMode!=MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){frame.padding,frame.padding});EndTextureMode();
+ BeginTextureMode(canvas);ClearBackground(BLANK);PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);SwitcherFrameDecoration(frame.width,frame.height,frame.padding);if(g_targetMode!=MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){frame.padding,frame.padding});EndTextureMode();
  if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);PopupFrame reference=popup_frame_scaled(g_targetMode,count,1100,660,140,150);float scale=fminf(area.width/reference.width,area.height/reference.height);Rectangle dest={area.x+(area.width-frame.width*scale)/2,area.y+(area.height-frame.height*scale)/2,frame.width*scale,frame.height*scale};float fadeIn=lab_option("switcher_fade_in")/1000.f,fadeOut=lab_option("switcher_fade_out")/1000.f,loop=fmodf(elapsed,cycle*count+fadeIn+fadeOut+.5f),visibility=loop<fadeIn?loop/fadeIn:loop>cycle*count+fadeIn?1-(loop-cycle*count-fadeIn)/fadeOut:1;
- DrawTexturePro(canvas.texture,(Rectangle){0,0,frame.width,-frame.height},dest,(Vector2){0},0,Fade(WHITE,Clamp(visibility,0,1)));g_targetMode=old;
+ DrawTexturePro(canvas.texture,(Rectangle){0,0,frame.width,-frame.height},dest,(Vector2){0},0,Fade(WHITE,Clamp(visibility,0,1)));g_targetMode=old;themeDesignOverride=-1;ApplyTheme();
 }
 
 // Transient carousel: lightweight previews while held, one commit on release.
 int carousel_popup_main(void) {
     popupView=true;
+    themeDesignOverride=lab_option("switcher_theme");
     LoadDefaultConfig();ApplyTheme();
     g_max_threads=3;
     g_targetMode=g_currentMode=(LayoutMode)Clamp(lab_option("carousel_layout"),0,3);
@@ -823,7 +825,7 @@ int carousel_popup_main(void) {
             int i=indices[(position+n)%count];
             if(atomic_load(&imagePending[i])){wallpapers[i].texture=LoadTextureFromImage(pendingImages[i]);SetTextureFilter(wallpapers[i].texture,TEXTURE_FILTER_BILINEAR);UnloadImage(pendingImages[i]);atomic_store(&wallpapers[i].loaded,true);atomic_store(&imagePending[i],false);loaded++;}
         }
-        const char* popupTrace=getenv("WALLPAPER_LAB_POPUP_STATE");if(popupTrace){FILE* f=fopen(popupTrace,"w");if(f){fprintf(f,"{\"design\":%d,\"theme\":%d,\"font\":\"%s\",\"general_font_override\":%s,\"selected\":%d,\"position\":%d,\"baseline\":%d,\"steps\":%d,\"padding\":%d,\"width\":%d,\"height\":%d,\"tile\":%d,\"focus\":%.3f,\"hits\":[",lab_option("ui_design"),lab_option("ui_theme"),lab_font_family(),lab_option("general_font_enabled")?"true":"false",position>=0?indices[position]:-1,position,baseline,steps,frame.padding,layout.width,layout.height,layout.tile,position>=0?wallpapers[indices[position]].hoverAnim:0);for(int hit=0;hit<popupHitCount;hit++){PopupHit h=popupHits[hit];fprintf(f,"%s[%d,%.1f,%.1f,%.1f,%.1f]",hit?",":"",h.index,h.rect.x,h.rect.y,h.rect.width,h.rect.height);}fprintf(f,"]}\n");fclose(f);}}
+        const char* popupTrace=getenv("WALLPAPER_LAB_POPUP_STATE");if(popupTrace){FILE* f=fopen(popupTrace,"w");if(f){fprintf(f,"{\"design\":%d,\"theme\":%d,\"font\":\"%s\",\"general_font_override\":%s,\"selected\":%d,\"position\":%d,\"baseline\":%d,\"steps\":%d,\"padding\":%d,\"width\":%d,\"height\":%d,\"tile\":%d,\"focus\":%.3f,\"hits\":[",ActiveThemeDesign(),themeId,lab_font_family(),lab_option("general_font_enabled")?"true":"false",position>=0?indices[position]:-1,position,baseline,steps,frame.padding,layout.width,layout.height,layout.tile,position>=0?wallpapers[indices[position]].hoverAnim:0);for(int hit=0;hit<popupHitCount;hit++){PopupHit h=popupHits[hit];fprintf(f,"%s[%d,%.1f,%.1f,%.1f,%.1f]",hit?",":"",h.index,h.rect.x,h.rect.y,h.rect.width,h.rect.height);}fprintf(f,"]}\n");fclose(f);}}
 
         memset(popupHitRects,0,sizeof(popupHitRects));popupHitCount=0;popupHitOffset=frame.padding;
         BeginTextureMode(panel);ClearBackground(BLANK);
@@ -837,7 +839,7 @@ int carousel_popup_main(void) {
         }
         EndTextureMode();
         popupHitOffset=0;BeginTextureMode(canvas);ClearBackground(BLANK);
-        PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);
+        PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);SwitcherFrameDecoration(frame.width,frame.height,frame.padding);
         if(count&&g_targetMode!=MODE_WAVE)PopupImages(layout,count,indices,position,phase,true,(Vector2){frame.padding,frame.padding});
         EndTextureMode();
         BeginDrawing();ClearBackground(BLANK);

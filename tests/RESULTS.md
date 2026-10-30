@@ -491,3 +491,39 @@ published beta archives retain their original content.
   documentation links resolved, all three beta release assets used the renamed
   repository URL, and `git diff --check` passed. No application code, engine
   patches, upstream pins or release binaries changed.
+
+## 0.25 — Independent switcher themes and Arcade (2026-10-30)
+
+- Release build and **12/12 CTest passed**, including catalog, preferences,
+  popup lifecycle/motion, process-related persistence and translation coverage.
+  Added normalization/migration checks proving UI changes preserve independent
+  switcher theme/palette preferences and reject palettes from other themes.
+- Updated the graphical theme suite on the active Wayland compositor:
+  **16/16 in-app previews and 16/16 actual popups passed** across four themes and
+  four layouts. Actual popup UI themes deliberately differed from switcher themes.
+  Checked theme/palette trace values, border colors, opaque decorative margin
+  pixels, scoped palette counts, palette recall, font override behavior and
+  continued separation between preview thumbnails and desktop rendering.
+- All 16 app backgrounds produced distinct preview samples within their theme.
+  Arcade animation changed **100 pixels** by more than three RGB levels in the
+  exposed background sample; reduced motion produced **zero channel difference**.
+  The sample now covers the exposed star field rather than a static cabinet row.
+  Strawberry button hover feedback remained visible.
+- The standalone `theme-art-graphics-test OUTPUT_DIRECTORY` target exported
+  eight full-size Strawberry/Arcade compositions and eight chase stages in one
+  contact sheet. Visually inspected the simplified rabbit, cakes, neon/prize
+  cabinets, power pellet, frightened ghosts, capture scores and returning eyes.
+- Native scene and video previews survived their lifecycle smoke checks; a
+  foreign process with a matching recorded start time was preserved by Stop.
+  The current catalog contained 106 entries. Isolated image/video imports,
+  metadata, deduplication, configurable library paths and original-file hashes
+  passed. UI tests preserved the personal desktop renderer throughout.
+- Installed the verified 0.25 executable locally with configuration/binary
+  backups. Started the same wallpaper successfully before retiring its previous
+  renderer; verified PID, start time and executable and used pidfds for signaling.
+  The installed selector opened successfully. No autostart or shortcut was enabled.
+- Limits: graphical results cover the tested Linux/Wayland environment only.
+  The arcade chase is a scripted decorative loop, not an interactive maze game.
+  UI fonts and reduced motion remain shared settings. Reference images are not
+  shipped; the published 0.24 beta installer has not been replaced by this change.
+  Existing engine/raylib patch worktrees and upstream pins were preserved.

@@ -1,6 +1,6 @@
 #pragma once
 // Original vector artwork: no reference photographs or Workshop assets are shipped.
-static bool StrawberryTheme(void){return lab_option("ui_design")==1;}
+static bool StrawberryTheme(void){return ActiveThemeDesign()==1;}
 static void BerryBow(float x,float y,float s){
  Color edge=Fade(AppTheme.border,.7f),pink=ColorLerp(surface,AppTheme.border,.35f);
  for(int side=-1;side<=1;side+=2){
@@ -15,39 +15,33 @@ static void BerryBow(float x,float y,float s){
  DrawEllipse(x,y,4*s,5*s,pink);DrawEllipseLines(x,y,4*s,5*s,edge);
 }
 static void BerryFruit(float x,float y,float s){
- Color red=ColorLerp(ThemeHex(0xe87687),AppTheme.border,.25f),leaf=lab_option("light_theme")?ThemeHex(0x8caa81):ThemeHex(0x93aa87);
+ Color red=ColorLerp(ThemeHex(0xe87687),AppTheme.border,.25f),leaf=ThemeHex(0x8caa81);
  // Tapered strawberry with a soft, rounded shoulder.
  for(int i=0;i<20;i++){float t=i/20.f;float half=s*(1-t)*sqrtf(t+.18f)*1.3f;DrawEllipse(x,y-s*.5f+i*s*.075f,half,s*.11f,red);}
  for(int row=0;row<3;row++)for(int col=0;col<3-row;col++)DrawEllipse(x+(col-(2-row)*.5f)*s*.48f,y-s*.18f+row*s*.39f,s*.055f,s*.09f,ThemeHex(0xffebc3));
  for(int n=-1;n<=1;n++)DrawTriangle((Vector2){x,y-s*.45f},(Vector2){x+n*s*.7f-s*.15f,y-s*.9f},(Vector2){x+n*s*.7f+s*.2f,y-s*.72f},leaf);
 }
-// A fluffy, full-bodied rabbit with a lop ear, glossy eyes, gingham bow and biscuit.
-static void BunnyOval(float x,float y,float rx,float ry,Color fill,Color edge){DrawEllipse(x,y,rx+1,ry+1,edge);DrawEllipse(x,y,rx,ry,fill);}
+// Minimal confectionery mascot: long ears, dot eyes and a tiny ribbon.
 static void BerryBunny(float x,float y,float s){
- Color cream=ThemeHex(0xfffbf7),pink=ThemeHex(0xf2b9cf),ink=ThemeHex(0x805b64),edge=ThemeHex(0xbba4aa);
+ Color cream=ThemeHex(0xfffbf7),pink=ColorLerp(surface,AppTheme.border,.22f),ink=ColorLerp(AppTheme.text,AppTheme.border,.15f);
  rlPushMatrix();rlTranslatef(x,y,0);rlScalef(s,s,1);
- // Body, tail and feet are behind the oversized head.
- BunnyOval(22,35,11,10,cream,edge);BunnyOval(0,31,21,24,cream,edge);
- BunnyOval(-14,48,12,8,cream,edge);BunnyOval(13,49,12,8,cream,edge);
- rlPushMatrix();rlTranslatef(12,-29,0);rlRotatef(22,0,0,1);BunnyOval(0,-7,10,25,cream,edge);DrawEllipse(0,-9,5,16,pink);rlPopMatrix();
- rlPushMatrix();rlTranslatef(-19,-19,0);rlRotatef(-51,0,0,1);BunnyOval(0,-5,11,23,cream,edge);DrawEllipse(0,-8,5,13,pink);rlPopMatrix();
- BunnyOval(0,0,29,25,cream,edge);
- // Small tufts soften the outline without covering the facial features.
- for(int n=0;n<7;n++){float a=(195+n*25)*DEG2RAD;DrawCircle(cosf(a)*27,sinf(a)*23,3.2f,cream);}
- for(int side=-1;side<=1;side+=2){
-  DrawEllipse(side*19,10,7,3.5f,Fade(pink,.8f));BunnyOval(side*11,2,6,8,ink,ink);
-  DrawCircle(side*11-2,-1,2.5f,WHITE);DrawCircle(side*11+2,5,1.2f,WHITE);
-  DrawLineEx((Vector2){side*16,-6},(Vector2){side*20,-9},1.2f,ink);
-  DrawLineEx((Vector2){side*19,10},(Vector2){side*21,7},.8f,ink);
- }
- DrawEllipse(0,11,2,1.5f,pink);DrawLineBezier((Vector2){-3,16},(Vector2){0,13},.9f,ink);DrawLineBezier((Vector2){0,13},(Vector2){3,16},.9f,ink);
- BerryBow(0,-25,.83f);
- // Gingham stitches on the oversized bow.
- for(int side=-1;side<=1;side+=2)for(int n=0;n<3;n++)DrawLine(side*(7+n*3),-32,side*(7+n*3),-21,Fade(WHITE,.65f));
- BunnyOval(-8,31,12,10,ThemeHex(0xf7dca0),ThemeHex(0xc6a16b));
- for(int n=0;n<4;n++)DrawCircle(-14+n*4,30+(n%2)*3,1.1f,ThemeHex(0xb78a58));
- BunnyOval(-20,34,7,10,cream,edge);BunnyOval(5,34,7,9,cream,edge);
- rlPopMatrix();
+ DrawEllipse(-9,-23,7,21,cream);DrawEllipse(9,-25,7,23,cream);
+ DrawEllipse(-9,-25,2.5f,13,pink);DrawEllipse(9,-27,2.5f,14,pink);
+ DrawEllipse(0,19,18,21,cream);DrawEllipse(-11,36,10,5,cream);DrawEllipse(11,36,10,5,cream);
+ DrawEllipse(0,0,25,21,cream);DrawEllipse(-16,7,5,2.5f,pink);DrawEllipse(16,7,5,2.5f,pink);
+ DrawCircle(-8,1,2,ink);DrawCircle(8,1,2,ink);DrawCircle(0,6,1.5f,AppTheme.border);
+ DrawLineBezier((Vector2){-3,10},(Vector2){0,8},1,ink);DrawLineBezier((Vector2){0,8},(Vector2){3,10},1,ink);
+ BerryBow(0,21,.38f);rlPopMatrix();
+}
+static void BerryCake(float x,float y,float s){
+ Color cream=ThemeHex(0xfffaf0),sponge=ThemeHex(0xf1cfad),jam=ColorLerp(ThemeHex(0xe998ac),AppTheme.border,.2f);
+ rlPushMatrix();rlTranslatef(x,y,0);rlScalef(s,s,1);
+ DrawEllipse(0,15,23,5,Fade(AppTheme.border,.12f));
+ DrawRectangleRounded((Rectangle){-18,-4,36,19},.2f,8,sponge);
+ DrawRectangle(-18,3,36,4,jam);DrawRectangle(-18,7,36,3,cream);
+ DrawEllipse(0,-4,18,6,cream);
+ for(int i=0;i<5;i++)DrawCircle(-14+i*7,-1,3,cream);
+ BerryFruit(0,-12,7);DrawCircle(-11,-6,2,ThemeHex(0xffe1e9));DrawCircle(11,-6,2,ThemeHex(0xffe1e9));rlPopMatrix();
 }
 static void BerryLace(float x,float y,float width){
  Color lace=ColorLerp(surface,ThemeHex(0xfff9eb),.5f);lace.a=surface.a;
@@ -56,25 +50,26 @@ static void BerryLace(float x,float y,float width){
  DrawLine(x,y,x+width,y,Fade(AppTheme.border,.28f));
 }
 static void BerryBackdrop(int width,int height){
- int p=lab_option("app_background_preset");DrawRectangle(0,0,width,height,AppTheme.bg);
+ int p=ActiveBackgroundPreset();DrawRectangle(0,0,width,height,AppTheme.bg);
  if(p==0){
   Color check=Fade(AppTheme.border,.045f);for(int x=0;x<width;x+=48)DrawRectangle(x,0,24,height,check);for(int y=0;y<height;y+=48)DrawRectangle(0,y,width,24,check);
-  for(int row=0,y=195;y<height;y+=144,row++)for(int x=35+(row%2)*95;x<width;x+=190){if((x/190+row)%2)BerryFruit(x,y,10);else BerryBow(x,y,.46f);}
+  for(int row=0,y=195;y<height;y+=144,row++)for(int x=35+(row%2)*95;x<width;x+=190){if((x/190+row)%3==0)BerryCake(x,y,.65f);else if((x/190+row)%3==1)BerryFruit(x,y,10);else BerryBow(x,y,.46f);}
  }else if(p==1){
   DrawRectangleGradientV(0,0,width,height,ColorLerp(surface,AppTheme.bg,.4f),AppTheme.bg);
   for(int x=-height;x<width;x+=180)DrawLineEx((Vector2){x,0},(Vector2){x+height*.6f,height},24,Fade(AppTheme.border,.07f));
-  for(int y=200;y<height;y+=170){DrawRectangle(0,y,width,12,Fade(AppTheme.border,.1f));DrawLine(0,y+5,width,y+5,Fade(WHITE,.6f));BerryBow(width-75,y+6,1.2f);}
+  for(int y=200;y<height;y+=170){DrawRectangle(0,y,width,12,Fade(AppTheme.border,.1f));DrawLine(0,y+5,width,y+5,Fade(WHITE,.6f));BerryBow(width-75,y+6,1.2f);BerryCake(65,y+42,.85f);}
  }else if(p==2){
   DrawRectangleGradientV(0,0,width,height,ThemeHex(0xfffaf0),AppTheme.bg);
   for(int y=225;y<height;y+=130)for(int x=55+(y/130%2)*70;x<width;x+=160){
    DrawLine(x,y+8,x-6,y+34,Fade(ThemeHex(0x91ad7d),.45f));BerryFruit(x,y,18);
    for(int n=0;n<5;n++){float a=n*2*PI/5;DrawCircle(x+44+cosf(a)*6,y+25+sinf(a)*6,4,Fade(WHITE,.8f));}DrawCircle(x+44,y+25,3,ThemeHex(0xefc870));
   }
-  if(width>500)BerryBunny(width-100,height-112,1.8f);
+  if(width>500){BerryBunny(width-87,height-97,1.25f);BerryCake(width-165,height-59,1.1f);}
+  for(int x=85;x<width-180;x+=320)BerryCake(x,height-55,.8f);
  }else{
   DrawRectangleGradientV(0,0,width,height,surface,ColorLerp(surface,AppTheme.bg,.35f));
   for(int y=190;y<height;y+=180){DrawRectangle(0,y,width,52,Fade(AppTheme.border,.075f));BerryLace(0,y,width);BerryLace(0,y+47,width);}
-  for(int x=90;x<width;x+=260)for(int y=265;y<height;y+=240){for(int n=0;n<24;n++){float a=n*PI/12;DrawCircle(x+cosf(a)*44,y+sinf(a)*32,5,Fade(AppTheme.border,.09f));}BerryBow(x,y,.9f);}
+  for(int x=90;x<width;x+=260)for(int y=265;y<height;y+=240){for(int n=0;n<24;n++){float a=n*PI/12;DrawCircle(x+cosf(a)*44,y+sinf(a)*32,5,Fade(AppTheme.border,.09f));}BerryCake(x,y,.85f);BerryBow(x+65,y-14,.5f);}
  }
 }
 static void BerryCookie(Rectangle r,Color state){

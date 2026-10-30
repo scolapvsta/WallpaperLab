@@ -3,13 +3,15 @@
 static Shader backdropShader;
 static int backdropResolution,backdropTime,backdropStyle,backdropBase,backdropAccent,backdropAlpha;
 static float themeRoundness=1,uiSurfaceAlpha=1,themeTransparencyPreview=-1;
-static int themeId=0;
+static int themeId=0,themeDesignOverride=-1;
+static int ActiveThemeDesign(void){return themeDesignOverride>=0?themeDesignOverride:lab_option("ui_design");}
+static int ActiveBackgroundPreset(void){return themeDesignOverride>=0?0:lab_option("app_background_preset");}
 static Color ThemeHex(unsigned int rgb){return (Color){rgb>>16,(rgb>>8)&255,rgb&255,255};}
 #include "strawberry_ui.h"
 #include "cyber_ui.h"
 #include "pixel_ui.h"
 static void ApplyTheme(void){
- themeId=lab_option("ui_theme");if(themeId<0||themeId>=LAB_THEME_COUNT)themeId=0;LabTheme resolved=LabResolvedPalette(themeId,lab_option("light_theme"));const LabTheme* t=&resolved;
+ themeId=lab_option(themeDesignOverride>=0?"switcher_palette":"ui_theme");if(themeId<0||themeId>=LAB_THEME_COUNT)themeId=0;LabTheme resolved=LabResolvedPalette(themeId,ActiveThemeDesign()==1);const LabTheme* t=&resolved;
  uiSurfaceAlpha=1-Clamp(themeTransparencyPreview>=0?themeTransparencyPreview:lab_option("window_transparency"),0,30)/100.f;
  AppTheme.bg=ThemeHex(t->bg);surface=ThemeHex(t->surface);AppTheme.text=ThemeHex(t->text);muted=ThemeHex(t->muted);AppTheme.border=ThemeHex(t->accent);themeRoundness=StrawberryTheme()?1.7f:t->radius;
  if(!StrawberryTheme()&&t->effect==7&&!lab_option("reduce_motion"))AppTheme.border=ColorFromHSV(IsWindowReady()?fmodf(GetTime()*10,360):215,.55f,1);
@@ -111,19 +113,50 @@ static void ThemeWindowTrim(int sw,int sh){
 }
 // Compact switcher skin shared by the live popup and all four UI previews.
 static void SwitcherBackdrop(int w,int h,bool wave){
- Rectangle tray=wave?(Rectangle){0,h*.29f,w,h*.42f}:(Rectangle){0,0,w,h};ThemePanel(tray,.12f,12,Fade(surface,.96f));
+ Rectangle tray=wave?(Rectangle){0,h*.29f,w,h*.42f}:(Rectangle){0,0,w,h};
+ ThemePanel(tray,.12f,12,Fade(surface,.98f));
+ // Draw complete miniature scenes behind thumbnails, inside the tray bounds.
+ BeginScissorMode(tray.x+3,tray.y+3,tray.width-6,tray.height-6);
+ rlPushMatrix();rlTranslatef(0,tray.y,0);
  if(StrawberryTheme()){
-  if(w>60){BerryLace(tray.x+5,tray.y+1,w-10);BerryBow(w-18,tray.y+12,.45f);}
+  for(int x=0;x<w;x+=32)DrawRectangle(x,0,16,tray.height,Fade(AppTheme.border,.035f));
+  for(int y=0;y<tray.height;y+=32)DrawRectangle(0,y,w,16,Fade(AppTheme.border,.035f));
+  for(int x=34;x<w;x+=130){BerryCake(x,tray.height-20,.55f);BerryFruit(x+64,24,8);}
+  if(w>100){BerryBunny(w-28,tray.height-35,.55f);BerryLace(5,1,w-10);BerryBow(w-20,14,.5f);}
  }else if(CyberTheme()){
-  for(int x=10;x<w-10;x+=34)DrawRectangle(x,tray.y+tray.height-5,12,2,Fade(AppTheme.border,.38f));
-  DrawLine(5,tray.y+5,5,tray.y+tray.height-5,Fade(CyberSecondary(),.5f));
+  for(int x=0;x<w;x+=32){int bh=24+(x*17)%67;DrawRectangle(x,tray.height-bh,27,bh,Fade(AppTheme.border,.11f));for(int y=tray.height-bh+7;y<tray.height-8;y+=10)DrawRectangle(x+6,y,12,2,Fade(CyberSecondary(),.34f));}
+  for(int y=9;y<tray.height;y+=6)DrawRectangle(5,y,w-10,1,Fade(CyberSecondary(),.035f));
+  CyberGlowLine((Vector2){6,8},(Vector2){w-8,8},CyberSecondary());
+  for(int x=10;x<w-10;x+=34)DrawRectangle(x,tray.height-5,12,2,Fade(AppTheme.border,.6f));
  }else if(PixelTheme()){
-  for(int x=4;x<w;x+=16)DrawRectangle(x,tray.y+tray.height-6,10,3,Fade(AppTheme.border,.26f));
-  if(w>60)PixelCharacter(8,tray.y+8,1,2,lab_option("reduce_motion")?0:(int)(GetTime()*4));
+  for(int i=0;i<8;i++)ArcadeStar(18+i*(w-36)/8,18+(i%3)*13,1,Fade(i%2?ArcadeCyan():AppTheme.border,.55f));
+  if(w>100&&tray.height>90){ArcadeCabinet(9,tray.height-86,1,0);ArcadeCabinet(w-52,tray.height-86,1,1);}
+  ArcadeChase((Rectangle){10,tray.height-31,w-20,24});
  }
+ rlPopMatrix();EndScissorMode();
 }
 static void SwitcherCardDecoration(Rectangle r,bool current){
- if(StrawberryTheme())BerryBow(r.x+r.width-15,r.y+r.height-15,.3f);
- else if(PixelTheme()){PixelCharacter(r.x+r.width-19,r.y+r.height-19,1,2,0);if(current)DrawRectangleLinesEx((Rectangle){r.x+3,r.y+3,r.width-6,r.height-6},2,AppTheme.border);}
+ if(StrawberryTheme()){BerryCake(r.x+r.width-16,r.y+r.height-14,.42f);BerryBow(r.x+12,r.y+12,.28f);}
+ else if(PixelTheme()){ArcadeStar(r.x+r.width-12,r.y+r.height-12,1,ThemeHex(0xffdf79));if(current)DrawRectangleLinesEx((Rectangle){r.x+3,r.y+3,r.width-6,r.height-6},2,AppTheme.border);}
  else if(CyberTheme()){DrawLine(r.x+6,r.y+r.height-7,r.x+22,r.y+r.height-7,Fade(AppTheme.border,.8f));DrawLine(r.x+6,r.y+r.height-7,r.x+6,r.y+r.height-20,Fade(CyberSecondary(),.7f));}
+}
+
+// The content tiles touch each other. Use the existing zoom margin for artwork
+// so scene details remain visible in Grid, River, Vertical and Wave layouts.
+static void SwitcherFrameDecoration(int w,int h,int padding){
+ if(DefaultTheme()||padding<12)return;
+ int band=fminf(28,padding-4);
+ ThemePanel((Rectangle){4,4,w-8,band},.2f,8,Fade(surface,.96f));
+ ThemePanel((Rectangle){4,h-band-4,w-8,band},.2f,8,Fade(surface,.96f));
+ if(StrawberryTheme()){
+  BerryLace(8,5,w-16);
+  for(int x=25;x<w-20;x+=80){BerryCake(x,h-14,.55f);BerryBow(x+35,17,.35f);}
+  if(w>130)BerryBunny(w-24,h-24,.46f);
+ }else if(PixelTheme()){
+  for(int x=22;x<w-10;x+=48)ArcadeStar(x,17,1,x%3?AppTheme.border:ArcadeCyan());
+  ArcadeChase((Rectangle){8,h-band-4,w-16,band});
+ }else if(CyberTheme()){
+  CyberGlowLine((Vector2){12,9},(Vector2){w-12,9},CyberSecondary());
+  for(int x=14;x<w-10;x+=26){int bh=7+(x*7)%14;DrawRectangle(x,h-7-bh,18,bh,Fade(AppTheme.border,.35f));DrawRectangle(x+3,h-5-bh,8,2,CyberSecondary());}
+ }
 }

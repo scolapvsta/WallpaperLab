@@ -1,5 +1,5 @@
 #pragma once
-static bool CyberTheme(void){return lab_option("ui_design")==2;}
+static bool CyberTheme(void){return ActiveThemeDesign()==2;}
 static RenderTexture2D cyberCity;
 static int cyberCityPalette=-1,cyberCityLight=-1,cyberCityPreset=-1;
 static Color CyberSecondary(void){return themeId==8?ThemeHex(0xffd16d):themeId==7?ThemeHex(0xff734d):themeId==5?ThemeHex(0xff65c5):ThemeHex(0x49deee);}
@@ -18,7 +18,7 @@ static void CyberPanel(Rectangle r,Color color){
 }
 static void CyberCityArtwork(int w,int h){
  unsigned char bgAlpha=AppTheme.bg.a,surfaceAlpha=surface.a;AppTheme.bg.a=surface.a=255;
- int preset=lab_option("app_background_preset");Color secondary=preset==3?ThemeHex(0xd5ff42):CyberSecondary();int horizon=h*(preset==1?.84f:.77f);
+ int preset=ActiveBackgroundPreset();Color secondary=preset==3?ThemeHex(0xd5ff42):CyberSecondary();int horizon=h*(preset==1?.84f:.77f);
  if(preset==2){
   DrawRectangleGradientV(0,0,w,h,AppTheme.bg,ColorLerp(AppTheme.bg,AppTheme.border,.12f));
   for(int x=12;x<w;x+=24)for(int y=8;y<h;y+=19){unsigned code=(x*13+y*37)%17;DrawText(code%2?"1":"0",x,y,10,Fade(code<3?secondary:AppTheme.border,code<3?.55f:.12f));}
@@ -60,7 +60,7 @@ static void CyberCityArtwork(int w,int h){
  AppTheme.bg.a=bgAlpha;surface.a=surfaceAlpha;
 }
 static void CyberBackdrop(int w,int h){
- int light=lab_option("light_theme"),preset=lab_option("app_background_preset");
+ int light=lab_option("light_theme"),preset=ActiveBackgroundPreset();
  if(!cyberCity.id||cyberCity.texture.width!=w||cyberCity.texture.height!=h||cyberCityPalette!=themeId||cyberCityLight!=light||cyberCityPreset!=preset){
   if(cyberCity.id)UnloadRenderTexture(cyberCity);cyberCity=LoadRenderTexture(w,h);BeginTextureMode(cyberCity);ClearBackground(AppTheme.bg);CyberCityArtwork(w,h);EndTextureMode();if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);cyberCityPalette=themeId;cyberCityLight=light;cyberCityPreset=preset;
  }

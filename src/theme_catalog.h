@@ -28,7 +28,7 @@ static const LabTheme labThemes[]={
 #define LAB_THEME_COUNT ((int)(sizeof(labThemes)/sizeof(labThemes[0])))
 #define LAB_STRAWBERRY_PALETTE 0
 #define LAB_DESIGN_COUNT 4
-static const char* labDesignNames[]={"Default","Strawberry core","2077","Pixel Theme"};
+static const char* labDesignNames[]={"Default","Strawberry core","2077","Arcade"};
 static int LabDefaultPalette(int design){static const int ids[]={14,0,3,17};return ids[design>=0&&design<4?design:0];}
 static const char* LabPaletteKey(int d){static const char* keys[]={"default_palette","strawberry_palette","cyber_palette","pixel_palette"};return keys[d>=0&&d<4?d:0];}
 static const char* LabBackgroundKey(int d){static const char* keys[]={"default_background","strawberry_background","cyber_background","pixel_background"};return keys[d>=0&&d<4?d:0];}

@@ -142,7 +142,7 @@ renderer startup and does not edit compositor configuration files.
 ## Appearance and languages
 
 Four themes provide 21 palettes and 16 included backgrounds. Each remembers its
-palette, background and suggested font. Default, 2077 and Pixel Theme are dark;
+palette, background and suggested font. Default, 2077 and Arcade are dark;
 Strawberry core is light. Fresh installations start with Default.
 
 **Suggested Theme Fonts** selects the theme font. Enable **General Fonts** to
@@ -252,3 +252,12 @@ controller and Linux desktop engine portable as a whole. Windows/macOS are not
 supported; see the [Windows assessment](WINDOWS_PORT.md). Other wallpaper renderers
 on the same outputs may overlap surfaces or consume resources concurrently.
 Wallpaper Lab does not terminate unrelated applications.
+
+### Independent switcher appearance (0.25)
+
+Use the customize button next to the switcher layout to select **Theme** and
+**Color palette**. The four themes have separate switcher palette selections;
+changing the app's Appearance theme does not update the switcher. The eye button
+previews the same artwork and layout as the actual popup. Arcade includes a
+scripted pellet-and-ghost chase; Reduced motion freezes decorative animation.
+Strawberry core now uses a small, simplified rabbit and miniature strawberry cakes.

@@ -18,6 +18,12 @@ int main(){
             auto loaded=loadSettings();require(labThemes[loaded["ui_theme"].get<int>()].collection==design,"cross-theme palette accepted");
             require(loaded["light_theme"]==(design==1),"mode must follow theme");
         }
+        writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",3},{"ui_theme",19}});
+        auto independent=loadSettings();require(independent["switcher_theme"]==3&&independent["switcher_palette"]==19,"switcher migration lost appearance");
+        independent["ui_design"]=1;independent["ui_theme"]=2;writeJson(configDir()/"settings.json",independent);
+        independent=loadSettings();require(independent["switcher_theme"]==3&&independent["switcher_palette"]==19,"UI theme changed switcher appearance");
+        independent["switcher_theme"]=2;independent["switcher_palette"]=19;writeJson(configDir()/"settings.json",independent);
+        require(loadSettings()["switcher_palette"]==3,"switcher accepted cross-theme palette");
         fs::remove(configDir()/"settings.json");require(loadSettings()["ui_design"]==0&&loadSettings()["ui_theme"]==14,"new install must use Default");
         for(int old=0;old<32;old++){
             writeJson(configDir()/"settings.json",{{"theme_ui_v2",true},{"ui_theme",old},{"light_theme",true},{"ui_design",old<29?0:1},{"font_family","Noto Sans"}});

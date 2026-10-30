@@ -95,9 +95,9 @@ try:
  choose(38,3);choose(39,0);click(*g()['settings_tabs'][4])
  def motion_toggle():
   old=g()['choices']['41']['value'];click(*g()['choices']['41']['control']);wait(lambda:g()['choices']['41']['value']!=old)
- motion_toggle();esc();wait(lambda:not state()['settings']);a1=shot('pixel-animation-a');time.sleep(.35);a2=shot('pixel-animation-b');area=(800,600,1400,850);assert sum(max(px[:3])>3 for px in ImageChops.difference(a1.crop(area),a2.crop(area)).get_flattened_data())>20
- click(*g()['header']['settings']);wait(lambda:state()['settings']);motion_toggle();esc();wait(lambda:not state()['settings']);a1=shot('pixel-reduced-motion-a');time.sleep(.35);a2=shot('pixel-reduced-motion-b');assert max(channel[1]for channel in ImageChops.difference(a1.crop(area),a2.crop(area)).getextrema())<=1
- results['pixel_animation_and_reduce_motion']=True
+ motion_toggle();esc();wait(lambda:not state()['settings']);a1=shot('arcade-animation-a');time.sleep(.35);a2=shot('arcade-animation-b');area=(800,180,1420,780);assert sum(max(px[:3])>3 for px in ImageChops.difference(a1.crop(area),a2.crop(area)).get_flattened_data())>20
+ click(*g()['header']['settings']);wait(lambda:state()['settings']);motion_toggle();esc();wait(lambda:not state()['settings']);a1=shot('arcade-reduced-motion-a');time.sleep(.35);a2=shot('arcade-reduced-motion-b');assert max(channel[1]for channel in ImageChops.difference(a1.crop(area),a2.crop(area)).getextrema())<=1
+ results['arcade_animation_and_reduce_motion']=True
  click(*g()['header']['settings']);wait(lambda:state()['settings']);click(*g()['settings_tabs'][3])
  choose(38,1);choose(39,0);esc();wait(lambda:not state()['settings'])
  move(700,780);time.sleep(.2);before=shot('berry-cookie-idle');pt=g()['header']['refresh'];move(*pt);time.sleep(.2);after=shot('berry-cookie-hover');box=(int(pt[0]-18),int(pt[1]-18),int(pt[0]+18),int(pt[1]+18));assert ImageChops.difference(before.crop(box),after.crop(box)).getbbox()is not None
@@ -105,12 +105,25 @@ try:
  # All sixteen preview combinations use the same shared skin as the popup.
  for design in range(4):
   click(*g()['header']['settings']);wait(lambda:state()['settings']);choose(38,design);esc();wait(lambda:not state()['settings']);click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
+  click(*g()['animation_controls'][2]);wait(lambda:s()['customize']==1)
+  ui_before=(pref()['ui_design'],pref()['ui_theme'])
+  choose(78,design)
+  assert (pref()['ui_design'],pref()['ui_theme'])==ui_before
+  assert len(g()['choices']['79']['options'])==palette_counts[design]
+  if design==3:
+   choose(79,2);choose(78,1);choose(78,3);assert pref()['switcher_palette']==19
+   shot('independent-switcher-settings')
+  esc();wait(lambda:s()['customize']==0)
+  # UI theme/palette changes must leave the chosen switcher untouched.
+  saved=(pref()['switcher_theme'],pref()['switcher_palette'])
+  run(app,'--ui-option','ui_design',(design+1)%4)
+  assert (pref()['switcher_theme'],pref()['switcher_palette'])==saved
   for layout in range(4):
    choose(20,layout);click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.5);shot('preview-theme-'+str(design)+'-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
  close();ui=None;results['sixteen_switcher_previews']=True
  # Capture the actual compositor popups using the synthetic library, then cancel.
  for design,palette,rgb in [(0,14,(156,203,189)),(1,1,(172,49,91)),(2,4,(255,105,198)),(3,17,(255,133,200))]:
-  run(app,'--ui-option','ui_design',design);run(app,'--ui-option','ui_theme',palette);run(app,'--ui-option','general_font_enabled',0)
+  run(app,'--ui-option','ui_design',(design+1)%4);run(app,'--ui-option','switcher_theme',design);run(app,'--ui-option','switcher_palette',palette);run(app,'--ui-option','general_font_enabled',0)
   for layout in range(4):
    if design==2 and layout==3:run(app,'--ui-option','font',0);run(app,'--ui-option','general_font_enabled',1)
    run(app,'--ui-option','carousel_layout',layout);capture=out/('popup-'+str(design)+'-'+str(layout));capture.mkdir(exist_ok=True);trace=capture/'trace.json';session=design*10+layout+1
@@ -119,14 +132,15 @@ try:
    try:
     deadline=time.monotonic()+15
     while not(capture/'step-1-2.png').exists():assert child.poll()is None;assert time.monotonic()<deadline;time.sleep(.05)
-    state_=json.loads(trace.read_text());assert(state_['design'],state_['theme'])==(design,palette)
-    assert state_['font']==('Sans'if design==2 and layout==3 else['Sans','Sans','Oxanium','Silkscreen'][design]);assert state_['general_font_override']==(design==2 and layout==3)
-    im=Image.open(capture/'step-1-2.png').convert('RGBA');matching=sum(1 for px in im.get_flattened_data()if px[3]>200 and sum(abs(px[i]-rgb[i])for i in range(3))<35);assert matching>15,(design,layout,matching)
+    state_=read_state(trace);assert(state_['design'],state_['theme'])==(design,palette)
+    assert state_['font']==('Sans'if design==2 and layout==3 else['Sans','Sans','Oxanium','Silkscreen'][(design+1)%4]);assert state_['general_font_override']==(design==2 and layout==3)
+    im=Image.open(capture/'step-1-2.png').convert('RGBA');margin=im.crop((4,4,im.width-4,state_['padding']-2));assert design==0 or sum(px[3]>200 for px in margin.get_flattened_data())>20
+    matching=sum(1 for px in im.get_flattened_data()if px[3]>200 and sum(abs(px[i]-rgb[i])for i in range(3))<35);assert matching>15,(design,layout,matching)
     client=next(c for c in json.loads(run('hyprctl','clients','-j'))if c['pid']==child.pid);run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.close({{window="pid:{child.pid}"}}))');child.wait(8)
    finally:
     if child.poll()is None:
      proc=pathlib.Path('/proc',str(child.pid));assert pathlib.Path(os.readlink(proc/'exe')).resolve()==app;child.terminate();child.wait(8)
- results['sixteen_actual_popups_match_theme_palette']=True
+ results['sixteen_actual_popups_match_independent_theme_palette']=True
  assert not(out/'state/wallpaper-lab/running.json').exists()
 finally:
  if __import__('sys').exc_info()[0]and ui and ui.poll()is None:

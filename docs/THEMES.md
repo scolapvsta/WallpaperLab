@@ -5,7 +5,7 @@
 | Default | Dark | 3 | System Sans | 4 |
 | Strawberry core | Light | 3 | System Sans | 4 |
 | 2077 | Dark | 11 | Oxanium | 4 |
-| Pixel Theme | Dark | 4 | Silkscreen | 4 |
+| Arcade | Dark | 4 | Silkscreen | 4 |
 
 **Themes** and **Color Palettes** are dropdowns. Each theme has its own palettes,
 background and suggested-font selection. Mode is determined by the theme. Fresh
@@ -23,7 +23,7 @@ system fallback when needed.
 
 Palettes: **Strawberry Milk**, **Raspberry Ribbon** and **Vanilla Shortcake**.
 Backgrounds: **Strawberry Gingham** (checks), **Ribbon Atelier** (diagonal ribbons
-and bows), **Strawberry Garden** (strawberries, flowers and a rabbit) and
+and bows), **Strawberry Garden** (strawberries, flowers, a small rabbit and cakes) and
 **Tea Party Lace** (lace bands and doilies).
 
 Cookie-shaped controls use smooth capsules, pink hover feedback, darker pressed
@@ -41,14 +41,26 @@ WALLPAPER LAB / CONTROL DECK header. The 2077 mark uses chromatic separation and
 glitch bands for about 0.32 seconds every 1.8 seconds. Reduced motion stops these
 animations. Small side accents appear on text buttons.
 
-## Pixel Theme
+## Arcade
 
-Stepped panel shadows, original adventurer/slime/robot/ghost sprites, clouds,
-torches and stars. Palettes: **Arcade Berry**, **Dungeon Moss**, **Coin Rush** and
-**CRT Ocean**. Backgrounds: **Overworld**, **Dungeon**, **Arcade** and **Star Quest**.
-Animations respect reduced motion. Sprites are original application drawings.
+Formerly Pixel Theme; existing palette, background and font settings retain their
+stable IDs. Stepped panels, neon cabinet rows, prize machines, candy platforms,
+stars and a crescent moon use original geometric pixel drawings. Palettes remain
+**Arcade Berry**, **Dungeon Moss**, **Coin Rush** and **CRT Ocean**. Backgrounds are
+**Neon Arcade**, **Candy Quest**, **Coin-op Club** and **Star Dream**.
+
+A decorative Pac-Man chase loops along the lower edge: dots, a power pellet,
+blue ghosts, four captures with 200/400/800/1600 scores and returning eyes. This is
+a scripted animation, not an interactive game or a simulation of the original
+maze AI. Reduced motion freezes it, the header mascot and the background stars.
 Silkscreen is bundled under SIL OFL 1.1; alternative suggested fonts include
 Oxanium and DejaVu Sans Mono.
+
+Visual direction combines the supplied pink/cyan pixel and arcade references
+with [KojochoStudio's arcade props reference](https://kojochostudio.itch.io/neon-accented-arcade-game-center-props-16-pixel-art-pngs).
+The [official PAC-MAN manual](https://www.nintendo.co.jp/clv/manuals/en/pdf/CLV-P-NABME_en.pdf)
+informs the pellet, frightened-ghost and returning-eyes sequence. Reference
+images, game sprites and third-party asset packs are not bundled.
 
 ## Suggested Theme Fonts and General Fonts
 
@@ -72,9 +84,20 @@ and uncovered scripts use Fontconfig/Pango fallback.
 
 ## Themed switchers
 
-Grid, River, Vertical and Wave use the selected theme's colors, borders and font
-in both the in-app preview and the real popup. The switcher uses wallpaper
-thumbnails; confirming a different wallpaper starts full desktop rendering.
+Open the customize button beside the switcher layout and choose **Theme** and
+**Color palette**. Default, Strawberry core, 2077 and Arcade can be chosen
+independently of the main UI. Palette choices are scoped to the switcher theme
+and remembered when switching away and back. Existing installations snapshot
+their previous UI appearance once; subsequent UI changes leave the switcher
+selection unchanged. New installations start with Default/Graphite.
+
+Grid, River, Vertical and Wave share the same skin in the in-app preview and the
+real popup. Strawberry adds gingham, lace, ribbons, small cakes and a simplified
+rabbit; 2077 adds a skyline, scanlines and neon accents; Arcade adds cabinets,
+pixel stars and the decorative chase. Top and bottom margin artwork remains
+visible around thumbnails without changing tile geometry or animation. Text
+continues to use the UI's configured font and General Fonts override. The switcher
+uses wallpaper thumbnails; confirming a different wallpaper starts full desktop rendering.
 The main window's imported background is separate from switcher content.
 
 ## Importing an app background

@@ -300,7 +300,7 @@ static void SettingsBody(Rectangle area){
         const char* cyberBackgrounds[]={"Neon District","Afterlife Alley","Binary Rain","Edge Signal",lab_tr("Carica dal PC")};
         const char* berryBackgrounds[]={"Strawberry Gingham","Ribbon Atelier","Strawberry Garden","Tea Party Lace",lab_tr("Carica dal PC")};
         const char* defaultBackgrounds[]={"Quiet Gradient","Blueprint","Contour","Night Dots",lab_tr("Carica dal PC")};
-        const char* pixelBackgrounds[]={"Overworld","Dungeon","Arcade","Star Quest",lab_tr("Carica dal PC")};
+        const char* pixelBackgrounds[]={"Neon Arcade","Candy Quest","Coin-op Club","Star Dream",lab_tr("Carica dal PC")};
         TextLines(lab_tr("Sfondo dell’app"),x,y+8,fmaxf(60,w-cw-108),13,2,AppTheme.text);
         int bg=custom?4:lab_option("app_background_preset"),next=Choice(39,bx,&y,cw,"",CyberTheme()?cyberBackgrounds:PixelTheme()?pixelBackgrounds:DefaultTheme()?defaultBackgrounds:berryBackgrounds,5,bg);
         if(next!=bg){if(next==4)lab_files_start(3);else lab_set_option("app_background_preset",next);}
@@ -314,7 +314,7 @@ static void SettingsBody(Rectangle area){
         int current;
         const char* densities[]={lab_tr("Comodo"),lab_tr("Compatto"),lab_tr("Galleria")};current=lab_option("layout_density");value=Choice(32,x,&y,w,lab_tr("Layout della libreria"),densities,3,current);if(current!=value)lab_set_option("layout_density",value);
         const char* weights[]={lab_tr("Medio"),lab_tr("Semigrassetto"),lab_tr("Grassetto")};current=lab_option("font_weight");value=Choice(34,x,&y,w,lab_tr("Peso del testo"),weights,3,current);if(current!=value)lab_set_option("font_weight",value);
-        y+=TextLines(lab_tr("Le modifiche si applicano a tutta l'interfaccia e al carousel."),x,y+8,w,14,3,muted)+22;
+        y+=TextLines(lab_tr("Il tema dello switcher si configura separatamente."),x,y+8,w,14,3,muted)+22;
     }else if(settingsTab==4){
         const char* languages[32];for(int i=0;i<lab_language_count();i++)languages[i]=lab_language_name(i);int current=lab_option("language");languageControl=(Rectangle){x+w-fminf(292,w*.6f),y,fminf(292,w*.6f),34};int value=Choice(40,x,&y,w,lab_tr("Lingua"),languages,lab_language_count(),current);languageMenu=choiceOpen==40;if(current!=value)lab_set_option("language",value);
         current=lab_option("reduce_motion");value=BoolChoice(41,x,&y,w,lab_tr("Riduci animazioni"),current);if(current!=value)lab_set_option("reduce_motion",value);
@@ -404,7 +404,7 @@ static void Header(int sw,int top,int count){
         for(int x=0;x<sw;x+=32)DrawRectangle(x,0,16,top,Fade(AppTheme.border,.035f));
         BerryLace(0,top-11,sw);BerryBunny(40,31,.48f);
         if(sw>1160){BerryBow(sw-144,29,.8f);BerryFruit(sw-80,37,20);BerryBunny(sw-52,88,.9f);}
-    }else if(PixelTheme()){PixelCharacter(28,21,3,2,lab_option("reduce_motion")?0:(int)(GetTime()*4));}else if(CyberTheme()){
+    }else if(PixelTheme()){ArcadePac(46,39,2,false,lab_option("reduce_motion")?0:GetTime());ArcadeStar(69,25,1,AppTheme.border);}else if(CyberTheme()){
         for(int x=0;x<sw;x+=8)DrawRectangle(x,0,3,2,Fade(AppTheme.border,.45f));
 
         if(sw>1160)CyberWordmark(sw-286,12);

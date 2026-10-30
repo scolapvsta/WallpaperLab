@@ -92,9 +92,11 @@ independent rather than official ports.
 Historical UI references include [Midnight](https://github.com/refact0r/midnight-discord),
 [System24](https://github.com/refact0r/system24) and
 [Comfy](https://github.com/Comfy-Themes/Spicetify). CSS and image assets from those
-projects are not bundled. Current theme drawings, Pixel characters, backgrounds
+projects are not bundled. Current theme drawings, Arcade characters, backgrounds
 and effects are implemented in application code. Additional visual references
-are documented in [Themes](docs/THEMES.md).
+are documented in [Themes](docs/THEMES.md). The decorative PAC-MAN-inspired
+sequence is redrawn with native primitives; original game assets and reference
+image files are not bundled.
 
 [Caelestia CLI](https://github.com/caelestia-dots/cli) and
 [Caelestia shell](https://github.com/caelestia-dots/shell) are installed separately.

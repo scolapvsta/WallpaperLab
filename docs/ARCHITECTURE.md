@@ -201,3 +201,18 @@ or regenerated. Generation runs off the UI thread and errors are independent of
 renderer status. Disabling restores the previous palette only when the current
 file still matches the app's last publication. Palette state is global and sampled
 after transitions or committed adjustments, rather than continuously per frame.
+
+## Independent switcher skins (0.25)
+
+`switcher_theme` and `switcher_palette` are normalized independently from
+`ui_design` and `ui_theme`. Missing switcher preferences snapshot the previous UI
+appearance once when settings are next saved. `switcher_palette_<design>` stores
+the last palette for each switcher design. Arcade preserves design ID 3 and the
+historical `pixel_*` keys for compatibility.
+
+The C renderer scopes its theme override to popup rendering, restores the UI
+palette after each preview, and shares tray, margin and card artwork between
+preview and popup. Existing zoom padding holds decorative bands so adjoining
+tiles cannot hide all theme motifs. Font selection and reduced motion remain
+shared UI preferences. Artwork is generated from native drawing primitives;
+reference images are not runtime dependencies.

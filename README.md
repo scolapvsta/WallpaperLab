@@ -38,7 +38,7 @@ your user profile. No compilation, Node.js or npm installation is needed.
 - Workshop search, filters, creator information and Steam downloads.
 - Independent monitor assignments, panoramic and mirror layouts.
 - Four animated carousel layouts: Grid, River, Vertical and Wave.
-- Default, Strawberry core, 2077 and Pixel Theme: **21 palettes**, 16 app
+- Default, Strawberry core, 2077 and Arcade: **21 palettes**, 16 app
   backgrounds, suggested fonts and an optional general font override.
 - Themed switchers, editable animations, desktop transitions and live mute.
 
@@ -68,6 +68,13 @@ The upstream engine build downloads its pinned CEF distribution. System GPU
 libraries remain supplied by Arch and your driver. See [release tooling](docs/RELEASING.md)
 for building the same beta installer, and the release's complete source archive
 for the app plus pinned submodules.
+
+## Source changes after the current beta installer
+
+Version 0.25 source adds independent switcher **Theme** and **Color palette**
+controls, richer switcher decorations, Strawberry cakes and a simplified rabbit,
+and the renamed Arcade theme with a decorative Pac-Man chase. The download above
+remains the published 0.24 beta; build from source for these changes.
 
 ## Documentation and credits
 
