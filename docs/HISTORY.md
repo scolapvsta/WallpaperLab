@@ -177,3 +177,13 @@ miniature cakes. Renamed Pixel Theme to Arcade without changing saved IDs;
 redesigned its four scenes with neon cabinets, prize machines and candy/starlit
 pixel scenery. Added a reduced-motion-aware scripted Pac-Man chase, power pellet,
 frightened ghosts, capture scores and returning eyes.
+
+## 0.26 — More Default colors and plain switchers
+
+Expanded Default from three to 20 palettes: 10 light and 10 dark. Light palettes
+now drive light surfaces and dark text consistently. Removed switcher themes,
+illustrations, decorative margin bands and card motifs. All four switcher
+layouts retain their geometry and animation and expose only Color palette for
+appearance, independently of the UI. Old themed switcher colors migrate to the
+closest Default accent in the same mode. Other UI themes remain available for
+later design work.

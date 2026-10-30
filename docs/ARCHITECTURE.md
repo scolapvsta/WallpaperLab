@@ -163,7 +163,7 @@ Switcher preferences use explicit percent, pixel and millisecond units.
 growing the surface on each advance. The in-app demo uses `PopupImages` and the
 same rounded shader without starting another process.
 
-The current theme catalog provides four designs, 21 palettes and 16 native
+The current theme catalog provides four designs, 38 palettes and 16 native
 backgrounds. Suggested fonts are remembered per theme; General Fonts is an
 independent opt-in override. Historical collection/migration markers preserve
 older preferences. Native shaders and drawings implement effects; external theme
@@ -202,17 +202,17 @@ renderer status. Disabling restores the previous palette only when the current
 file still matches the app's last publication. Palette state is global and sampled
 after transitions or committed adjustments, rather than continuously per frame.
 
-## Independent switcher skins (0.25)
+## Plain switcher colors (0.26)
 
-`switcher_theme` and `switcher_palette` are normalized independently from
-`ui_design` and `ui_theme`. Missing switcher preferences snapshot the previous UI
-appearance once when settings are next saved. `switcher_palette_<design>` stores
-the last palette for each switcher design. Arcade preserves design ID 3 and the
-historical `pixel_*` keys for compatibility.
+`switcher_palette` is scoped to the 20 Default palettes and independent of the
+UI's `ui_design` and `ui_theme`. Default offers 10 light and 10 dark palettes;
+the palette's mode is used consistently by settings, the live UI and the popup.
+Existing numeric palette IDs remain stable, with new entries appended.
 
-The C renderer scopes its theme override to popup rendering, restores the UI
-palette after each preview, and shares tray, margin and card artwork between
-preview and popup. Existing zoom padding holds decorative bands so adjoining
-tiles cannot hide all theme motifs. Font selection and reduced motion remain
-shared UI preferences. Artwork is generated from native drawing primitives;
-reference images are not runtime dependencies.
+The renderer scopes a fixed Default override to popup rendering and restores
+the UI palette after each preview. Preview and popup share plain tray/card
+rendering without themed illustrations, card decorations or margin bands.
+`switcher_theme` and `switcher_palette_<design>` have been retired. Migration
+maps old themed accents to the nearest Default accent in the same light/dark
+mode; existing Default selections remain unchanged. Font selection and reduced
+motion remain shared preferences. UI themes themselves remain available.

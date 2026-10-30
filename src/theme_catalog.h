@@ -1,5 +1,5 @@
 #pragma once
-// Stable palette IDs. Each UI determines its own light/dark mode.
+// Stable palette IDs. Default supports both light and dark palettes.
 typedef struct LabTheme {const char* name;int light,effect;unsigned int bg,surface,text,muted,accent;float radius;int collection;} LabTheme;
 // Each active palette belongs to exactly one UI. Historical palettes live in Git/backup.
 static const LabTheme labThemes[]={
@@ -23,7 +23,24 @@ static const LabTheme labThemes[]={
  {"Arcade Berry",0,13,0x181226,0x2b2240,0xffedfb,0xbba8d1,0xff85c8,0,3},
  {"Dungeon Moss",0,13,0x141c1a,0x25382b,0xecffdd,0xa5bd99,0xa8ed72,0,3},
  {"Coin Rush",0,13,0x20172b,0x352640,0xfff4dd,0xc6b09d,0xffd66f,0,3},
- {"CRT Ocean",0,13,0x0b1b2a,0x173247,0xe4faff,0x95bfd0,0x6de5ee,0,3}
+ {"CRT Ocean",0,13,0x0b1b2a,0x173247,0xe4faff,0x95bfd0,0x6de5ee,0,3},
+ {"Midnight Blue",0,0,0x0c1426,0x192742,0xe8efff,0xa4b5d1,0x739dff,1,0},
+ {"Aubergine",0,0,0x1a1225,0x30223f,0xf2eaff,0xbfa9d1,0xc8a0ff,1,0},
+ {"Rosewood",0,0,0x23131d,0x3c2333,0xffedf5,0xd2acbf,0xf293ba,1,0},
+ {"Ember",0,0,0x231710,0x3b281d,0xffefdf,0xd0b49e,0xffae76,1,0},
+ {"Golden Noir",0,0,0x201d12,0x353020,0xfff6db,0xc7bd9e,0xe7ca73,1,0},
+ {"Ocean Depths",0,0,0x0d2025,0x19343c,0xe3f9ff,0x9ebfc9,0x69d4e3,1,0},
+ {"Carbon",0,0,0x171719,0x29292e,0xf1f1f5,0xb5b5c1,0xc5c5d5,1,0},
+ {"Porcelain",1,0,0xf5f7fa,0xffffff,0x252d3b,0x58667a,0x496b9c,1,0},
+ {"Paper",1,0,0xf6f0e5,0xfffcf4,0x3a3329,0x716554,0x886143,1,0},
+ {"Pearl Grey",1,0,0xe8ebef,0xf8fafc,0x29323f,0x5d6878,0x637187,1,0},
+ {"Sky Mist",1,0,0xe4effc,0xf6faff,0x253b59,0x55708e,0x376db1,1,0},
+ {"Mint Cream",1,0,0xe3f3ec,0xf6fffa,0x244437,0x537666,0x2b8263,1,0},
+ {"Sage Linen",1,0,0xeaf0e1,0xfbfff4,0x35462d,0x68785e,0x5c7b42,1,0},
+ {"Lavender Haze",1,0,0xeee7f8,0xfdf8ff,0x45345a,0x78658d,0x8557ad,1,0},
+ {"Rose Quartz",1,0,0xf8e6ed,0xfff8fb,0x573346,0x8c6275,0xad4c76,1,0},
+ {"Peach Sorbet",1,0,0xfbe9dc,0xfffaf4,0x583e2d,0x8a6b54,0xa95e32,1,0},
+ {"Buttercream",1,0,0xf8f2d5,0xfffdef,0x504723,0x807448,0x8b741e,1,0}
 };
 #define LAB_THEME_COUNT ((int)(sizeof(labThemes)/sizeof(labThemes[0])))
 #define LAB_STRAWBERRY_PALETTE 0
@@ -38,6 +55,18 @@ static int LabSuggestedFonts(int d,const char** names){
  names[0]=LabDefaultFont(d);names[1]=d==2?"Rajdhani":d==3?"Oxanium":"Adwaita Sans";names[2]=d==2?"Orbitron":d==3?"DejaVu Sans Mono":"Noto Sans";return 3;
 }
 static int LabPaletteForDesign(int id,int design){return id>=0&&id<LAB_THEME_COUNT&&labThemes[id].collection==design?id:LabDefaultPalette(design);}
+// Preserve an old themed switcher's accent as closely as the plain catalog allows.
+static int LabSwitcherPalette(int id){
+ if(id<0||id>=LAB_THEME_COUNT)return LabDefaultPalette(0);
+ if(labThemes[id].collection==0)return id;
+ int best=LabDefaultPalette(0),distance=2147483647;
+ for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==0){
+  int d=labThemes[i].light==labThemes[id].light?0:1000000;
+  for(int shift=0;shift<=16;shift+=8){int delta=(int)((labThemes[i].accent>>shift)&255)-(int)((labThemes[id].accent>>shift)&255);d+=delta*delta;}
+  if(d<distance){distance=d;best=i;}
+ }
+ return best;
+}
 static unsigned int LabMixHex(unsigned int a,unsigned int b,float t){
  unsigned int out=0;for(int shift=0;shift<=16;shift+=8)out|=(unsigned int)(((a>>shift)&255)*(1-t)+((b>>shift)&255)*t)<<shift;return out;
 }

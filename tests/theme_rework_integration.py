@@ -77,10 +77,16 @@ def launch():
 def close():ui.terminate();ui.wait(15)
 try:
  wait(sock.exists);launch();assert len(g()['choices']['38']['options'])==4
- palette_counts=[3,3,11,4];background_hashes={}
+ palette_counts=[20,3,11,4];background_hashes={}
  for design in range(4):
   choose(38,design);wait(lambda:s()['design']==design);assert len(g()['choices']['30']['options'])==palette_counts[design]
   assert s()['light']==(design==1);assert not pref()['general_font_enabled'];expected=['Sans','Sans','Oxanium','Silkscreen'][design];assert g()['effective_font']==expected
+  if design==0:
+   for palette in range(20):
+    choose(30,palette);assert s()['light']==(palette>=10)
+    if palette in [0,10,16,19]:shot('default-palette-'+str(palette))
+   choose(30,0)
+   results['twenty_default_palettes_ten_light_ten_dark']=True
   hashes=[]
   for preset in range(4):
    choose(39,preset);time.sleep(.15);im=shot('theme-'+str(design)+'-background-'+str(preset));px,py=g()['app_background_controls'][0];crop=im.crop((int(px-157),int(py-50),int(px-93),int(py+3)));assert max(ImageStat.Stat(crop).stddev)>.4;hashes.append(__import__('hashlib').sha256(crop.tobytes()).hexdigest())
@@ -107,23 +113,23 @@ try:
   click(*g()['header']['settings']);wait(lambda:state()['settings']);choose(38,design);esc();wait(lambda:not state()['settings']);click(*g()['header']['carousel']);wait(lambda:state()['page']==1)
   click(*g()['animation_controls'][2]);wait(lambda:s()['customize']==1)
   ui_before=(pref()['ui_design'],pref()['ui_theme'])
-  choose(78,design)
-  assert (pref()['ui_design'],pref()['ui_theme'])==ui_before
-  assert len(g()['choices']['79']['options'])==palette_counts[design]
-  if design==3:
-   choose(79,2);choose(78,1);choose(78,3);assert pref()['switcher_palette']==19
-   shot('independent-switcher-settings')
+  assert '78'not in g()['choices'];assert len(g()['choices']['79']['options'])==20
+  if design==0:
+   for palette in range(20):
+    choose(79,palette)
+    assert (pref()['ui_design'],pref()['ui_theme'])==ui_before
+   results['twenty_switcher_colors_without_theme_control']=True
+  choose(79,[0,10,6,13][design]);shot('switcher-color-settings-'+str(design))
   esc();wait(lambda:s()['customize']==0)
-  # UI theme/palette changes must leave the chosen switcher untouched.
-  saved=(pref()['switcher_theme'],pref()['switcher_palette'])
+  saved=pref()['switcher_palette']
   run(app,'--ui-option','ui_design',(design+1)%4)
-  assert (pref()['switcher_theme'],pref()['switcher_palette'])==saved
+  assert pref()['switcher_palette']==saved
   for layout in range(4):
    choose(20,layout);click(*g()['animation_controls'][0]);wait(lambda:s()['switcher_preview']);time.sleep(.5);shot('preview-theme-'+str(design)+'-layout-'+str(layout));esc();wait(lambda:not s()['switcher_preview'])
  close();ui=None;results['sixteen_switcher_previews']=True
  # Capture the actual compositor popups using the synthetic library, then cancel.
- for design,palette,rgb in [(0,14,(156,203,189)),(1,1,(172,49,91)),(2,4,(255,105,198)),(3,17,(255,133,200))]:
-  run(app,'--ui-option','ui_design',(design+1)%4);run(app,'--ui-option','switcher_theme',design);run(app,'--ui-option','switcher_palette',palette);run(app,'--ui-option','general_font_enabled',0)
+ for design,palette,rgb in [(0,14,(156,203,189)),(1,28,(73,107,156)),(2,24,(255,174,118)),(3,31,(55,109,177))]:
+  run(app,'--ui-option','ui_design',(design+1)%4);run(app,'--ui-option','switcher_palette',palette);run(app,'--ui-option','general_font_enabled',0)
   for layout in range(4):
    if design==2 and layout==3:run(app,'--ui-option','font',0);run(app,'--ui-option','general_font_enabled',1)
    run(app,'--ui-option','carousel_layout',layout);capture=out/('popup-'+str(design)+'-'+str(layout));capture.mkdir(exist_ok=True);trace=capture/'trace.json';session=design*10+layout+1
@@ -132,15 +138,15 @@ try:
    try:
     deadline=time.monotonic()+15
     while not(capture/'step-1-2.png').exists():assert child.poll()is None;assert time.monotonic()<deadline;time.sleep(.05)
-    state_=read_state(trace);assert(state_['design'],state_['theme'])==(design,palette)
+    state_=read_state(trace);assert(state_['design'],state_['theme'])==(0,palette)
     assert state_['font']==('Sans'if design==2 and layout==3 else['Sans','Sans','Oxanium','Silkscreen'][(design+1)%4]);assert state_['general_font_override']==(design==2 and layout==3)
-    im=Image.open(capture/'step-1-2.png').convert('RGBA');margin=im.crop((4,4,im.width-4,state_['padding']-2));assert design==0 or sum(px[3]>200 for px in margin.get_flattened_data())>20
+    im=Image.open(capture/'step-1-2.png').convert('RGBA');margin=im.crop((0,0,im.width,10));assert max(px[3]for px in margin.get_flattened_data())==0,('decorative margin survived',design,layout)
     matching=sum(1 for px in im.get_flattened_data()if px[3]>200 and sum(abs(px[i]-rgb[i])for i in range(3))<35);assert matching>15,(design,layout,matching)
     client=next(c for c in json.loads(run('hyprctl','clients','-j'))if c['pid']==child.pid);run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.close({{window="pid:{child.pid}"}}))');child.wait(8)
    finally:
     if child.poll()is None:
      proc=pathlib.Path('/proc',str(child.pid));assert pathlib.Path(os.readlink(proc/'exe')).resolve()==app;child.terminate();child.wait(8)
- results['sixteen_actual_popups_match_independent_theme_palette']=True
+ results['sixteen_plain_popups_match_independent_color']=True
  assert not(out/'state/wallpaper-lab/running.json').exists()
 finally:
  if __import__('sys').exc_info()[0]and ui and ui.poll()is None:

@@ -38,9 +38,9 @@ your user profile. No compilation, Node.js or npm installation is needed.
 - Workshop search, filters, creator information and Steam downloads.
 - Independent monitor assignments, panoramic and mirror layouts.
 - Four animated carousel layouts: Grid, River, Vertical and Wave.
-- Default, Strawberry core, 2077 and Arcade: **21 palettes**, 16 app
+- Default, Strawberry core, 2077 and Arcade: **38 palettes**, 16 app
   backgrounds, suggested fonts and an optional general font override.
-- Themed switchers, editable animations, desktop transitions and live mute.
+- Plain switchers with 20 color choices, editable animations, desktop transitions and live mute.
 
 This is an **open beta**. Compatibility depends on the project features used;
 not every Wallpaper Engine scene is supported. Optional Caelestia integration
@@ -71,10 +71,11 @@ for the app plus pinned submodules.
 
 ## Source changes after the current beta installer
 
-Version 0.25 source adds independent switcher **Theme** and **Color palette**
-controls, richer switcher decorations, Strawberry cakes and a simplified rabbit,
-and the renamed Arcade theme with a decorative Pac-Man chase. The download above
-remains the published 0.24 beta; build from source for these changes.
+Version 0.26 source offers 20 Default palettes (10 light and 10 dark), with the
+same independent **Color palette** selection for the switcher. Switchers use a
+plain style without themed decorations. The main UI retains its four themes.
+The download above remains the published 0.24 beta; build from source for these
+changes.
 
 ## Documentation and credits
 

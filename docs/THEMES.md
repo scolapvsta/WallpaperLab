@@ -2,20 +2,25 @@
 
 | Theme | Mode | Palettes | Initial suggested font | Included backgrounds |
 | --- | --- | ---: | --- | ---: |
-| Default | Dark | 3 | System Sans | 4 |
+| Default | Light / Dark | 20 | System Sans | 4 |
 | Strawberry core | Light | 3 | System Sans | 4 |
 | 2077 | Dark | 11 | Oxanium | 4 |
 | Arcade | Dark | 4 | Silkscreen | 4 |
 
 **Themes** and **Color Palettes** are dropdowns. Each theme has its own palettes,
-background and suggested-font selection. Mode is determined by the theme. Fresh
+background and suggested-font selection. Default mode follows its palette; the other themes retain their own mode. Fresh
 installations start with Default/Graphite. Existing Strawberry and 2077 palette
 IDs are preserved; superseded presets are outside the active catalog.
 
 ## Default
 
-Soft surfaces and understated borders. Palettes: **Graphite**, **Blue Slate** and
-**Forest Ink**. Backgrounds: **Quiet Gradient**, **Blueprint**, **Contour** and
+Soft surfaces and understated borders with 20 palettes. Dark options are
+**Graphite**, **Blue Slate**, **Forest Ink**, **Midnight Blue**, **Aubergine**,
+**Rosewood**, **Ember**, **Golden Noir**, **Ocean Depths** and **Carbon**.
+Light options are **Porcelain**, **Paper**, **Pearl Grey**, **Sky Mist**,
+**Mint Cream**, **Sage Linen**, **Lavender Haze**, **Rose Quartz**,
+**Peach Sorbet** and **Buttercream**. Each light palette includes light surfaces,
+dark text and a contrasting accent. Backgrounds: **Quiet Gradient**, **Blueprint**, **Contour** and
 **Night Dots**. Suggested fonts include Sans, Adwaita Sans and Noto Sans, with
 system fallback when needed.
 
@@ -82,23 +87,21 @@ and uncovered scripts use Fontconfig/Pango fallback.
 - [Rajdhani](https://github.com/google/fonts/tree/main/ofl/rajdhani)
 - [Edgerunners visual reference](https://www.cyberpunk.net/en/edgerunners)
 
-## Themed switchers
+## Switcher colors
 
-Open the customize button beside the switcher layout and choose **Theme** and
-**Color palette**. Default, Strawberry core, 2077 and Arcade can be chosen
-independently of the main UI. Palette choices are scoped to the switcher theme
-and remembered when switching away and back. Existing installations snapshot
-their previous UI appearance once; subsequent UI changes leave the switcher
-selection unchanged. New installations start with Default/Graphite.
+Open the customize button beside the switcher layout and choose **Color palette**.
+All 20 Default palettes are available, independently of the main UI theme and
+palette. Grid, River, Vertical and Wave always use the plain Default style in
+both the preview and the real popup. The Theme control and themed artwork have
+been removed from the switcher, including decorative bands and card motifs.
+The existing four layouts, zoom and motion settings are retained.
 
-Grid, River, Vertical and Wave share the same skin in the in-app preview and the
-real popup. Strawberry adds gingham, lace, ribbons, small cakes and a simplified
-rabbit; 2077 adds a skyline, scanlines and neon accents; Arcade adds cabinets,
-pixel stars and the decorative chase. Top and bottom margin artwork remains
-visible around thumbnails without changing tile geometry or animation. Text
-continues to use the UI's configured font and General Fonts override. The switcher
-uses wallpaper thumbnails; confirming a different wallpaper starts full desktop rendering.
-The main window's imported background is separate from switcher content.
+Old themed switcher preferences are migrated to the closest Default accent with
+the same light/dark mode. Valid Default colors are preserved. Retired theme and
+per-theme switcher palette keys are removed when settings are next saved.
+Text continues to use the configured UI font and General Fonts override.
+The switcher displays wallpaper thumbnails; confirmation starts full desktop
+rendering. Imported app backgrounds remain separate from switcher content.
 
 ## Importing an app background
 

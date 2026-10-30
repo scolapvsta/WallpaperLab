@@ -314,7 +314,7 @@ static void SettingsBody(Rectangle area){
         int current;
         const char* densities[]={lab_tr("Comodo"),lab_tr("Compatto"),lab_tr("Galleria")};current=lab_option("layout_density");value=Choice(32,x,&y,w,lab_tr("Layout della libreria"),densities,3,current);if(current!=value)lab_set_option("layout_density",value);
         const char* weights[]={lab_tr("Medio"),lab_tr("Semigrassetto"),lab_tr("Grassetto")};current=lab_option("font_weight");value=Choice(34,x,&y,w,lab_tr("Peso del testo"),weights,3,current);if(current!=value)lab_set_option("font_weight",value);
-        y+=TextLines(lab_tr("Il tema dello switcher si configura separatamente."),x,y+8,w,14,3,muted)+22;
+        y+=TextLines(lab_tr("Il colore dello switcher si configura separatamente."),x,y+8,w,14,3,muted)+22;
     }else if(settingsTab==4){
         const char* languages[32];for(int i=0;i<lab_language_count();i++)languages[i]=lab_language_name(i);int current=lab_option("language");languageControl=(Rectangle){x+w-fminf(292,w*.6f),y,fminf(292,w*.6f),34};int value=Choice(40,x,&y,w,lab_tr("Lingua"),languages,lab_language_count(),current);languageMenu=choiceOpen==40;if(current!=value)lab_set_option("language",value);
         current=lab_option("reduce_motion");value=BoolChoice(41,x,&y,w,lab_tr("Riduci animazioni"),current);if(current!=value)lab_set_option("reduce_motion",value);

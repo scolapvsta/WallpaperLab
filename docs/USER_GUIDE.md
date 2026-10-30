@@ -141,8 +141,9 @@ renderer startup and does not edit compositor configuration files.
 
 ## Appearance and languages
 
-Four themes provide 21 palettes and 16 included backgrounds. Each remembers its
-palette, background and suggested font. Default, 2077 and Arcade are dark;
+Four themes provide 38 palettes and 16 included backgrounds. Each remembers its
+palette, background and suggested font. Default offers both light and dark
+palettes; 2077 and Arcade are dark;
 Strawberry core is light. Fresh installations start with Default.
 
 **Suggested Theme Fonts** selects the theme font. Enable **General Fonts** to
@@ -253,11 +254,11 @@ supported; see the [Windows assessment](WINDOWS_PORT.md). Other wallpaper render
 on the same outputs may overlap surfaces or consume resources concurrently.
 Wallpaper Lab does not terminate unrelated applications.
 
-### Independent switcher appearance (0.25)
+### Switcher color (0.26)
 
-Use the customize button next to the switcher layout to select **Theme** and
-**Color palette**. The four themes have separate switcher palette selections;
-changing the app's Appearance theme does not update the switcher. The eye button
-previews the same artwork and layout as the actual popup. Arcade includes a
-scripted pellet-and-ghost chase; Reduced motion freezes decorative animation.
-Strawberry core now uses a small, simplified rabbit and miniature strawberry cakes.
+Use the customize button next to the switcher layout to select **Color palette**.
+Choose from 20 Default colors, including 10 light and 10 dark palettes. The four
+layouts use the same plain style; there is no switcher Theme control or themed
+artwork. The eye button previews the real popup's colors and layout. Changing
+the UI theme or palette leaves the switcher color unchanged. Default's own UI
+palette dropdown includes the same 20 choices. Other UI themes remain available.

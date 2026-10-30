@@ -16,14 +16,22 @@ int main(){
         for(int design=0;design<LAB_DESIGN_COUNT;design++)for(int palette=0;palette<LAB_THEME_COUNT;palette++){
             writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",design},{"ui_theme",palette},{"light_theme",false}});
             auto loaded=loadSettings();require(labThemes[loaded["ui_theme"].get<int>()].collection==design,"cross-theme palette accepted");
-            require(loaded["light_theme"]==(design==1),"mode must follow theme");
+            require(loaded["light_theme"]==bool(labThemes[loaded["ui_theme"].get<int>()].light),"mode must follow palette");
         }
-        writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",3},{"ui_theme",19}});
-        auto independent=loadSettings();require(independent["switcher_theme"]==3&&independent["switcher_palette"]==19,"switcher migration lost appearance");
-        independent["ui_design"]=1;independent["ui_theme"]=2;writeJson(configDir()/"settings.json",independent);
-        independent=loadSettings();require(independent["switcher_theme"]==3&&independent["switcher_palette"]==19,"UI theme changed switcher appearance");
-        independent["switcher_theme"]=2;independent["switcher_palette"]=19;writeJson(configDir()/"settings.json",independent);
-        require(loadSettings()["switcher_palette"]==3,"switcher accepted cross-theme palette");
+        int lightCount=0,darkCount=0;
+        for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==0){
+            if(labThemes[i].light)lightCount++;else darkCount++;
+            writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",0},{"ui_theme",i},{"switcher_palette",i},{"switcher_theme",3}});
+            auto loaded=loadSettings();require(loaded["switcher_palette"]==i,"plain switcher palette changed");
+            require(!loaded.contains("switcher_theme"),"retired switcher theme survived");
+            loaded["ui_design"]=1;loaded["ui_theme"]=2;writeJson(configDir()/"settings.json",loaded);
+            require(loadSettings()["switcher_palette"]==i,"UI changed switcher color");
+        }
+        require(lightCount>=8&&darkCount>=8,"Default needs many light and dark palettes");
+        for(int i=0;i<LAB_THEME_COUNT;i++){
+            writeJson(configDir()/"settings.json",{{"theme_scoped_v3",true},{"ui_design",3},{"ui_theme",19},{"switcher_theme",3},{"switcher_palette",i}});
+            auto loaded=loadSettings();require(labThemes[loaded["switcher_palette"].get<int>()].collection==0,"themed switcher palette survived migration");
+        }
         fs::remove(configDir()/"settings.json");require(loadSettings()["ui_design"]==0&&loadSettings()["ui_theme"]==14,"new install must use Default");
         for(int old=0;old<32;old++){
             writeJson(configDir()/"settings.json",{{"theme_ui_v2",true},{"ui_theme",old},{"light_theme",true},{"ui_design",old<29?0:1},{"font_family","Noto Sans"}});

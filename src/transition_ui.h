@@ -19,15 +19,14 @@ static void SwitcherPreview(void){
  DrawSwitcherDemo((Rectangle){box.x+20,box.y+60,680,360},GetTime()-animationOpened);modalDrawing=modal;transitionDrawing=false;
 }
 static void AnimationCustomization(void){
- if(!animationCustomize)return;bool modal=modalDrawing;modalDrawing=true;transitionDrawing=true;int sw=GetScreenWidth(),sh=GetScreenHeight(),layout=lab_option("carousel_layout"),type=lab_option("transition_type"),h=animationCustomize==1?420+(layout?43:0)+(layout==3?96:0):200+(type==5||type==6?43:type==3||type==4?48:0);Rectangle box={(sw-610)/2.f,(sh-h)/2.f,610,h};DrawRectangle(0,0,sw,sh,Fade(BLACK,.65));ThemePanel(box,.06f,12,surface);UiText(lab_tr(animationCustomize==1?"Personalizza switcher":"Personalizza transizione"),box.x+22,box.y+20,21,AppTheme.text);
+ if(!animationCustomize)return;bool modal=modalDrawing;modalDrawing=true;transitionDrawing=true;int sw=GetScreenWidth(),sh=GetScreenHeight(),layout=lab_option("carousel_layout"),type=lab_option("transition_type"),h=animationCustomize==1?377+(layout?43:0)+(layout==3?96:0):200+(type==5||type==6?43:type==3||type==4?48:0);Rectangle box={(sw-610)/2.f,(sh-h)/2.f,610,h};DrawRectangle(0,0,sw,sh,Fade(BLACK,.65));ThemePanel(box,.06f,12,surface);UiText(lab_tr(animationCustomize==1?"Personalizza switcher":"Personalizza transizione"),box.x+22,box.y+20,21,AppTheme.text);
  if(GetTime()-animationOpened>.15&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),box)&&choiceOpen<0){animationCustomize=0;}
  if(GlyphButton((Rectangle){box.x+box.width-54,box.y+12,34,34},UI_CLOSE,false,true,"")){animationCustomize=0;choiceOpen=-1;}
  int x=box.x+24,y=box.y+66,w=box.width-48;const char* direction[]={lab_tr("Sinistra"),lab_tr("Destra"),lab_tr("Alto"),lab_tr("Basso")};
  if(animationCustomize==1){
- int design=lab_option("switcher_theme"),value=Choice(78,x,&y,w,"Theme",labDesignNames,LAB_DESIGN_COUNT,design);if(value!=design)lab_set_option("switcher_theme",value);
  const char* palettes[LAB_THEME_COUNT];int ids[LAB_THEME_COUNT],count=0,selected=0;
- for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==lab_option("switcher_theme")){ids[count]=i;palettes[count]=labThemes[i].name;if(i==lab_option("switcher_palette"))selected=count;count++;}
- value=Choice(79,x,&y,w,"Color palette",palettes,count,selected);if(value!=selected)lab_set_option("switcher_palette",ids[value]);
+ for(int i=0;i<LAB_THEME_COUNT;i++)if(labThemes[i].collection==0){ids[count]=i;palettes[count]=labThemes[i].name;if(i==lab_option("switcher_palette"))selected=count;count++;}
+ int value=Choice(79,x,&y,w,"Color palette",palettes,count,selected);if(value!=selected)lab_set_option("switcher_palette",ids[value]);
  SettingSlider(100,x,&y,w,lab_tr("Dimensione del carousel"),"switcher_size",70,140,"%");SettingSlider(101,x,&y,w,lab_tr("Ingrandimento della selezione"),"switcher_zoom",105,150,"%");SettingSlider(102,x,&y,w,lab_tr("Dissolvenza in entrata"),"switcher_fade_in",60,600," ms");SettingSlider(103,x,&y,w,lab_tr("Dissolvenza in uscita"),"switcher_fade_out",60,600," ms");SettingSlider(104,x,&y,w,lab_tr("Durata del movimento"),"switcher_motion",100,900," ms");
  if(lab_option("carousel_layout")!=0){int at=lab_option("switcher_reverse"),v=BoolChoice(75,x,&y,w,lab_tr("Inverti scorrimento"),at);if(v!=at)lab_set_option("switcher_reverse",v);}
  if(lab_option("carousel_layout")==3){SettingSlider(105,x,&y,w,lab_tr("Velocità dell’onda"),"wave_speed",0,300,"%");SettingSlider(106,x,&y,w,lab_tr("Ampiezza dell’onda"),"wave_height",0,40," px");}

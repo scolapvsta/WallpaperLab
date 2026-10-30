@@ -527,3 +527,33 @@ published beta archives retain their original content.
   UI fonts and reduced motion remain shared settings. Reference images are not
   shipped; the published 0.24 beta installer has not been replaced by this change.
   Existing engine/raylib patch worktrees and upstream pins were preserved.
+
+## 0.26 — Default palettes and plain switchers (2026-10-30)
+
+- Release build and **12/12 CTest passed**. Default now provides **20 palettes,
+  10 light and 10 dark**, with stable existing IDs. Preference tests cover
+  palette-driven mode, all Default colors, independence from UI changes,
+  migration from every old themed palette and removal of retired theme keys.
+- The interactive theme suite selected all 20 Default palettes and checked their
+  mode. It also passed the 16 background samples, scoped font overrides and
+  Arcade motion/reduced-motion checks. Visually inspected light Porcelain and
+  the captured plain switcher canvases. Primary text/surface contrast across all
+  20 Default palettes was at least **9.07:1** in the palette definitions.
+- That interactive run was interrupted by pointer movement before the switcher
+  controls section; a complete interactive rerun is not claimed. Added a
+  capture-only hidden-surface option so native graphical checks need no desktop
+  input. `switcher_colors_integration.py` passed **32 native popup captures**:
+  all 20 colors, with four representative light/dark colors across all four
+  layouts. Verified fixed Default styling, independent color persistence,
+  expected border colors and transparent top margins without decoration bands.
+  These captures exercise native OpenGL popup rendering without mapping the
+  windows; live compositor placement/focus is not covered by this run.
+- The catalog contained 106 entries. Native scene/video preview smoke tests and
+  foreign-process preservation passed. Isolated graphics checks preserved the
+  personal renderer and never applied their thumbnail fixtures to the desktop.
+- Installed 0.26 locally with binary/configuration backups. The same wallpaper
+  started successfully before retiring the previous renderer, verifying PID,
+  start time and executable and signaling with pidfds. Opened the new selector.
+  Other UI themes remain available; switcher artwork and its Theme control are
+  removed. Engine/raylib worktrees and pins remain unchanged. No autostart or
+  shortcut changes and no replacement public beta installer were made.

@@ -59,11 +59,10 @@ json loadSettings() {
     }
     int design=std::clamp(prefs.value("ui_design",0),0,3);prefs["ui_design"]=design;
     prefs["ui_theme"]=LabPaletteForDesign(prefs.value("ui_theme",LabDefaultPalette(design)),design);
-    prefs["light_theme"]=design==1;
-    // Snapshot the old appearance once; UI changes never drive the switcher again.
-    int switcher=std::clamp(prefs.value("switcher_theme",design),0,3);
-    prefs["switcher_theme"]=switcher;
-    prefs["switcher_palette"]=LabPaletteForDesign(prefs.value("switcher_palette",prefs["ui_theme"].get<int>()),switcher);
+    prefs["light_theme"]=bool(labThemes[prefs["ui_theme"].get<int>()].light);
+    prefs["switcher_palette"]=LabSwitcherPalette(prefs.value("switcher_palette",LabDefaultPalette(0)));
+    prefs.erase("switcher_theme");
+    for(int d=0;d<LAB_DESIGN_COUNT;d++)prefs.erase("switcher_palette_"+std::to_string(d));
     prefs["general_font_enabled"]=prefs.value("general_font_enabled",false);
     prefs["window_transparency"]=std::clamp(prefs.value("window_transparency",100-prefs.value("window_opacity",100)),0,30);prefs["window_opacity"]=100-prefs["window_transparency"].get<int>();
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);

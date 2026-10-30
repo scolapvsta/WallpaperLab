@@ -680,7 +680,6 @@ static void PopupCard(int index, Rectangle rect, float radius, Vector2 origin) {
         DrawRectangleRounded(rect,2*radius/fminf(rect.width,rect.height),12,AppTheme.idle);
         DrawRectangleRoundedLinesEx(rect,2*radius/fminf(rect.width,rect.height),12,2.6f,AppTheme.border);
     }
-    SwitcherCardDecoration(rect,index==lab_current());
     if(index==lab_current()){Vector2 dot={rect.x+14,rect.y+rect.height-14};DrawCircleV(dot,6.5f,Fade(BLACK,.6f));DrawCircleV(dot,3.8f,AppTheme.border);}
 }
 static void PopupImages(PopupLayout layout, int count, int* indices, int position, float phase, bool enlarged, Vector2 origin) {
@@ -730,7 +729,7 @@ static void PopupImages(PopupLayout layout, int count, int* indices, int positio
 static void DrawSwitcherDemo(Rectangle area,float elapsed){
  static RenderTexture2D panel={0},canvas={0};int order[MAX_POSSIBLE_WALLPAPERS],count=0;for(int j=0;j<lab_carousel_count();j++)order[count++]=lab_carousel_item(j);
  if(!count){UiText(lab_tr("Aggiungi preferiti dalla Libreria"),area.x+24,area.y+90,18,muted);return;}
- themeDesignOverride=lab_option("switcher_theme");ApplyTheme();
+ themeDesignOverride=0;ApplyTheme();
  LayoutMode old=g_targetMode;g_targetMode=lab_option("carousel_layout");InitPopupImages();PopupFrame frame=popup_frame_scaled(g_targetMode,count,1100,660,lab_option("switcher_size"),lab_option("switcher_zoom"));PopupLayout layout=frame.content;
  if(panel.texture.width!=layout.width||panel.texture.height!=layout.height){if(panel.id)UnloadRenderTexture(panel);panel=LoadRenderTexture(layout.width,layout.height);}
  if(canvas.texture.width!=frame.width||canvas.texture.height!=frame.height){if(canvas.id)UnloadRenderTexture(canvas);canvas=LoadRenderTexture(frame.width,frame.height);SetTextureFilter(canvas.texture,TEXTURE_FILTER_BILINEAR);}
@@ -738,7 +737,7 @@ static void DrawSwitcherDemo(Rectangle area,float elapsed){
  float duration=lab_option("switcher_motion")/1000.f,cycle=duration+.7f,step=floorf(elapsed/cycle),t=Clamp(fmodf(elapsed,cycle)/duration,0,1),phase=baseline+step+popup_ease(t);int position=(baseline+(int)step+1)%count;
  for(int j=0;j<count;j++)wallpapers[order[j]].hoverAnim=popup_focus(popup_distance(j,phase,count));
  BeginTextureMode(panel);ClearBackground(BLANK);SwitcherBackdrop(layout.width,layout.height,g_targetMode==MODE_WAVE);PopupImages(layout,count,order,position,fmodf(phase,count),false,(Vector2){0});if(g_targetMode==MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){0});EndTextureMode();
- BeginTextureMode(canvas);ClearBackground(BLANK);PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);SwitcherFrameDecoration(frame.width,frame.height,frame.padding);if(g_targetMode!=MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){frame.padding,frame.padding});EndTextureMode();
+ BeginTextureMode(canvas);ClearBackground(BLANK);PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);if(g_targetMode!=MODE_WAVE)PopupImages(layout,count,order,position,fmodf(phase,count),true,(Vector2){frame.padding,frame.padding});EndTextureMode();
  if(uiCanvasActive)rlEnableFramebuffer(uiCanvas.id);PopupFrame reference=popup_frame_scaled(g_targetMode,count,1100,660,140,150);float scale=fminf(area.width/reference.width,area.height/reference.height);Rectangle dest={area.x+(area.width-frame.width*scale)/2,area.y+(area.height-frame.height*scale)/2,frame.width*scale,frame.height*scale};float fadeIn=lab_option("switcher_fade_in")/1000.f,fadeOut=lab_option("switcher_fade_out")/1000.f,loop=fmodf(elapsed,cycle*count+fadeIn+fadeOut+.5f),visibility=loop<fadeIn?loop/fadeIn:loop>cycle*count+fadeIn?1-(loop-cycle*count-fadeIn)/fadeOut:1;
  DrawTexturePro(canvas.texture,(Rectangle){0,0,frame.width,-frame.height},dest,(Vector2){0},0,Fade(WHITE,Clamp(visibility,0,1)));g_targetMode=old;themeDesignOverride=-1;ApplyTheme();
 }
@@ -746,7 +745,7 @@ static void DrawSwitcherDemo(Rectangle area,float elapsed){
 // Transient carousel: lightweight previews while held, one commit on release.
 int carousel_popup_main(void) {
     popupView=true;
-    themeDesignOverride=lab_option("switcher_theme");
+    themeDesignOverride=0;
     LoadDefaultConfig();ApplyTheme();
     g_max_threads=3;
     g_targetMode=g_currentMode=(LayoutMode)Clamp(lab_option("carousel_layout"),0,3);
@@ -770,7 +769,10 @@ int carousel_popup_main(void) {
     SetTraceLogLevel(LOG_WARNING);
     // Decode in parallel with window creation, not after the first frame.
     pthread_t loaders[3];for(int t=0;t<3;t++)pthread_create(&loaders[t],NULL,LoaderThread,NULL);
-    SetConfigFlags(FLAG_WINDOW_UNDECORATED|FLAG_WINDOW_TRANSPARENT|FLAG_MSAA_4X_HINT);
+    const char* captureDir=getenv("WALLPAPER_LAB_POPUP_CAPTURE");
+    // Capture-only hidden surfaces allow graphical checks without desktop input.
+    unsigned int captureFlags=captureDir&&getenv("WALLPAPER_LAB_POPUP_HIDDEN")?FLAG_WINDOW_HIDDEN:0;
+    SetConfigFlags(FLAG_WINDOW_UNDECORATED|FLAG_WINDOW_TRANSPARENT|FLAG_MSAA_4X_HINT|captureFlags);
     InitWindow(frame.width,frame.height,"Wallpaper Lab Carousel");InitBackdrop();SetExitKey(KEY_NULL);SetTargetFPS(120);
     uiFont=LoadSystemFont(lab_font(),28,NULL,0);if(!uiFont.texture.id)uiFont=GetFontDefault();SetTextureFilter(uiFont.texture,TEXTURE_FILTER_BILINEAR);
     InitPopupImages();
@@ -782,7 +784,6 @@ int carousel_popup_main(void) {
     PopupMotion scrollMotion={position,0},zoomMotion[MAX_POSSIBLE_WALLPAPERS]={0};
     // Explicit test-only export of this app's own canvas, before the global
     // fade. It remains usable when desktop screenshots are covered by a lock.
-    const char* captureDir=getenv("WALLPAPER_LAB_POPUP_CAPTURE");
     int captureStep=-1,captureStage=0;double captureStart=GetTime();
     int choice=-1;
     while(IsRenderTextureValid(canvas)&&IsRenderTextureValid(panel)){
@@ -839,7 +840,7 @@ int carousel_popup_main(void) {
         }
         EndTextureMode();
         popupHitOffset=0;BeginTextureMode(canvas);ClearBackground(BLANK);
-        PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);SwitcherFrameDecoration(frame.width,frame.height,frame.padding);
+        PopupTexture(panel.texture,(Rectangle){0,0,layout.width,-layout.height},(Rectangle){frame.padding,frame.padding,layout.width,layout.height},10,2.6f,false,WHITE);
         if(count&&g_targetMode!=MODE_WAVE)PopupImages(layout,count,indices,position,phase,true,(Vector2){frame.padding,frame.padding});
         EndTextureMode();
         BeginDrawing();ClearBackground(BLANK);

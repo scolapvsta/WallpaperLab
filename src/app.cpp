@@ -554,22 +554,13 @@ int lab_monitor_count(){return monitors.size();}
 const char* lab_monitor(int i){return monitorLabels.at(i).c_str();}
 int lab_mode(){auto m=settings.value("mode",std::string("span"));return m=="span"?0:m=="mirror"?1:2;}
 int lab_screen(){return settings.value("screen",0);}
-int lab_option(const char* key){if(std::string(key)=="app_background_preset")return settings.value(LabBackgroundKey(settings.value("ui_design",0)),0);if(std::string(key)=="light_theme")return settings.value("ui_design",1)==1;if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
+int lab_option(const char* key){if(std::string(key)=="app_background_preset")return settings.value(LabBackgroundKey(settings.value("ui_design",0)),0);if(std::string(key)=="light_theme")return labThemes[settings.value("ui_theme",14)].light;if(std::string(key)=="language")return currentLanguage();if(std::string(key)=="ui_theme")return settings.value("ui_theme",0);auto it=settings.find(key);if(it==settings.end())return 0;return it->is_boolean()?it->get<bool>():it->is_number_integer()?it->get<int>():0;}
 int lab_set_mode(int mode){return savePreference("mode",mode==0?"span":mode==1?"mirror":"single");}
 int lab_set_screen(int screen){if(screen<0||screen>=(int)monitors.size())return 0;int ok=savePreference("screen",screen);refreshRunning();return ok;}
 int lab_set_option(const char* key,int value){
     std::string k=key;
     if(k=="language"){if(value<0||value>=languageCount())return 0;int ok=savePreference(k,languageCode(value));if(ok)setLanguage(value);return ok;}
-    if(k=="switcher_theme"||k=="switcher_palette")return guarded([&]{
-        ControllerLock lock;auto latest=loadSettings();int old=latest.value("switcher_theme",0);
-        if(k=="switcher_theme"){
-            int design=std::clamp(value,0,3);
-            latest["switcher_palette_"+std::to_string(old)]=latest["switcher_palette"];
-            latest[k]=design;
-            latest["switcher_palette"]=LabPaletteForDesign(latest.value("switcher_palette_"+std::to_string(design),LabDefaultPalette(design)),design);
-        }else latest[k]=LabPaletteForDesign(value,old);
-        writeJson(configDir()/"settings.json",latest);settings=latest;
-    });
+    if(k=="switcher_palette")return savePreference(k,LabPaletteForDesign(value,0));
     if(k=="ui_theme"||k=="ui_design")return guarded([&]{
         ControllerLock lock;auto latest=loadSettings();int old=latest.value("ui_design",0);
         if(k=="ui_design"){
@@ -582,6 +573,7 @@ int lab_set_option(const char* key,int value){
                 latest[k]=design;
             }
         }else latest[k]=LabPaletteForDesign(value,old);
+        latest["light_theme"]=bool(labThemes[latest["ui_theme"].get<int>()].light);
         writeJson(configDir()/"settings.json",latest);settings=latest;if(k=="ui_design")resolveFonts();
     });
     if(k=="app_background_preset")return guarded([&]{ControllerLock lock;auto latest=loadSettings();latest[LabBackgroundKey(latest.value("ui_design",0))]=std::clamp(value,0,3);latest["app_background"]="";writeJson(configDir()/"settings.json",latest);settings=latest;});
