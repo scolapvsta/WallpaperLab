@@ -467,3 +467,27 @@ python3 tests/beta_install_integration.py --help
 
 This cleanup updates the current source tree. Earlier Git commits and already
 published beta archives retain their original content.
+
+
+## Repository rename and independent runtime check — 2026-10-30
+
+- Renamed the GitHub repository to `WallpaperLab`, verified the repository ID was
+  preserved and visibility remained public, and updated `origin`, public guide
+  links, the repository homepage and beta release-note links.
+- Removed an inspected user-local WallpaperX installation, its application-menu
+  entry, launchers, autostart entry and inactive legacy service. Configuration and
+  startup files were backed up locally before removal. Steam library content was
+  outside the removed application directories.
+- Before signaling WallpaperX processes, verified PID, start time and executable;
+  used pidfds to prevent PID reuse. Final scan found no remaining WallpaperX
+  processes. Wallpaper Lab retained the same live PID/start/executable, status,
+  configuration hashes and independent Steamworks library hash. Its process maps
+  and runtime links had no dependency on the removed installation.
+- After removal, the installed application read its catalog successfully
+  (106 entries in the verification environment). A read-only Workshop query
+  reached Steam initialization but could not connect because the Steam client was
+  not running. A successful online Workshop query is therefore not claimed.
+- Validation: **12/12 CTest passed** using the existing configured build; local
+  documentation links resolved, all three beta release assets used the renamed
+  repository URL, and `git diff --check` passed. No application code, engine
+  patches, upstream pins or release binaries changed.

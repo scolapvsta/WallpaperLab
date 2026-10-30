@@ -6,8 +6,8 @@ with the linux-wallpaperengine renderer. GPL-3.0.
 
 ## Download and install
 
-[**Download the Arch Linux beta installer**](https://github.com/scolapvsta/wallpaper-engine-customized/releases/download/v0.24.0-beta.1/Wallpaper-Lab-0.24.0-beta.1-Arch-x86_64.run)
- · [Release notes and checksums](https://github.com/scolapvsta/wallpaper-engine-customized/releases/tag/v0.24.0-beta.1)
+[**Download the Arch Linux beta installer**](https://github.com/scolapvsta/WallpaperLab/releases/download/v0.24.0-beta.1/Wallpaper-Lab-0.24.0-beta.1-Arch-x86_64.run)
+ · [Release notes and checksums](https://github.com/scolapvsta/WallpaperLab/releases/tag/v0.24.0-beta.1)
 
 Open a terminal in the download folder and run:
 
@@ -49,7 +49,7 @@ Autostart and global shortcuts are configured explicitly inside the app.
 
 ## Report a bug
 
-[Open a bug report](https://github.com/scolapvsta/wallpaper-engine-customized/issues/new?template=beta-bug.yml)
+[Open a bug report](https://github.com/scolapvsta/WallpaperLab/issues/new?template=beta-bug.yml)
 with your app version, desktop/compositor, GPU/driver, steps and expected result.
 Include a public Workshop ID if relevant. Review logs before posting; remove
 personal paths/account data and do not upload private wallpapers.
@@ -57,8 +57,8 @@ personal paths/account data and do not upload private wallpapers.
 ## Build from source
 
 ```sh
-git clone --recurse-submodules https://github.com/scolapvsta/wallpaper-engine-customized.git
-cd wallpaper-engine-customized
+git clone --recurse-submodules https://github.com/scolapvsta/WallpaperLab.git
+cd WallpaperLab
 sudo pacman -S --needed base-devel cmake ninja git python pkgconf curl freetype2 pango fontconfig sdl2-compat ffmpeg mpv glew glfw lz4 libpulse wayland libx11 libxrandr nss at-spi2-core cups
 ./scripts/build.sh
 python3 scripts/install.py

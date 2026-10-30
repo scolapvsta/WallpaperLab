@@ -9,7 +9,7 @@ are excluded.
 
 1. Update Arch normally before testing; the build needs glibc >= 2.44.
 2. Download `Wallpaper-Lab-0.24.0-beta.1-Arch-x86_64.run` from the
-   [release](https://github.com/scolapvsta/wallpaper-engine-customized/releases/tag/v0.24.0-beta.1).
+   [release](https://github.com/scolapvsta/WallpaperLab/releases/tag/v0.24.0-beta.1).
 3. From a terminal in that folder, run:
 
    ```sh

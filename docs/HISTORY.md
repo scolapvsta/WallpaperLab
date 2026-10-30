@@ -159,3 +159,10 @@ to the documented Arch/Hyprland environment.
 The subsequent documentation cleanup standardized repository prose in English,
 removed contributor-specific session notes and generalized examples. Application
 translations, upstream attributions and canonical project URLs are retained.
+
+## Repository rename — 2026-10-30
+
+The public GitHub repository is now named `WallpaperLab`. Clone, release and bug
+report links use the new canonical location. Application branding, executable
+(`wallpaper-lab`), configuration paths and existing release artifacts are
+unchanged; existing checkouts can update their `origin` remote to the new URL.
