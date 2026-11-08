@@ -1,0 +1,171 @@
+diff --git a/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.cpp b/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.cpp
+index 1a63d00..1552132 100644
+--- a/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.cpp
++++ b/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.cpp
+@@ -4,13 +4,104 @@
+ #include "WallpaperEngine/Render/Drivers/VideoFactories.h"
+ #include "wlr-foreign-toplevel-management-unstable-v1-protocol.h"
+ #include <cstring>
++#include <nlohmann/json.hpp>
++#include <optional>
++#include <ranges>
++#include <set>
+ #include <string>
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <unistd.h>
+ #include <string_view>
+ 
+ namespace WallpaperEngine::Render::Drivers::Detectors {
+ 
+ namespace {
+ 
++    std::optional<nlohmann::json> hyprlandQuery (const char* request) {
++	const char* signature = std::getenv ("HYPRLAND_INSTANCE_SIGNATURE");
++	const char* runtime = std::getenv ("XDG_RUNTIME_DIR");
++	if (!signature || !runtime) {
++	    return std::nullopt;
++	}
++
++	const std::string socketPath = std::string (runtime) + "/hypr/" + signature + "/.socket.sock";
++	sockaddr_un addr {};
++	addr.sun_family = AF_UNIX;
++	if (socketPath.size () >= sizeof (addr.sun_path)) {
++	    return std::nullopt;
++	}
++	std::strncpy (addr.sun_path, socketPath.c_str (), sizeof (addr.sun_path) - 1);
++
++	const int fd = socket (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
++	if (fd < 0) {
++	    return std::nullopt;
++	}
++
++	timeval timeout { .tv_sec = 0, .tv_usec = 50000 };
++	setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof (timeout));
++	setsockopt (fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof (timeout));
++
++	std::string response;
++	if (connect (fd, reinterpret_cast<sockaddr*> (&addr), sizeof (addr)) == 0
++	    && send (fd, request, std::strlen (request), MSG_NOSIGNAL) >= 0) {
++	    char buffer[4096];
++	    ssize_t readBytes;
++	    while ((readBytes = recv (fd, buffer, sizeof (buffer), 0)) > 0) {
++		response.append (buffer, static_cast<std::size_t> (readBytes));
++	    }
++	}
++	close (fd);
++
++	auto json = nlohmann::json::parse (response, nullptr, false);
++	if (json.is_discarded ()) {
++	    return std::nullopt;
++	}
++	return json;
++    }
++
++    /**
++     * Whether every output in `outputs` shows a workspace with a fullscreen window. An empty set
++     * means any output. Workspaces are matched by name, the only key special workspaces expose.
++     * Returns nullopt when Hyprland IPC is unavailable.
++     */
++    std::optional<bool> hyprlandOutputsCovered (const std::set<std::string>& outputs) {
++	const auto monitors = hyprlandQuery ("j/monitors");
++	const auto workspaces = monitors ? hyprlandQuery ("j/workspaces") : std::nullopt;
++	if (!monitors || !workspaces || !monitors->is_array () || !workspaces->is_array ()) {
++	    return std::nullopt;
++	}
++
++	std::set<std::string> fullscreen;
++	for (const auto& workspace : *workspaces) {
++	    if (workspace.value ("hasfullscreen", false)) {
++		fullscreen.insert (workspace.value ("name", std::string ()));
++	    }
++	}
++
++	bool anyCovered = false;
++	for (const auto& monitor : *monitors) {
++	    const auto name = monitor.value ("name", std::string ());
++	    if (!outputs.empty () && !outputs.contains (name)) {
++		continue;
++	    }
++
++	    bool covered = false;
++	    for (const char* key : { "activeWorkspace", "specialWorkspace" }) {
++		if (const auto it = monitor.find (key); it != monitor.end () && it->is_object ()) {
++		    const auto workspace = it->value ("name", std::string ());
++		    covered = covered || (!workspace.empty () && fullscreen.contains (workspace));
++		}
++	    }
++
++	    if (!outputs.empty () && !covered) {
++		return false;
++	    }
++	    anyCovered = anyCovered || covered;
++	}
++	return anyCovered;
++    }
++
+     bool icontains (std::string_view haystack, std::string_view needle) {
+ 	if (needle.empty ()) {
+ 	    return true;
+@@ -245,12 +336,33 @@ WaylandFullScreenDetector::~WaylandFullScreenDetector () {
+     }
+ }
+ 
++std::set<std::string> WaylandFullScreenDetector::requestedOutputs () const {
++    const auto& settings = getApplicationContext ().settings.general;
++    std::set<std::string> outputs;
++    for (const auto& screen : settings.screenBackgrounds | std::views::keys) {
++	outputs.insert (screen);
++    }
++    for (const auto& group : settings.spanGroups) {
++	outputs.insert (group.screens.begin (), group.screens.end ());
++    }
++    return outputs;
++}
++
+ bool WaylandFullScreenDetector::anythingFullscreen () const {
+     if (!m_toplevelManager) {
+ 	return false;
+     }
+     wl_display_roundtrip (m_display);
+-    return m_fullscreenCount > 0;
++    if (m_fullscreenCount == 0) {
++	return false;
++    }
++
++    // foreign-toplevel reports fullscreen state but not where it is visible; Hyprland IPC adds it
++    if (const auto now = std::chrono::steady_clock::now (); now - m_visibleCheck >= std::chrono::milliseconds (500)) {
++	m_visibleCheck = now;
++	m_visibleFullscreen = hyprlandOutputsCovered (requestedOutputs ()).value_or (true);
++    }
++    return m_visibleFullscreen;
+ }
+ 
+ void WaylandFullScreenDetector::reset () { }
+diff --git a/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.h b/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.h
+index e70108a..64b7f1c 100644
+--- a/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.h
++++ b/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.h
+@@ -2,6 +2,9 @@
+ 
+ #ifdef ENABLE_WAYLAND
+ 
++#include <chrono>
++#include <set>
++#include <string>
+ #include <glm/vec4.hpp>
+ 
+ #include "FullScreenDetector.h"
+@@ -33,6 +36,12 @@ private:
+ 
+     uint32_t m_fullscreenCount = 0;
+ 
++    /** Outputs this renderer draws on; a fullscreen window elsewhere does not pause it */
++    [[nodiscard]] std::set<std::string> requestedOutputs () const;
++    /** Hyprland visibility check, cached because it is polled every frame */
++    mutable bool m_visibleFullscreen = true;
++    mutable std::chrono::steady_clock::time_point m_visibleCheck {};
++
+     WaylandFullscreenDetectorCallbackData m_callbackData {};
+ 
+     friend void

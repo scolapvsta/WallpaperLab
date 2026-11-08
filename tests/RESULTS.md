@@ -674,3 +674,12 @@ published beta archives retain their original content.
   Other UI themes remain available; switcher artwork and its Theme control are
   removed. Engine/raylib worktrees and pins remain unchanged. No autostart or
   shortcut changes and no replacement public beta installer were made.
+
+## Visible fullscreen pause (2026-11-08)
+
+- On Hyprland 0.57 with a fullscreen window in a special workspace and another
+  on a different monitor, a renderer on a headless output with the default
+  "pause on fullscreen" policy kept producing new frames (three captures two
+  seconds apart all differed); the previous build froze (identical captures).
+- Reported trigger: one fullscreen window anywhere paused the wallpapers on all
+  monitors, including fullscreen windows in hidden special workspaces.
