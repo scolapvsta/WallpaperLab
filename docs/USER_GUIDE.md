@@ -251,6 +251,14 @@ a feature; global disable takes precedence. Enabling a feature does not add it
 to projects that do not implement it. Options other than live audio can reload
 the wallpaper; per-project settings follow it across display modes and switches.
 
+On systems with more than one GPU, **Settings → Playback → Rendering GPU** picks
+the device that renders wallpapers. **Automatic** keeps the system default.
+Choosing a device sets `DRI_PRIME` for the renderer only, so an integrated GPU
+can render while the discrete GPU's memory stays free for other work. The
+compositor still copies frames to the GPU driving the display. The choice
+applies the next time a wallpaper starts; a missing device falls back to
+Automatic.
+
 Global and local audio controls mute immediately without restarting. Web mute
 covers media elements, Web Audio and iframes, including reloads and page-side
 unmute attempts. Audio capture for music-reactive effects is independent of
