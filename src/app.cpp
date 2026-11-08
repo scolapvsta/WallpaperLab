@@ -13,6 +13,7 @@
 #include "caelestia_integration.hpp"
 #include "theme_catalog.h"
 #include "theme_fonts.hpp"
+#include "render_gpu.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -150,12 +151,14 @@ void stop(const json& process) {
 json running() {try{return readJson(stateDir()/"running.json");}catch(...){return json::object();}}
 json selectedRunning(const json& selection=settings){auto process=running();if(process.contains("outputs")){int screen=std::clamp(selection.value("screen",0),0,std::max(0,(int)monitors.size()-1));if(monitors.empty())return json::object();return process["outputs"].value(monitors[screen],json::object());}return process;}
 void refreshRunning(){auto process=selectedRunning();activePath=owned(process)?process.value("path",std::string()):std::string();}
+std::vector<lab::RenderGpu> renderGpuList;
 std::vector<std::string> renderArgs(const Item& item,const json& prefs,bool preview) {
     if(!item.reason.empty())throw std::runtime_error(item.reason);
     std::string assets;if(item.origin=="local"&&item.type!="scene"){auto empty=stateDir()/"local-assets";fs::create_directories(empty);assets=empty.string();}else assets=assetsPath();if(assets.empty())throw std::runtime_error("Assets di Wallpaper Engine non trovati nelle librerie Steam");
     auto profilesForRender=loadPlacements();auto profile=profilesForRender.value(item.path,json::object()).value("playback",json::object());
     auto enabled=[&](const char* local,const char* global){return !prefs.value(global,false)&&profile.value(local,true);};
     std::vector<std::string> args={executable(),"--render","--assets-dir",assets,"--fps",std::to_string(std::clamp(prefs.value("fps",60),15,120)),"--volume",enabled("audio","muted")?"100":"0"};
+    if(auto prime=lab::driPrimeFor(prefs.value("render_gpu",std::string()),renderGpuList);!prime.empty())args.insert(args.end(),{"--lab-gpu",prime});
     if(!enabled("reactive","disable_audio_processing"))args.push_back("--no-audio-processing");
     if(!enabled("mouse","disable_mouse"))args.push_back("--disable-mouse");
     if(!enabled("parallax","disable_parallax"))args.push_back("--disable-parallax");
@@ -266,7 +269,7 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
 }
 void init(bool popupOnly=false,bool probeVideos=false) {
     settings=loadSettings();placements=loadPlacements();refreshRunning();
-    carousel=loadCarousel();shortcut=shortcutSettings();
+    carousel=loadCarousel();shortcut=shortcutSettings();renderGpuList=lab::renderGpus();
     setLanguage(languageIndex(settings.value("language",std::string("it"))));resolveFonts(!popupOnly);
     auto result=capture({"hyprctl","monitors","-j"});
     if(!result.empty())try {
@@ -336,6 +339,10 @@ const char* lab_font_preview_path(int i){static std::map<std::string,std::string
 int lab_font_selected(){auto it=std::find(fontFamilies.begin(),fontFamilies.end(),settings.value("font_family",std::string("Default")));return it==fontFamilies.end()?0:it-fontFamilies.begin();}
 int lab_font_revision(){return fontRevision;}
 int lab_set_font(int i){return guarded([&]{auto family=fontFamilies.at(i);if(!savePreference("font_family",i==0?"":family))throw std::runtime_error(errorMessage);resolveFonts();});}
+int lab_gpu_count(){return renderGpuList.size();}
+const char* lab_gpu_name(int i){return renderGpuList.at(i).label.c_str();}
+int lab_gpu_selected(){auto choice=settings.value("render_gpu",std::string());for(size_t i=0;i<renderGpuList.size();++i)if(renderGpuList[i].id==choice)return i+1;return 0;}
+int lab_set_gpu(int i){return savePreference("render_gpu",i<=0||i>(int)renderGpuList.size()?std::string():renderGpuList[i-1].id);}
 const char* lab_path(int i){return items.at(i).path.c_str();}
 int lab_files_busy(){return fileJob.valid();}
 const char* lab_files_notice(){return fileNotice.c_str();}
@@ -787,9 +794,9 @@ int main(int argc,char**argv) {
             }
             if(cmd=="--ui-option"){
                 if(argc!=4)throw std::runtime_error("Uso: --ui-option CHIAVE VALORE");
-                int value=std::stoi(argv[3]);if(!(std::string(argv[2])=="font"?lab_set_font(value):lab_set_option(argv[2],value)))throw std::runtime_error("Opzione non valida");if(integrationJob.valid())integrationJob.get();std::cout<<settings.dump(2)<<'\n';return 0;
+                int value=std::stoi(argv[3]);if(!(std::string(argv[2])=="font"?lab_set_font(value):std::string(argv[2])=="gpu"?lab_set_gpu(value):lab_set_option(argv[2],value)))throw std::runtime_error("Opzione non valida");if(integrationJob.valid())integrationJob.get();std::cout<<settings.dump(2)<<'\n';return 0;
             }
-            if(cmd=="--ui-preferences"){json out={{"settings",settings},{"fonts",fontFamilies},{"font_selected",lab_font_selected()}};std::cout<<out.dump(2)<<'\n';return 0;}
+            if(cmd=="--ui-preferences"){json gpus=json::array({"auto"});for(auto& gpu:renderGpuList)gpus.push_back(gpu.label);json out={{"settings",settings},{"fonts",fontFamilies},{"font_selected",lab_font_selected()},{"gpus",gpus},{"gpu_selected",lab_gpu_selected()}};std::cout<<out.dump(2)<<'\n';return 0;}
             if(cmd=="--resolutions"){json out=json::array();for(auto& f:resolutions)out.push_back({{"code",f.code},{"label",f.label},{"count",f.count},{"group",f.group}});std::cout<<out.dump(2)<<'\n';return 0;}
             if(cmd=="--position"){
                 if(argc!=3&&argc!=5)throw std::runtime_error("Uso: --position ID [X Y] con valori tra -1 e 1");

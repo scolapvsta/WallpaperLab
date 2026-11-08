@@ -21,7 +21,9 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         // The layout is an immutable snapshot passed only to this renderer.
         std::vector<char*> engineArgs={argv[0]};std::string layout,position,profileFile,liveFile,project,feed;
         for(int i=1;i<argc;i++){
-            if(std::string(argv[i])=="--lab-transition"){if(++i>=argc)throw std::runtime_error("Transizione mancante");setenv("WALLPAPER_LAB_TRANSITION",argv[i],1);
+            // DRI_PRIME must be set before EGL/Vulkan initialize; child processes inherit it.
+            if(std::string(argv[i])=="--lab-gpu"){if(++i>=argc)throw std::runtime_error("GPU mancante");setenv("DRI_PRIME",argv[i],1);
+            }else if(std::string(argv[i])=="--lab-transition"){if(++i>=argc)throw std::runtime_error("Transizione mancante");setenv("WALLPAPER_LAB_TRANSITION",argv[i],1);
             }else if(std::string(argv[i])=="--lab-layout"){
                 if(++i>=argc)throw std::runtime_error("Geometria del panorama mancante");
                 layout=argv[i];WallpaperEngine::Render::Helpers::SpanGeometry::parse(layout);

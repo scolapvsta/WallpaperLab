@@ -14,6 +14,11 @@ const char* lab_font_name(int i);
 int lab_font_selected(void);
 int lab_font_revision(void);
 int lab_set_font(int i);
+/* Render GPU choice: index 0 is automatic, i>0 selects lab_gpu_name(i-1). */
+int lab_gpu_count(void);
+const char* lab_gpu_name(int i);
+int lab_gpu_selected(void);
+int lab_set_gpu(int i);
 const char* lab_path(int i);
 int lab_rescan_start(void);
 int lab_rescan_ready(void);
