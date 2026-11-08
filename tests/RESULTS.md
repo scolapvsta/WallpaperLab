@@ -674,3 +674,16 @@ published beta archives retain their original content.
   Other UI themes remain available; switcher artwork and its Theme control are
   removed. Engine/raylib worktrees and pins remain unchanged. No autostart or
   shortcut changes and no replacement public beta installer were made.
+
+## Output hotplug (2026-11-08)
+
+- Release build and **13/13 CTest passed**; the ordered patch series including
+  `engine-output-hotplug.patch` validated with `apply-patch-series.py --check`.
+- On Hyprland 0.57 a renderer was started with `--screen-root` on a headless
+  output created by `hyprctl output create headless`. Removing the output closed
+  the layer surface and removed the viewport; the process stayed alive. Creating
+  an output with the same name restored the `wallpaper-lab-background` layer and
+  two captures one second apart differed, confirming the frame loop resumed.
+- Reported trigger: a monitor that signals a DisplayPort disconnect during DPMS
+  standby previously left its renderer alive without a surface while `--status`
+  still reported it as running.
