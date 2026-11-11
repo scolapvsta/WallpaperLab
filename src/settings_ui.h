@@ -28,7 +28,7 @@ static int ToggleChoice(int id,int x,int* y,int w,const char* label,const char**
  return next!=value?(selected<0?0:1-selected):selected;
 }
 static int Choice(int id,int x,int* py,int w,const char* label,const char** options,int count,int selected){
- if(count==2&&id!=38&&id!=4&&id!=80&&id!=81)return ToggleChoice(id,x,py,w,label,options,selected);
+ if(count==2&&id!=38&&id!=4&&id!=80&&id!=81&&id!=82)return ToggleChoice(id,x,py,w,label,options,selected);
  choiceToggle[id]=false;
  int result=selected;if(choicePending==id){result=choiceValue;choicePending=-1;}
  int y=*py;int cw=*label?fminf(292,w*.60f):w;TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
@@ -67,7 +67,28 @@ static void ChoiceOverlay(void){
 static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){return ToggleChoice(id,x,y,w,label,NULL,value);}
 
 // A shared compact slider. Drafts belong to the caller until mouse release.
+#include "setting_number.h"
 static Rectangle numberTracks[160];
+static Rectangle numberFields[160],numberUp[160],numberDown[160];
+static int settingEdit=-1;static TextEdit settingEditor;static char settingText[64],settingKey[48];
+static Rectangle settingEditBox;static double settingLo,settingHi,settingScale;
+static void SettingNumberText(char* text,int capacity,double value){
+ snprintf(text,capacity,"%.3f",value);int n=strlen(text);while(n>0&&text[n-1]=='0')text[--n]=0;if(n>0&&text[n-1]=='.')text[--n]=0;
+}
+static void CommitSettingNumber(void){
+ double value;if(LabParseSettingNumber(settingText,settingLo,settingHi,&value))lab_set_option(settingKey,lround(value*settingScale));settingEdit=-1;
+}
+// Run before modal shortcuts so Escape cancels just the number being edited.
+static bool UpdateSettingNumber(void){
+ if(settingEdit<0)return false;
+ if(IsKeyPressed(KEY_ESCAPE)){settingEdit=-1;return true;}
+ EditInput(&settingEditor,settingText,sizeof(settingText));
+ if(EditKey(KEY_UP)||EditKey(KEY_DOWN)){
+  double value;if(LabParseSettingNumber(settingText,settingLo,settingHi,&value)){value=Clamp(value+(EditKey(KEY_UP)?1:-1),settingLo,settingHi);SettingNumberText(settingText,sizeof(settingText),value);EditFocus(&settingEditor,settingText,true);}
+ }
+ if(IsKeyPressed(KEY_ENTER)||IsKeyPressed(KEY_KP_ENTER)||(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),settingEditBox)))CommitSettingNumber();
+ return false;
+}
 static int uiSliderDrag=-1;static Rectangle adjustmentTracks[3],opacityTrack;
 static bool ValueSlider(int id,int x,int* y,int w,const char* label,float* value,float lo,float hi,bool signedValue){
  int top=*y;UiText(label,x,top,14,AppTheme.text);const char* number=signedValue?TextFormat("%+.0f%%",*value*100):TextFormat("%.0f%%",*value*100);UiText(number,x+w-UiMeasure(number,13),top,13,muted);
@@ -92,4 +113,28 @@ static bool NumberSlider(int id,int x,int* y,int w,const char* label,float* valu
  bool commit=false;if(uiSliderDrag==id){*value=lo+Clamp((GetMouseX()-track.x)/track.width,0,1)*(hi-lo);if(!IsMouseButtonDown(MOUSE_BUTTON_LEFT)){uiSliderDrag=-1;commit=true;}}
  ThemePanel(track,1,8,controlHover);DrawRectangle(track.x,track.y,track.width*(*value-lo)/(hi-lo),4,AppTheme.border);DrawCircleV((Vector2){track.x+track.width*(*value-lo)/(hi-lo),track.y+2},5,AppTheme.text);*y+=48;return commit;
 }
-static void SettingSlider(int id,int x,int* y,int w,const char* label,const char* key,int lo,int hi,const char* suffix){static float drafts[32];int at=id-100;if(uiSliderDrag!=id)drafts[at]=lab_option(key);if(NumberSlider(id,x,y,w,label,&drafts[at],lo,hi,suffix))lab_set_option(key,lroundf(drafts[at]));}
+static bool NumberStepButton(Rectangle box,bool up,bool enabled){
+ bool clicked=Button(box,"",false,enabled);float cx=box.x+box.width/2,cy=box.y+box.height/2,dy=up?-1:1;Color ink=enabled?AppTheme.text:Fade(AppTheme.text,.35f);
+ DrawLineEx((Vector2){cx,cy-dy*5},(Vector2){cx,cy+dy*5},1.5f,ink);DrawLineEx((Vector2){cx-4,cy+dy},(Vector2){cx,cy+dy*5},1.5f,ink);DrawLineEx((Vector2){cx+4,cy+dy},(Vector2){cx,cy+dy*5},1.5f,ink);return clicked;
+}
+static void EditableTimingSlider(int id,int x,int* y,int w,const char* label,const char* key){
+ bool duration=!strcmp(key,"awww_duration");double scale=duration?1000:1,lo=duration?.1:1,hi=duration?10:100;
+ int top=*y;float value=lab_option(key)/scale;Rectangle field={x+w-148,top-3,92,26},up={x+w-52,top-3,24,26},down={x+w-24,top-3,24,26},track={x+5,top+33,w-10,4};
+ numberFields[id]=field;numberUp[id]=up;numberDown[id]=down;numberTracks[id]=track;
+ if(uiSliderDrag==id){value=lo+Clamp((GetMouseX()-track.x)/track.width,0,1)*(hi-lo);value=duration?roundf(value*10)/10:roundf(value);}
+ TextLines(label,x,top,w-160,14,2,AppTheme.text);
+ bool hot=Hot(field,!applying);ThemePanel(field,.15f,6,settingEdit==id?controlHover:control);
+ if(hot){SetMouseCursor(MOUSE_CURSOR_IBEAM);if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){SetRecording(false);settingEdit=id;settingEditBox=field;settingLo=lo;settingHi=hi;settingScale=scale;snprintf(settingKey,sizeof(settingKey),"%s",key);SettingNumberText(settingText,sizeof(settingText),value);EditFocus(&settingEditor,settingText,true);}}
+ if(settingEdit==id){settingEditBox=field;EditDraw(&settingEditor,settingText,(Rectangle){field.x+7,field.y+2,field.width-(duration?26:14),22},13,true);}
+ else{char text[64];SettingNumberText(text,sizeof(text),value);UiText(text,field.x+7,field.y+7,13,AppTheme.text);}
+ if(duration)UiText("s",field.x+field.width-15,field.y+7,12,muted);
+ if(NumberStepButton(up,true,!applying&&value<hi))lab_set_option(key,lround(fmin(hi,value+1)*scale));
+ if(NumberStepButton(down,false,!applying&&value>lo))lab_set_option(key,lround(fmax(lo,value-1)*scale));
+ if(Hot((Rectangle){x,top+25,w,21},!applying)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT))uiSliderDrag=id;
+ if(uiSliderDrag==id){value=lo+Clamp((GetMouseX()-track.x)/track.width,0,1)*(hi-lo);if(!IsMouseButtonDown(MOUSE_BUTTON_LEFT)){uiSliderDrag=-1;value=duration?roundf(value*10)/10:roundf(value);lab_set_option(key,lround(value*scale));}}
+ float t=Clamp((value-lo)/(hi-lo),0,1);ThemePanel(track,1,8,controlHover);DrawRectangle(track.x,track.y,track.width*t,4,AppTheme.border);DrawCircleV((Vector2){track.x+track.width*t,track.y+2},5,AppTheme.text);*y+=50;
+}
+static void SettingSlider(int id,int x,int* y,int w,const char* label,const char* key,int lo,int hi,const char* suffix){
+ if(!strcmp(key,"awww_duration")||!strcmp(key,"awww_step")){EditableTimingSlider(id,x,y,w,label,key);return;}
+ static float drafts[32];int at=id-100;if(uiSliderDrag!=id)drafts[at]=lab_option(key);if(NumberSlider(id,x,y,w,label,&drafts[at],lo,hi,suffix))lab_set_option(key,lroundf(drafts[at]));
+}

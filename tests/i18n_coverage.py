@@ -8,7 +8,7 @@ keys = set(rules.values())
 literal = re.compile(r'"(?:[^"\\]|\\.)*"')
 tokenizer = re.compile(r'"(?:[^"\\]|\\.)*"|//[^\n]*|/\*[\s\S]*?\*/|[A-Za-z_]\w*|[^\s]')
 # Brand names, visual wordmarks, key names and protocol/unit notation stay literal.
-fixed = {'Wallpaper Lab','Caelestia','Steam Workshop','Steam','Workshop','Ctrl + L','AND / OR',
+fixed = {'Wallpaper Lab','Caelestia','awww','post-hook.log','s','Steam Workshop','Steam','Workshop','Ctrl + L','AND / OR',
          'strawberry core','DESKTOP // CONTROL DECK'}
 raw_ui = []
 def strings(tokens):

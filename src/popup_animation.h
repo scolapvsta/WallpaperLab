@@ -47,3 +47,11 @@ static inline float popup_rotation_distance(int count,int position,int advance,i
  int offset=position>0?position-1:-1;
  return advance+(offset+advance)/(count-1);
 }
+
+// Direct keyboard navigation shares the shortcut's favorite-only rotation.
+static inline int popup_keyboard_selection(int count,int position,int delta,int transient){
+ if(count<=0)return -1;if(count==1)return 0;
+ int first=transient?1:0,size=count-first;
+ int base=position>=first?position-first:(delta>0?-1:0);
+ return first+((base+(long long)delta)%size+size)%size;
+}

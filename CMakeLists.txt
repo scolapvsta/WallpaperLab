@@ -46,7 +46,7 @@ add_test(NAME gif-timing COMMAND gif-test)
 
 install(TARGETS wallpaper-lab RUNTIME DESTINATION . COMPONENT app)
 install(DIRECTORY assets/fonts DESTINATION . COMPONENT app)
-install(FILES assets/caelestia_palette.py DESTINATION . COMPONENT app)
+install(FILES assets/caelestia_palette.py assets/caelestia_cli.py DESTINATION . COMPONENT app)
 
 add_executable(preferences-test tests/preferences_test.cpp src/preferences.cpp src/shortcuts.cpp src/catalog.cpp)
 target_include_directories(preferences-test PRIVATE src vendor/engine/src/External/json/include)
@@ -104,3 +104,10 @@ target_include_directories(theme-art-graphics-test PRIVATE src)
 target_link_libraries(theme-art-graphics-test PRIVATE raylib m)
 
 add_test(NAME download-helper COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/download_helper_test.py")
+
+add_executable(awww-backend-test tests/awww_backend_test.cpp src/catalog.cpp)
+target_include_directories(awww-backend-test PRIVATE src vendor/engine/src/External/json/include)
+add_test(NAME awww-backend COMMAND awww-backend-test)
+add_test(NAME awww-lifecycle COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/awww_lifecycle_integration.py" --app $<TARGET_FILE:wallpaper-lab>)
+add_test(NAME caelestia-cli-parity COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/caelestia_cli_test.py")
+set_tests_properties(caelestia-cli-parity PROPERTIES SKIP_RETURN_CODE 77)

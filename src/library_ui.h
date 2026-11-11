@@ -287,6 +287,12 @@ static void SettingsBody(Rectangle area){
     settingsScrollDraw=SmoothScroll(settingsScrollDraw,settingsScroll);BeginScissorMode(body.x,body.y,body.width,body.height);y=body.y+6-settingsScrollDraw;
     if(settingsTab==0)y+=DisplayEditor(x,y,w);
     else if(settingsTab==1){
+        const char* backends[]={lab_tr("Motore integrato"),"awww"};int backend=lab_option("wallpaper_backend"),chosen=Choice(82,x,&y,w,lab_tr("Motore per immagini locali"),backends,2,backend);if(chosen!=backend)lab_set_option("wallpaper_backend",chosen);
+        if(Button((Rectangle){x,y,w,34},lab_tr("Importa da Caelestia CLI"),false,!applying)){if(!lab_import_awww())snprintf(notice,sizeof(notice),"%s",lab_error());}y+=43;
+        if(lab_option("wallpaper_backend")==1){
+            y+=TextLines(lab_tr("awww gestisce immagini e GIF locali; video e scene usano il motore integrato."),x,y,w,13,4,muted)+12;
+            if(*lab_wallpaper_post_hook()){int enabled=lab_option("wallpaper_post_hook_enabled"),value=BoolChoice(85,x,&y,w,lab_tr("Post-hook importato"),enabled);if(value!=enabled)lab_set_option("wallpaper_post_hook_enabled",value);y+=TextLines(lab_wallpaper_post_hook(),x,y,w,12,6,muted)+12;if(enabled&&!lab_wallpaper_post_hook_ok()){y+=TextLines(lab_tr("Operazione non riuscita. Dettagli nel registro."),x,y,w,12,3,muted)+4;y+=TextLines("post-hook.log",x,y,w,12,1,muted)+12;}}
+        }
         const char* names[]={"15 FPS","30 FPS","60 FPS","90 FPS","120 FPS"};int values[]={15,30,60,90,120},at=2;for(int i=0;i<5;i++)if(lab_option("fps")==values[i])at=i;
         int next=Choice(10,x,&y,w,lab_tr("Fotogrammi al secondo"),names,5,at);if(next!=at)lab_set_option("fps",values[next]);
         const char* pauseNames[]={lab_tr("Continua a riprodurre"),lab_tr("Pausa a schermo intero"),lab_tr("Pausa solo se attivo")};int pause=lab_option("fullscreen_policy");next=Choice(16,x,&y,w,lab_tr("App a schermo intero"),pauseNames,3,pause);if(next!=pause)lab_set_option("fullscreen_policy",next);
@@ -296,8 +302,14 @@ static void SettingsBody(Rectangle area){
         y+=TextLines(lab_tr("Audio aggiornato subito · altre opzioni al prossimo Applica"),x,y+8,w,14,3,muted)+20;
     }else if(settingsTab==2){
         TransitionControls(x,&y,w);y+=20;
+        if(lab_option("wallpaper_backend")==1){
+            SettingSlider(129,x,&y,w,lab_tr("Passo della transizione"),"awww_step",1,100,"");
+            SettingSlider(130,x,&y,w,lab_tr("Durata della transizione"),"awww_duration",100,10000," ms");y+=12;
+        }
         UiText(lab_tr("Shortcut del carousel"),x,y,18,AppTheme.text);y+=30;ShortcutInline(x,y,w);y+=50;
         int current=lab_shortcut_enabled();int value=BoolChoice(21,x,&y,w,lab_tr("Shortcut attivo"),current);if(value!=current)lab_set_shortcut(lab_shortcut(),value);
+        current=lab_option("carousel_persistent");value=BoolChoice(86,x,&y,w,lab_tr("Mantieni aperto il carousel"),current);if(value!=current)lab_set_option("carousel_persistent",value);
+        y+=TextLines(lab_tr("Frecce / Tab · Invio per applicare · Esc per annullare"),x,y+8,w,12,3,muted)+16;
     }else if(settingsTab==3){
         int design=lab_option("ui_design");int value=Choice(38,x,&y,w,lab_tr("Temi"),labDesignNames,LAB_DESIGN_COUNT,design);if(value!=design)lab_set_option("ui_design",value);
         AppearanceFonts(x,&y,w);
@@ -340,10 +352,14 @@ static void SettingsBody(Rectangle area){
         int current=lab_option("caelestia_enabled"),value=BoolChoice(73,x,&y,w,lab_tr("Colori dal wallpaper"),current);if(current!=value)lab_set_option("caelestia_enabled",value);
         if(lab_monitor_count()){const char* outputs[32];int count=lab_monitor_count()<32?lab_monitor_count():32;for(int i=0;i<count;i++)outputs[i]=lab_monitor(i);int screen=lab_caelestia_screen(),chosen=Choice(80,x,&y,w,lab_tr("Monitor per i colori"),outputs,count,screen);if(chosen!=screen)lab_caelestia_set_screen(chosen);}
         y+=TextLines(lab_tr("Caelestia usa una palette globale. Scegli il monitor da cui ricavare i colori."),x,y,w,13,4,muted)+12;
+        if(lab_option("wallpaper_backend")==1){
+            y+=TextLines(lab_tr("Le immagini awww usano lo schema e la selezione automatica di Caelestia CLI."),x,y,w,13,4,muted)+18;
+        }else{
         const char* palettes[]={lab_tr("Vivace"),lab_tr("Toni morbidi"),lab_tr("Espressiva"),lab_tr("Fedele al wallpaper")};int palette=lab_option("caelestia_palette"),next=Choice(78,x,&y,w,lab_tr("Palette dinamica"),palettes,4,palette);if(next!=palette)lab_set_option("caelestia_palette",next);
         const char* modes[]={lab_tr("Automatica"),lab_tr("Scura"),lab_tr("Chiara")};int mode=lab_option("caelestia_mode");next=Choice(79,x,&y,w,lab_tr("Luminosità della palette"),modes,3,mode);if(next!=mode)lab_set_option("caelestia_mode",next);
         y+=TextLines(lab_tr("L’attivazione prepara solo i componenti colore opzionali. La shell Caelestia resta separata."),x,y,w,12,4,muted)+14;
         y+=TextLines(lab_tr("Aggiorna barre e widget di Caelestia dai colori dell’anteprima. Non cambia le altre applicazioni."),x,y,w,13,4,muted)+18;
+        }
         y+=TextLines(lab_caelestia_available()?lab_caelestia_status():lab_tr("Caelestia non rilevato"),x,y,w,12,4,muted)+14;
     }else{
         UiText("Steam Workshop",x,y,22,AppTheme.text);y+=40;
@@ -538,6 +554,7 @@ static void Inspector(Rectangle area){
         liveLastFrame=GetTime();
     }
     if(liveTexture.id&&GetTime()-liveLastFrame<3)Cover(liveTexture,preview,false);
+    else if(lab_uses_awww(i)&&wallpapers[i].texture.id)Cover(wallpapers[i].texture,preview,false);
     else{Icon(UI_LIVE,(Vector2){preview.x+preview.width/2,preview.y+preview.height/2-12},muted,false);const char* state=*lab_reason(i)?lab_tr("Scena non supportata"):applying?lab_tr("Caricamento scena..."):lab_tr("In attesa della scena live");UiText(state,preview.x+12,preview.y+preview.height/2+14,14,muted);}
     const char* badge=lab_screen()<lab_monitor_count()?TextFormat("%s · %s",lab_tr("ATTIVO"),lab_monitor_name(lab_screen())):lab_tr("ATTIVO");
     ThemePanel((Rectangle){x+8,y+8,UiMeasure(badge,12)+24,24},0.3f,6,Fade(BLACK,0.7f));UiText(badge,x+20,y+14,12,WHITE);
@@ -552,8 +569,11 @@ static void Inspector(Rectangle area){
         if(lab_mode()==2&&lab_monitor_count()){const char* outputs[32];int count=lab_monitor_count()<32?lab_monitor_count():32;for(int n=0;n<count;n++)outputs[n]=lab_monitor(n);int screen=lab_screen();next=Choice(81,x,&y,w,lab_tr("Display di destinazione"),outputs,count,screen);if(next!=screen)lab_set_screen(next);}
         int variant=lab_variant_selected(i),variants=fminf(94,lab_variant_count(i));const char* options[96];options[0]=lab_tr("Originale / automatica");for(int v=0;v<variants;v++)options[v+1]=lab_variant_label(i,v);choiceEnabled=variants>0;next=Choice(70,x,&y,w,lab_tr("Risoluzione dello sfondo"),options,variants+1,variant+1);choiceEnabled=true;if(next!=variant+1&&lab_variant_set(i,next-1)&&!uiSmoke)applying=lab_start(i,0);y+=10;
     }
-    if(InspectorSection(1,x,&y,w,lab_tr("Immagine e ritaglio"))){y+=ImageControls(i,x,y,w);y+=PlacementControls(i,x,y,w)+12;}
-    if(InspectorSection(2,x,&y,w,lab_tr("Riproduzione"))){UiText(TextFormat("%d FPS",lab_option("fps")),x,y,12,muted);y+=25;y+=WallpaperPlayback(i,x,y,w)+10;}
+    if(lab_uses_awww(i)){UiText("awww",x,y,14,AppTheme.text);y+=24;y+=TextLines(lab_tr("Configura la transizione awww nella sezione Carousel."),x,y,w,13,3,muted)+16;}
+    else{
+        if(InspectorSection(1,x,&y,w,lab_tr("Immagine e ritaglio"))){y+=ImageControls(i,x,y,w);y+=PlacementControls(i,x,y,w)+12;}
+        if(InspectorSection(2,x,&y,w,lab_tr("Riproduzione"))){UiText(TextFormat("%d FPS",lab_option("fps")),x,y,12,muted);y+=25;y+=WallpaperPlayback(i,x,y,w)+10;}
+    }
     if(lab_property_count(i)&&InspectorSection(3,x,&y,w,lab_tr("Impostazioni del progetto"))){y+=CreatorControls(i,x,y,w)+12;}
     if(page==1){
         if(Button((Rectangle){x,y,(w-8)/2,36},lab_tr("Precedente"),false,!applying))applying=lab_next(-1);
@@ -564,7 +584,7 @@ static void Inspector(Rectangle area){
         if(Button((Rectangle){x+(w+8)/2,y,(w-8)/2,36},lab_tr("Sposta dopo"),false,!applying))lab_favorite_change(i,1);y+=52;
     }
 
-    y+=CreatorReset(i,x,y,w);
+    if(!lab_uses_awww(i))y+=CreatorReset(i,x,y,w);
     if(*lab_reason(i))y+=TextLines(lab_reason(i),x,y,w,14,4,(Color){228,134,133,255});
     float maxScroll=fmaxf(0,y+20+detailScrollDraw-body.y-body.height);detailScroll=Clamp(detailScroll,0,maxScroll);
     EndScissorMode();inputClip=saved;
@@ -658,6 +678,7 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"stop_and_quit\":[%.1f,%.1f],\"power_rect\":[%.1f,%.1f,%.1f,%.1f],\"header_decoration\":[%.1f,%.1f,%.1f,%.1f]",headerPower.x+headerPower.width/2,headerPower.y+headerPower.height/2,headerPower.x,headerPower.y,headerPower.width,headerPower.height,headerDecoration.x,headerDecoration.y,headerDecoration.width,headerDecoration.height);
     fprintf(f,",\"display_cards\":");GeometryCenters(f,displayCards,lab_monitor_count());fprintf(f,",\"display_selected\":%d,\"screen\":%d,\"animation_controls\":",displaySelected,lab_screen());Rectangle animations[]={switcherEye,transitionEye,switcherCustomize,transitionCustomize};GeometryCenters(f,animations,4);
     fprintf(f,",\"number_tracks\":{");bool firstNumber=true;for(int id=0;id<160;id++)if(numberTracks[id].width){Rectangle r=numberTracks[id];fprintf(f,"%s\"%d\":[%.1f,%.1f,%.1f]",firstNumber?"":",",id,r.x,r.y,r.width);firstNumber=false;}fprintf(f,"}");
+    fprintf(f,",\"number_fields\":{");bool firstField=true;for(int id=0;id<160;id++)if(numberFields[id].width){Rectangle r=numberFields[id],up=numberUp[id],down=numberDown[id];fprintf(f,"%s\"%d\":{\"value\":[%.1f,%.1f],\"up\":[%.1f,%.1f],\"down\":[%.1f,%.1f]}",firstField?"":",",id,r.x+r.width/2,r.y+r.height/2,up.x+up.width/2,up.y+up.height/2,down.x+down.width/2,down.y+down.height/2);firstField=false;}fprintf(f,"}");
     fprintf(f,",\"display_save\":[%.1f,%.1f]",displaySaveButton.x+displaySaveButton.width/2,displaySaveButton.y+displaySaveButton.height/2);
     fprintf(f,",\"display_control\":[%.1f,%.1f]",headerDisplay.x+headerDisplay.width/2,headerDisplay.y+headerDisplay.height/2);
     fprintf(f,",\"language_control\":[%.1f,%.1f]",languageControl.x+languageControl.width/2,languageControl.y+languageControl.height/2);
@@ -729,7 +750,7 @@ int selector_main(int argc,char**argv){
         int removed=lab_deleted();if(removed>=0){deleted[removed]=true;if(selected_index==removed){selected_index=lab_current();detailOpen=selected_index>=0;}snprintf(notice,sizeof(notice),"Sfondo spostato nel cestino del sistema.");}
         if(completed){applying=false;if(completed>0&&removed<0)snprintf(notice,sizeof(notice),"%s",completed==1?"Sfondo applicato":"Scena live aperta in una finestra separata");}
         refreshClock+=dt;if(refreshClock>1&&!applying){lab_refresh();refreshClock=0;}
-        bool escape=IsKeyPressed(KEY_ESCAPE);
+        bool escape=IsKeyPressed(KEY_ESCAPE);if(UpdateSettingNumber())escape=false;
         if(lab_switcher_preview_active()&&(escape||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){lab_cancel_switcher_preview();escape=false;}
         if(escape&&(transitionPreview||switcherPreview||animationCustomize)){if(choiceOpen>=0)choiceOpen=-1;else{transitionPreview=switcherPreview=false;animationCustomize=0;}escape=false;}
         if(escape){if(choiceOpen>=0)choiceOpen=-1;else if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}

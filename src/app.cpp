@@ -9,6 +9,7 @@
 #include "popup.hpp"
 #include "displays.hpp"
 #include "local_library.hpp"
+#include "awww_backend.hpp"
 #include "app_background.hpp"
 #include "caelestia_integration.hpp"
 #include "theme_catalog.h"
@@ -86,6 +87,18 @@ void syncCaelestia(const Item& item,const json& prefs,bool alreadyLocked=false){
  if(!prefs.value("caelestia_enabled",false)||item.path.empty())return;
  auto sourcePrefs=paletteSelection(prefs);auto source=selectedRunning(sourcePrefs);
  if(!owned(source)||source.value("path",std::string())!=item.path)return;
+ if(usesAwww(item,prefs)){
+  try{
+   std::unique_ptr<ControllerLock> publicationLock;
+   bool published=updateCaelestiaCli(awwwImage(item),[&]{
+    if(!alreadyLocked)publicationLock=std::make_unique<ControllerLock>();
+    auto latest=loadSettings();auto active=selectedRunning(paletteSelection(latest));
+    return latest.value("caelestia_enabled",false)&&usesAwww(item,latest)&&latest.value("caelestia_output",std::string())==prefs.value("caelestia_output",std::string())&&owned(active)&&active.value("path",std::string())==item.path;
+   });
+   if(published){std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}
+  }catch(const std::exception& e){std::lock_guard statusLock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}
+  return;
+ }
  fs::path capturedArtwork;
  try{
   // Prefer the actual rendered frame, including crop and image adjustments.
@@ -138,9 +151,10 @@ bool owned(const json& process) {
         return pid>1 && process.at("start")==startTime(pid) && fs::read_symlink("/proc/"+std::to_string(pid)+"/exe")==executable();
     }catch(...){return false;}
 }
-void stop(const json& process) {
-    if(process.contains("outputs")){for(auto& [name,child]:process["outputs"].items())stop(child);return;}
+void stop(const json& process,bool clearExternal=false) {
+    if(process.contains("outputs")){for(auto& [name,child]:process["outputs"].items())stop(child,clearExternal);return;}
     if(!owned(process))return;
+    if(clearExternal)clearAwww(process);
     int pid=process.at("pid");
     kill(-pid,SIGTERM);
     for(int i=0;i<50 && owned(process);++i) {int status;waitpid(pid,&status,WNOHANG);std::this_thread::sleep_for(std::chrono::milliseconds(50));}
@@ -152,6 +166,7 @@ json selectedRunning(const json& selection=settings){auto process=running();if(p
 void refreshRunning(){auto process=selectedRunning();activePath=owned(process)?process.value("path",std::string()):std::string();}
 std::vector<std::string> renderArgs(const Item& item,const json& prefs,bool preview) {
     if(!item.reason.empty())throw std::runtime_error(item.reason);
+    if(!preview&&usesAwww(item,prefs))return {executable(),"--awww-render",json(awwwArgs(item,prefs,monitors)).dump()};
     std::string assets;if(item.origin=="local"&&item.type!="scene"){auto empty=stateDir()/"local-assets";fs::create_directories(empty);assets=empty.string();}else assets=assetsPath();if(assets.empty())throw std::runtime_error("Assets di Wallpaper Engine non trovati nelle librerie Steam");
     auto profilesForRender=loadPlacements();auto profile=profilesForRender.value(item.path,json::object()).value("playback",json::object());
     auto enabled=[&](const char* local,const char* global){return !prefs.value(global,false)&&profile.value(local,true);};
@@ -203,7 +218,7 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
             if(owned(active)&&active.value("path",std::string())==item.path)return {};
         }
         auto args=renderArgs(item,prefs,preview);
-        if(!preview&&prefs.value("transition_type",0)>0&&!prefs.value("reduce_motion",false)){
+        if(!preview&&!usesAwww(item,prefs)&&prefs.value("transition_type",0)>0&&!prefs.value("reduce_motion",false)){
          fs::create_directories(feedDir());
          auto prior=running();json config=json::object();auto cache=stateDir()/"transitions";fs::create_directories(cache);for(auto& e:fs::directory_iterator(cache)){std::error_code ec;if(fs::file_time_type::clock::now()-fs::last_write_time(e.path(),ec)>std::chrono::minutes(1))fs::remove_all(e.path(),ec);}
          auto token=stateDir()/"transitions"/std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());fs::create_directories(token);
@@ -237,6 +252,7 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
         }
         if(!success)throw std::runtime_error("Timeout del renderer; wallpaper precedente conservato. Log: "+log);
         json process={{"pid",pid},{"start",startTime(pid)},{"path",item.path},{"title",item.title}};
+        if(!preview&&usesAwww(item,prefs)){auto command=json::parse(args.back()).get<std::vector<std::string>>();process["backend"]="awww";process["image"]=command.at(2);process["awww_outputs"]=command.at(4);}
         fs::remove(ready);
         if(preview) {stop(previewProcess);previewProcess=process;}
         else {
@@ -253,9 +269,10 @@ std::string launch(Item item,json prefs,bool preview,int direction=0) {
             prefs["path"]=item.path;writeJson(configDir()/"settings.json",prefs);
             try{writeJson(stateDir()/"running.json",process);}
             catch(...){writeJson(configDir()/"settings.json",oldPrefs);throw;}
-            stop(victim);
+            stop(victim,!usesAwww(item,prefs));
             if(!transitionGate.empty()){try{writeJson(transitionGate,{{"time_ns",std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()}});}catch(const std::exception& e){std::cerr<<"Transition start signal: "<<e.what()<<"\n";}if(prefs.value("caelestia_enabled",false))std::this_thread::sleep_for(std::chrono::milliseconds(prefs.value("transition_duration",700)));}
             syncCaelestia(paletteItem(prefs),prefs,true);
+            runWallpaperPostHook(item,prefs);
         }
         return {};
     }catch(const std::exception& e){
@@ -361,12 +378,15 @@ const char* lab_origin(int i){return items.at(i).origin.c_str();}
 const char* lab_type(int i){return items.at(i).type.c_str();}
 const char* lab_error(){static std::string text;text=localizedDiagnostic(errorMessage);return text.c_str();}
 int lab_current(){auto p=activePath;for(int i=0;i<lab_count();++i)if(items[i].path==p)return i;return -1;}
+int lab_uses_awww(int i){return i>=0&&i<lab_count()&&usesAwww(items[i],settings);}
 const char* lab_status(){
     auto mode=settings.value("mode",std::string("span"));
     statusMessage=lab_tr(mode=="span"?"Panoramico":mode=="mirror"?"Duplicato":"Singolo");
     if(mode=="single"&&!monitors.empty())statusMessage+=" / "+monitors[std::clamp(settings.value("screen",0),0,(int)monitors.size()-1)];
     else statusMessage+=" / "+std::string(lab_tr("Monitor"))+": "+std::to_string(monitors.size());
-    statusMessage+="    "+std::to_string(settings.value("fps",60))+" FPS    "+lab_tr(settings.value("muted",true)?"Audio disattivato":"Audio attivo");return statusMessage.c_str();
+    auto active=selectedRunning();bool awww=owned(active)&&active.value("backend",std::string())=="awww";
+    statusMessage+="    "+std::string(awww?"awww / ":"")+std::to_string(settings.value(awww?"awww_fps":"fps",awww?144:60))+" FPS";
+    if(!awww)statusMessage+="    "+std::string(lab_tr(settings.value("muted",true)?"Audio disattivato":"Audio attivo"));return statusMessage.c_str();
 }
 void lab_cycle_mode(){auto mode=settings.value("mode",std::string("span"));savePreference("mode",mode=="span"?"mirror":mode=="mirror"?"single":"span");}
 void lab_cycle_screen(){if(!monitors.empty())savePreference("screen",(settings.value("screen",0)+1)%(int)monitors.size());}
@@ -545,9 +565,9 @@ int lab_delete(int i){
    if(affected.empty()){auto error=launch(replacement,prefs,false);if(!error.empty())return error;}
    else {int selected=prefs.value("screen",0);for(int screen:affected){savePreference("screen",screen);auto error=launch(replacement,prefs,false);if(!error.empty()){savePreference("screen",selected);return error;}}savePreference("screen",selected);}
   }
-  try{ControllerLock lock;auto current=running();if(current.contains("outputs")){auto outputs=current["outputs"];for(auto it=outputs.begin();it!=outputs.end();){if(it->value("path",std::string())==target.path){stop(*it);it=outputs.erase(it);}else ++it;}if(outputs.empty()){current=json::object();fs::remove(stateDir()/"running.json");}else{current=outputs.begin().value();current["outputs"]=outputs;writeJson(stateDir()/"running.json",current);}}if(owned(current)&&current.value("path",std::string())==target.path){
+  try{ControllerLock lock;auto current=running();if(current.contains("outputs")){auto outputs=current["outputs"];for(auto it=outputs.begin();it!=outputs.end();){if(it->value("path",std::string())==target.path){stop(*it,true);it=outputs.erase(it);}else ++it;}if(outputs.empty()){current=json::object();fs::remove(stateDir()/"running.json");}else{current=outputs.begin().value();current["outputs"]=outputs;writeJson(stateDir()/"running.json",current);}}if(owned(current)&&current.value("path",std::string())==target.path){
     if(!replacement.path.empty())throw std::runtime_error("Sfondo ancora attivo: eliminazione annullata");
-    stop(current);stoppedLast=true;fs::remove(stateDir()/"running.json");auto latest=loadSettings();latest.erase("path");writeJson(configDir()/"settings.json",latest);
+    stop(current,true);stoppedLast=true;fs::remove(stateDir()/"running.json");auto latest=loadSettings();latest.erase("path");writeJson(configDir()/"settings.json",latest);
    }
    trashProject(target.path);auto list=loadCarousel();list.erase(std::remove(list.begin(),list.end(),json(target.path)),list.end());writeJson(configDir()/"carousel.json",list);return std::string();
   }catch(const std::exception& e){std::string error=e.what();if(stoppedLast&&fs::is_regular_file(fs::path(target.path)/"project.json")){auto restored=launch(target,prefs,false);if(!restored.empty())error+=" · Ripristino fallito: "+restored;}return error;}
@@ -560,7 +580,10 @@ int lab_display_rect(int i,float* x,float* y,float* w,float* h){
 const char* lab_monitor_name(int i){return displayData.at(i).name.c_str();}
 int lab_caelestia_screen(){return paletteSelection(settings).value("screen",0);}
 int lab_caelestia_set_screen(int i){if(i<0||i>=(int)monitors.size())return 0;int ok=savePreference("caelestia_output",monitors[i]);if(ok&&settings.value("caelestia_enabled",false)){integrationDirty=true;if(!integrationJob.valid())startIntegrationJob();}return ok;}
-int lab_stop_wallpapers(){return guarded([&]{ControllerLock lock;stop(running());fs::remove(stateDir()/"running.json");stop(previewProcess);stop(switcherDemoProcess);updateCaelestia("",false);refreshRunning();});}
+int lab_stop_wallpapers(){return guarded([&]{ControllerLock lock;stop(running(),true);fs::remove(stateDir()/"running.json");stop(previewProcess);stop(switcherDemoProcess);updateCaelestia("",false);refreshRunning();});}
+int lab_import_awww(){return guarded([&]{ControllerLock lock;auto imported=importAwwwHook(readJson(configDir().parent_path()/"caelestia/cli.json").at("wallpaper").at("postHook").get<std::string>());auto latest=loadSettings();writeJson(stateDir()/"backups"/("awww-import-"+std::to_string(std::chrono::system_clock::now().time_since_epoch().count()))/"settings.json",latest);latest.update(imported);writeJson(configDir()/"settings.json",latest);settings=latest;});}
+const char* lab_wallpaper_post_hook(){static std::string hook;hook=settings.value("wallpaper_post_hook",std::string());return hook.c_str();}
+int lab_wallpaper_post_hook_ok(){try{return readJson(stateDir()/"post-hook-status.json").value("ok",true);}catch(...){return 1;}}
 const char* lab_display_info(int i){
     auto& d=displayData.at(i);std::ostringstream out;
     out<<d.width<<" × "<<d.height<<" px  ·  "<<std::fixed<<std::setprecision(1)<<d.mmWidth/10<<" × "<<d.mmHeight/10<<" cm";
@@ -617,6 +640,9 @@ int lab_set_option(const char* key,int value){
     if(auto range=animationRanges.find(k);range!=animationRanges.end()){int ok=savePreference(k,std::clamp(value,range->second.first,range->second.second));if(ok&&k.starts_with("caelestia_")&&settings.value("caelestia_enabled",false)){integrationDirty=true;if(!integrationJob.valid())startIntegrationJob();}return ok;}
     if(k=="page_size")return savePreference(k,value<=50?50:value<=100?100:200);
     if(k=="transition_type")return savePreference(k,std::clamp(value,0,8));
+    const std::map<std::string,std::pair<int,int>> backendRanges={{"wallpaper_backend",{0,1}},{"awww_transition",{0,13}},{"awww_step",{1,100}},{"awww_duration",{100,10000}},{"awww_fps",{1,240}},{"awww_position",{0,9}},{"awww_angle",{0,360}}};
+    if(auto range=backendRanges.find(k);range!=backendRanges.end())return savePreference(k,std::clamp(value,range->second.first,range->second.second));
+    if(k=="awww_invert_y"||k=="wallpaper_post_hook_enabled"||k=="carousel_persistent")return savePreference(k,bool(value));
     if(k=="fullscreen_policy")return savePreference(k,std::clamp(value,0,2));
     if(k=="filter_width")return savePreference(k,std::clamp(value,220,600));
     if(k=="filter_any"||k=="reduce_motion"||k=="workshop_mature")return savePreference(k,(bool)value);
@@ -627,7 +653,7 @@ int lab_set_option(const char* key,int value){
     if(k=="muted"||k=="disable_audio_processing"||k=="disable_mouse"||k=="disable_parallax"||k=="disable_particles")return savePreference(k,(bool)value);
     return 0;
 }
-void startIntegrationJob(){integrationDirty=false;refreshRunning();auto item=paletteItem(settings);auto prefs=settings;integrationJob=std::async(std::launch::async,[item,prefs]{try{prepareCaelestia();if(!item.path.empty())syncCaelestia(item,prefs);else{std::lock_guard lock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}catch(const std::exception& e){std::lock_guard lock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}});}
+void startIntegrationJob(){integrationDirty=false;refreshRunning();auto item=paletteItem(settings);auto prefs=settings;integrationJob=std::async(std::launch::async,[item,prefs]{try{if(!usesAwww(item,prefs))prepareCaelestia();if(!item.path.empty())syncCaelestia(item,prefs);else{std::lock_guard lock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",true}});}}catch(const std::exception& e){std::lock_guard lock(integrationStatusMutex);writeJson(stateDir()/"integration-status.json",{{"ok",false},{"error",e.what()}});}});}
 const char* lab_shortcut(){shortcutLabel=shortcut.value("combo",std::string("SUPER+Tab"));return shortcutLabel.c_str();}
 int lab_shortcut_enabled(){return shortcut.value("enabled",false);}
 int lab_record_shortcut(int enabled){
@@ -675,7 +701,7 @@ int lab_popup_poll(int* steps,int* released){
         auto state=popupState();
         if(state.empty()||state.value("done",false))return -1;
         bool reset=state.value("epoch",std::string())!=popupSnapshot.value("epoch",std::string())||state.value("session",0LL)!=popupSnapshot.value("session",0LL);
-        popupSnapshot=state;*steps=state.value("steps",0);*released=state.value("commit",false);return reset?1:0;
+        popupSnapshot=state;*steps=state.value("steps",0);*released=state.value("commit",false)&&!settings.value("carousel_persistent",false);return reset?1:0;
     }catch(const std::exception& e){errorMessage=e.what();return -1;}
 }
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
@@ -686,6 +712,10 @@ void lab_shutdown(){if(integrationJob.valid())try{integrationJob.get();}catch(..
 int main(int argc,char**argv) {
     try {
         if(argc>1&&std::string(argv[1])=="--version"){std::cout<<"Wallpaper Lab "<<WALLPAPER_LAB_VERSION<<'\n';return 0;}
+        if(argc>1&&std::string(argv[1])=="--awww-render"){
+            if(argc!=5||std::string(argv[2])!="--ready-file")throw std::runtime_error("Invalid awww session arguments");
+            return awwwMain(json::parse(argv[4]).get<std::vector<std::string>>(),argv[3]);
+        }
         for(int i=1;i<argc;++i)if(std::string(argv[i]).starts_with("--type="))return engineMain(argc,argv,"");
         if(argc>1&&std::string(argv[1])=="--render") {
             std::string ready;std::vector<char*> av={argv[0]};
@@ -789,6 +819,7 @@ int main(int argc,char**argv) {
                 if(argc!=4)throw std::runtime_error("Uso: --ui-option CHIAVE VALORE");
                 int value=std::stoi(argv[3]);if(!(std::string(argv[2])=="font"?lab_set_font(value):lab_set_option(argv[2],value)))throw std::runtime_error("Opzione non valida");if(integrationJob.valid())integrationJob.get();std::cout<<settings.dump(2)<<'\n';return 0;
             }
+            if(cmd=="--import-awww"){if(!lab_import_awww())throw std::runtime_error(errorMessage);std::cout<<settings.dump(2)<<'\n';return 0;}
             if(cmd=="--ui-preferences"){json out={{"settings",settings},{"fonts",fontFamilies},{"font_selected",lab_font_selected()}};std::cout<<out.dump(2)<<'\n';return 0;}
             if(cmd=="--resolutions"){json out=json::array();for(auto& f:resolutions)out.push_back({{"code",f.code},{"label",f.label},{"count",f.count},{"group",f.group}});std::cout<<out.dump(2)<<'\n';return 0;}
             if(cmd=="--position"){
@@ -816,7 +847,7 @@ int main(int argc,char**argv) {
             if(cmd=="--stop"){
                 fs::create_directories(stateDir());
                 ControllerLock lock;
-                stop(running());fs::remove(stateDir()/"running.json");updateCaelestia("",false);return 0;
+                stop(running(),true);fs::remove(stateDir()/"running.json");updateCaelestia("",false);return 0;
             }
             if(cmd=="--restore" || cmd=="--apply" || cmd=="--preview" || cmd=="--plan") {
                 if(cmd=="--restore"&&settings.value("mode",std::string())=="single"&&settings.contains("monitor_wallpapers")){
@@ -827,7 +858,7 @@ int main(int argc,char**argv) {
                 auto id=cmd=="--restore"?settings.value("path",std::string()):argc>2?argv[2]:"";
                 if(id.empty())throw std::runtime_error("Nessun wallpaper selezionato");
                 auto item=items.at(find(id));
-                if(cmd=="--plan"){std::cout<<json(renderArgs(item,settings,false)).dump(2)<<'\n';return 0;}
+                if(cmd=="--plan"){std::cout<<json(usesAwww(item,settings)?awwwArgs(item,settings,monitors):renderArgs(item,settings,false)).dump(2)<<'\n';return 0;}
                 auto error=launch(item,settings,cmd=="--preview");if(!error.empty())throw std::runtime_error(error);
                 if(cmd=="--preview")std::cout<<previewProcess.dump()<<'\n';return 0;
             }

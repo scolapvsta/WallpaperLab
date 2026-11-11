@@ -6,6 +6,105 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Editable transition timing — 2026-11-11
+
+- awww step is limited to 1–100 throughout preferences, hook import and backend
+  arguments. Duration remains limited to 0.1–10 seconds and is now displayed in
+  seconds rather than milliseconds. Existing oversized settings are bounded.
+- Inline and customization timing controls accept direct numeric input and
+  provide vector-drawn up/down buttons. Buttons change step by 1 or duration by
+  1 second; fractional durations are preserved. Enter/outside click commits,
+  Escape cancels only the field, and empty/nonfinite/malformed input is discarded.
+- All **16 automated checks passed**, including numeric parsing, decimal comma,
+  upper/lower bounds, invalid/nonfinite input and backend argument caps.
+- Explicit Hyprland GUI checks passed for both control locations: typing integer
+  and fractional values, button changes, keyboard Up, maximum disabled buttons,
+  slider endpoints, click-away commit, invalid/empty input preservation and Esc
+  keeping the settings/customization dialog open. Native screenshots were
+  inspected; arrows use geometry rather than a font glyph.
+- Installed the updated runtime with backups. Verified both timing bounds while
+  preserving the wallpaper, shortcut configuration and carousel preference.
+
+## Optional persistent carousel — 2026-11-11
+
+- Added **Keep carousel open** beside the carousel shortcut settings. It defaults
+  to off and persists independently of shortcut activation or the generated bind.
+- Persistent mode ignores modifier-release confirmation, keeps subsequent
+  shortcut taps in the same window, and closes on Enter/click confirmation or
+  Esc/outside-click cancellation. It has no idle timeout. Both modes support
+  arrows and Tab; keyboard rotation preserves the temporary nonfavorite anchor.
+- All **16 CTest checks passed**, including catalog/lifecycle, backward wrap,
+  grid-row navigation, transient-anchor exclusion and opt-in preference defaults.
+- Explicit Hyprland desktop checks passed for all four carousel layouts using
+  real virtual-keyboard input and isolated XDG state with a fake awww daemon:
+  early shortcut release kept the persistent popup open, another shortcut tap
+  advanced the same window, late old releases were ignored, arrows and Tab
+  navigated, Enter applied and Esc cancelled. Hold-mode release still confirmed.
+  The personal wallpaper and application state were unchanged by these checks.
+- The GUI toggle round trip saved both on/off values without creating or changing
+  shortcut configuration. Its placement was visually inspected. All 441 messages
+  passed glyph checks across 22 languages. Installed the updated runtime with
+  backups, retained the existing shortcut and wallpaper, and verified the new
+  setting remains off by default.
+
+## awww timing sliders and CLI palette parity — 2026-11-11
+
+- Added Step and Duration sliders directly under the awww transition selector in
+  Carousel settings. Values persist to the existing awww preferences and are
+  passed as step and seconds; the customize dialog remains available.
+- The local-image colour path now calls the installed Caelestia CLI on the media
+  file, preserving its smart mode/variant, flavour, thumbnail/quantization cache
+  and theme application. The CLI wallpaper hook is suppressed in memory so it
+  cannot override GUI transition values or duplicate the imported trailing hook.
+  CLI theme hooks remain enabled; no user CLI configuration is rewritten.
+- Real CLI adapter tests passed in isolated XDG directories: generated colours
+  and metadata matched `caelestia wallpaper -f` exactly for default and hard
+  flavours. Theme hooks ran, wallpaper hooks were suppressed only by the adapter,
+  wallpaper links updated, and CLI configuration stayed byte-identical.
+- Controller lifecycle coverage checks that the CLI adapter receives the actual
+  media file and publishes its returned variant instead of generating a preview
+  tint. Native scene/video palette generation remains unchanged.
+- All **16 CTest checks passed**. Hyprland virtual-pointer checks changed both
+  inline sliders and verified persisted values; duration snaps to 100-ms steps.
+  The inline controls were visually inspected. Pango checked 439 messages across
+  all 22 languages without missing glyphs.
+- Installed the updated runtime and reapplied the active image: the complete
+  resulting scheme matched the CLI's expected colours and metadata exactly.
+  Theme/cursor hooks completed, CLI configuration stayed byte-identical, and the
+  previous runtime, preferences and scheme were backed up before handoff.
+
+## Custom awww backend — 2026-11-11
+
+- App rebuilt against the pinned source headers and the installed 1.0 engine/CEF
+  libraries; the engine itself was not rebuilt or changed for this feature.
+- All **15 CTest checks passed**, including catalog, preferences, parser,
+  localization, installer/download checks, the new awww argument/import test,
+  and the isolated controller lifecycle test.
+- Lifecycle checks used a fake awww daemon and real application supervisor
+  processes: CLI import and backups, actual media-path arguments, cursor
+  coordinates, image handoff, carousel advance, saved assignment restore, failed launch retaining its
+  predecessor, post-hook failure retaining its wallpaper, explicit Stop, and
+  preservation of an unrelated process/image all passed. An external wallpaper
+  change ended the app's supervisor without clearing the new image. Unsupported
+  imports left settings unchanged. This is not a real multi-monitor certification.
+- Hyprland/Wayland GUI checks with virtual pointer input passed: the backend
+  dropdown, awww transition customization, origin/Y controls, and persisted
+  144-FPS slider value. Playback and transition screenshots were visually checked.
+- Pango/Cairo checked all 438 messages across 22 languages: no missing glyphs.
+  Translation coverage and format checks passed. Technical awww effect/origin
+  names remain literal command values.
+- Real awww image application on one Hyprland output passed using outer, step 2,
+  2-second duration, 144 FPS, cursor origin and Y inversion. The imported trailing
+  hook also completed successfully. Native image/video preview windows remained
+  functional, and video planning still selected the embedded renderer.
+- Installed a separate custom runtime with the original launcher, preferences
+  and runtime metadata backed up. The active native image was handed over to
+  awww; the original Caelestia CLI configuration remained byte-identical.
+- awww daemon startup remains the session's responsibility. Panorama is rejected
+  for multiple outputs; mixed-DPI cursor alignment and real multi-output awww
+  handoff were not verified. Native image transforms are not implemented by the
+  awww backend. The published 1.0 installer was not rebuilt or replaced.
+
 The verified desktop environment is Arch Linux x86_64 with Hyprland and a
 two-output setup. Readiness, short survival, shader output, compositor pixels and
 UI interaction are different checks; a pass in one is not certification of all
