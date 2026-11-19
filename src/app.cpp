@@ -775,7 +775,7 @@ int main(int argc,char**argv) {
             auto result=workshop::snapshot();std::cout<<result.dump(2)<<'\n';workshop::shutdown();return result.value("error",std::string()).empty()?0:1;
         }
         if(argc>1&&std::string(argv[1])=="--help") {
-            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --sddm ACTION [VALUE] | --sddm-settings | --restore | --stop | --caelestia-source CONNECTOR | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
+            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --sddm ACTION [VALUE] | --sddm-settings | --integrations | --restore | --stop | --caelestia-source CONNECTOR | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
         }
         if(argc>1&&std::string(argv[1])=="--switcher-preview"){
             init(true);switcherDemo=true;demoStarted=std::chrono::steady_clock::now();carousel_popup_main();return 0;
@@ -824,7 +824,7 @@ int main(int argc,char**argv) {
                 if(ftruncate(fd,0)||pwrite(fd,record.data(),record.size(),0)!=(ssize_t)record.size())throw std::runtime_error("Cannot record selector owner");return true;
             }
         } windowLock;
-        const std::set<std::string> windowCommands={"--ui-test","--display-settings","--appearance-settings","--language-settings","--sddm-settings","--workshop-ui-test","--workshop"};
+        const std::set<std::string> windowCommands={"--ui-test","--display-settings","--appearance-settings","--language-settings","--sddm-settings","--integrations","--workshop-ui-test","--workshop"};
         if((argc==1||windowCommands.contains(argv[1]))&&!windowLock.acquire())return 0;
         init(false,argc==1||(argc>1&&(std::string(argv[1])=="--ui-test"||std::string(argv[1])=="--display-settings"||std::string(argv[1])=="--appearance-settings"||std::string(argv[1])=="--language-settings"||std::string(argv[1])=="--resolutions")));
         if(argc>1) {
@@ -904,7 +904,7 @@ int main(int argc,char**argv) {
                 auto error=launch(item,settings,cmd=="--preview");if(!error.empty())throw std::runtime_error(error);
                 if(cmd=="--preview")std::cout<<previewProcess.dump()<<'\n';return 0;
             }
-            if(cmd!="--workshop-ui-test"&&cmd!="--workshop"&&cmd!="--ui-test"&&cmd!="--display-settings"&&cmd!="--appearance-settings"&&cmd!="--language-settings"&&cmd!="--sddm-settings")throw std::runtime_error("Opzione sconosciuta: "+cmd);
+            if(cmd!="--workshop-ui-test"&&cmd!="--workshop"&&cmd!="--ui-test"&&cmd!="--display-settings"&&cmd!="--appearance-settings"&&cmd!="--language-settings"&&cmd!="--sddm-settings"&&cmd!="--integrations")throw std::runtime_error("Opzione sconosciuta: "+cmd);
         }
         return selector_main(argc,argv);
     }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}

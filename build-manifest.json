@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "date": "2026-11-19",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -38,5 +38,6 @@
   "caelestia": "Optional on-demand Material You helper; selectable monitor connector for the global shell palette; rendered frame preferred, thumbnail fallback; conditional restore",
   "channel": "beta",
   "distribution": "Arch Linux x86_64 self-extracting installer; system dependencies from pacman; separate optional Steamworks download",
-  "sddm": "Experimental Astronaut greeter preview: separate wallpaper/UI configuration, validated native images/GIFs/videos; no system installation or engine scene bridge"
+  "sddm": "Experimental Astronaut greeter preview: separate wallpaper/UI configuration, validated native images/GIFs/videos; no system installation or engine scene bridge",
+  "integration_ui": "Settings contains Caelestia/SDDM opt-in switches; a conditional Integrations launcher page manages enabled integrations"
 }

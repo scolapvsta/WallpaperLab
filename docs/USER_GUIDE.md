@@ -411,7 +411,19 @@ compositors retain the generic fullscreen detector behavior.
 ## SDDM login preview (source builds)
 
 Enable **Settings → Integrations → SDDM** to validate the installed Qt6 greeter.
-Once verified, open **SDDM** in the launcher, select a wallpaper and choose the
+Once verified, open **Integrations → SDDM** in the launcher, select a wallpaper and choose the
 login UI independently. **Preview** opens a bounded test greeter. This prepares
 local files only; boot installation and Wallpaper Engine scenes inside the login
 screen are planned separately. See the [SDDM guide](SDDM.md).
+
+## Integration activation and management
+
+**Settings → Integrations** contains the independent Caelestia and SDDM on/off
+switches. Enabling either displays **Integrations** after Library, Carousel and
+Workshop. Its sidebar contains only enabled integrations.
+
+Select Caelestia to configure its source monitor, palette and brightness mode.
+Select SDDM to configure wallpaper and login UI or open the greeter preview.
+Disabling an integration removes its panel while preserving its preferences.
+Disabling the last integration hides the main tab; if it was open, the launcher
+returns to Library and keeps any Settings dialog open.

@@ -15,11 +15,12 @@ Wallpaper Lab also uses FFmpeg/ffprobe to validate selected media.
 Build from the initialized submodules, then open the launcher. Under
 **Settings → Integrations → SDDM**, enable the integration. Activation prepares
 an isolated theme and runs a bounded offscreen greeter check. A successful check
-reveals the **SDDM** navigation tab and settings section. Missing dependencies,
+reveals **Integrations → SDDM** in the launcher. The Integrations tab also appears
+when Caelestia is enabled; each panel is shown only while its integration is enabled. Missing dependencies,
 invalid media or QML load failures prevent first activation. The previous verified
 selection survives a failed replacement. Diagnostics stay in the local state directory.
 
-The SDDM page has two independent groups:
+The SDDM panel inside Integrations has two independent groups:
 
 - **Wallpaper:** installed Astronaut `Backgrounds`, the configured local library
   and the configured/discovered Steam Workshop roots. Select one active background;
@@ -80,7 +81,9 @@ All helper calls use argument arrays. A nonblocking interprocess lock serializes
 SDDM mutations. Staging and validation finish before replacing the current bundle;
 configuration is saved after validation. The helper owns and reaps its bounded
 greeter child processes. Desktop renderer ownership and handoff code is unchanged.
-Disabling hides the tab and retains the prepared files for inspection.
+Disabling removes the SDDM panel and retains the prepared files for inspection.
+The Integrations tab remains while Caelestia is enabled. If both are disabled,
+the tab disappears and an open Integrations page returns to the library.
 
 ## CLI and next phase
 
@@ -96,7 +99,12 @@ wallpaper-lab --sddm preview
 wallpaper-lab --sddm check
 wallpaper-lab --sddm disable
 wallpaper-lab --sddm-settings
+wallpaper-lab --integrations
 ```
+
+`--integrations` opens the shared management page, or activation settings when
+no integration is enabled. `--sddm-settings` remains an alias that selects the
+SDDM panel when enabled.
 
 For an installed Astronaut background, pass its absolute media path instead of
 a project directory. CLI responses are JSON. `check` performs preparation and
@@ -108,4 +116,5 @@ the `sddm` user and only then activate it. Native image/video playback would the
 be independent of Wallpaper Lab or Steam starting after login. Reboot, real login,
 permissions under the SDDM account and encrypted-home scenarios are untested.
 
-See [validation results](SDDM_TEST_RESULTS.md).
+See [media validation results](SDDM_TEST_RESULTS.md) and the
+[shared Integrations UI checks](INTEGRATIONS_TEST_RESULTS.md).

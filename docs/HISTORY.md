@@ -247,3 +247,11 @@ into an isolated theme and checked with the real greeter before publication.
 Failures preserve the prior selection. Bounded test-mode previews work without
 logging out. System installation, boot activation and native engine scenes in the
 greeter remain separate future work. See the SDDM guide and test report.
+
+## 1.2.1 development — Shared Integrations page
+
+Settings now contains independent Caelestia and SDDM activation switches. Enabling
+either exposes one Integrations tab after Workshop, with only the enabled panels.
+Caelestia controls and the SDDM editor moved into that page. Disabling the current
+panel selects the remaining integration; disabling the last returns to Library.
+Preferences survive panel navigation and toggling. The SDDM health gate remains.

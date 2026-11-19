@@ -13,7 +13,7 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
-The source tree is now **1.2.0 (development)**, integrating community contributions for monitor
+The source tree is now **1.2.1 (development)**, integrating community contributions for monitor
 reconnection, rendering GPU selection, output-aware fullscreen pause, optional
 awww image rendering and persistent carousel controls. The downloadable stable
 installer below remains **1.0.0**; build from source to use these additions.
@@ -75,8 +75,9 @@ Autostart and global shortcuts are configured explicitly inside the app.
 ## SDDM integration preview
 
 Source builds include an optional [SDDM/Astronaut integration](docs/SDDM.md).
-Enable it in **Settings → Integrations → SDDM**. A successful greeter check reveals
-an SDDM launcher tab with separate wallpaper and login UI choices. Installed
+Enable it in **Settings → Integrations → SDDM**. Once an integration is enabled, an **Integrations** tab appears after Workshop.
+It contains the enabled Caelestia and SDDM panels; settings holds their activation
+switches. A successful SDDM greeter check unlocks its wallpaper and login UI choices. Installed
 Astronaut backgrounds, local images/GIFs/videos and Workshop video projects share
 one catalog. Scene and web projects remain visible with an explicit limitation.
 This first phase prepares and previews a self-contained theme; system installation,

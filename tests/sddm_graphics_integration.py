@@ -82,7 +82,8 @@ for enabled in (True,False):
                 assert proc.poll() is None
                 try:
                     style=json.loads((out/'ui.json.style').read_text())
-                    if style['sddm_ready']==enabled and style['settings_tab']==(8 if enabled else 7):break
+                    state=json.loads((out/'ui.json').read_text())
+                    if style['sddm_ready']==enabled and state['page']==(4 if enabled else 2) and (style['integration_tab']==1 if enabled else style['settings_tab']==7):break
                 except (OSError, ValueError, KeyError):pass
                 time.sleep(.2)
             else:raise AssertionError('SDDM tab state did not match activation')
