@@ -6,6 +6,13 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Cyberpunk header and local update — 2026-11-19 (source 1.2.2)
+
+See the [header and local installation report](../docs/HEADER_TEST_RESULTS.md)
+for resize checks and installed-runtime verification. The earlier
+[Integrations UI report](../docs/INTEGRATIONS_TEST_RESULTS.md) covers activation
+and management routing.
+
 ## Community integration — 2026-11-19 (source 1.1.0)
 
 - Reviewed and combined PRs #2, #3, #4 and #6, preserving contributor commits.

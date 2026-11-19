@@ -1,3 +1,17 @@
+# Version 1.2.2 — source update
+
+- Keep the animated Cyberpunk 2077 wordmark, subtitle and barcode within the
+  header's available height, using measured font dimensions. Hide the decoration
+  when the navigation leaves insufficient horizontal room, including the optional
+  Integrations tab.
+- Includes the 1.2.0 experimental SDDM Astronaut preview and 1.2.1 shared
+  Integrations page: enable Caelestia/SDDM in Settings and manage enabled
+  integrations after Workshop. SDDM remains a test-mode preview; system greeter
+  installation and engine scene playback before login are not implemented.
+- A local source installation was upgraded and verified separately from the
+  development preview. The public downloadable stable installer remains 1.0.0.
+- See [header and local installation validation](HEADER_TEST_RESULTS.md).
+
 # Version 1.1.0 — source update
 
 - Integrated kylan11's output reconnect fix (#2), rendering GPU selector (#3)

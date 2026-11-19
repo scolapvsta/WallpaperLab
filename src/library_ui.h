@@ -46,15 +46,20 @@ static float SmoothScroll(float current,float target){if(lab_option("reduce_moti
 #include "shaped_text.h"
 static void CyberWordmark(float left,float right,float y){
  ShapedText* title=ShapeFamily("2077",54,lab_option("general_font_enabled")?lab_font_family():"Orbitron");
- if(right-left<title->width+74)return;
- float x=right-title->width-64;headerDecoration=(Rectangle){x-10,y-2,title->width+74,86};
+ ShapedText* tag=ShapeFamily("N E O N  /  D I S T R I C T",14,lab_option("general_font_enabled")?lab_font_family():"Rajdhani");
+ // Keep the entire animated mark inside the first header row, including custom
+ // font metrics, its subtitle, barcode and glitch offsets. The toolbar starts at 89.
+ float naturalWidth=fmaxf(title->width+74,tag->width+12),naturalHeight=fmaxf(86,fmaxf(title->height+3,64+tag->height));
+ float scale=fminf(1,72/naturalHeight),width=naturalWidth*scale;
+ if(right-left<width)return;
+ float x=right-width+10*scale;headerDecoration=(Rectangle){right-width,y-2*scale,width,naturalHeight*scale};
  bool glitch=!lab_option("reduce_motion")&&fmodf(GetTime(),1.8f)<.32f;
- if(glitch){DrawTexture(title->texture,x-3,y+1,Fade(CyberSecondary(),.55f));DrawTexture(title->texture,x+3,y-1,Fade(AppTheme.border,.45f));}
- DrawTexture(title->texture,x,y,AppTheme.border);
- if(glitch){for(int n=0;n<3;n++){float sy=9+n*13,dx=sinf(GetTime()*75+n)*7;DrawTextureRec(title->texture,(Rectangle){0,sy,title->width,3},(Vector2){x+dx,y+sy},CyberSecondary());}}
- ShapedText* tag=ShapeFamily("N E O N  /  D I S T R I C T",14,lab_option("general_font_enabled")?lab_font_family():"Rajdhani");DrawTexture(tag->texture,x+2,y+62,CyberSecondary());
- DrawLine(x+2,y+82,x+title->width+20,y+82,Fade(AppTheme.border,.5f));
- for(int n=0;n<9;n++)DrawRectangle(x+title->width+26+n*4,y+5,n%3?1:2,43,Fade(CyberSecondary(),.4f));
+ if(glitch){DrawTextureEx(title->texture,(Vector2){x-3*scale,y+scale},0,scale,Fade(CyberSecondary(),.55f));DrawTextureEx(title->texture,(Vector2){x+3*scale,y-scale},0,scale,Fade(AppTheme.border,.45f));}
+ DrawTextureEx(title->texture,(Vector2){x,y},0,scale,AppTheme.border);
+ if(glitch){for(int n=0;n<3;n++){float sy=9+n*13,dx=sinf(GetTime()*75+n)*7;DrawTexturePro(title->texture,(Rectangle){0,sy,title->width,3},(Rectangle){x+dx*scale,y+sy*scale,title->width*scale,3*scale},(Vector2){0},0,CyberSecondary());}}
+ DrawTextureEx(tag->texture,(Vector2){x+2*scale,y+62*scale},0,scale,CyberSecondary());
+ DrawLine(x+2*scale,y+82*scale,x+(title->width+20)*scale,y+82*scale,Fade(AppTheme.border,.5f));
+ for(int n=0;n<9;n++)DrawRectangle(x+(title->width+26+n*4)*scale,y+5*scale,fmaxf(1,(n%3?1:2)*scale),43*scale,Fade(CyberSecondary(),.4f));
 }
 static void CyberInterfaceFX(int w,int h){
  static const char* codes[]={"01001","10110","00101","11010","01100","10011"};
@@ -442,7 +447,7 @@ static void Header(int sw,int top,int count){
     if(GlyphButton(headerPower,UI_POWER,false,!applying&&!lab_files_busy(),"")){if(lab_stop_wallpapers())quitWallpaperLab=true;else snprintf(notice,sizeof(notice),"%s",lab_error());}
     headerSettings=(Rectangle){navX,22,40,38};if(GlyphButton(headerSettings,UI_GEAR,settingsOpen||page==2,!applying,"")){settingsOpen=!settingsOpen;choiceOpen=-1;settingsScroll=settingsScrollDraw=0;SetRecording(false);}
     if(StrawberryTheme()&&headerPower.x-navX>224){BerryBow(sw-206,29,.8f);BerryFruit(sw-142,37,20);BerryBunny(sw-114,88,.9f);headerDecoration=(Rectangle){sw-232,5,146,110};}
-    if(CyberTheme()&&sw>1160)CyberWordmark(navX+64,headerPower.x-20,12);
+    if(CyberTheme())CyberWordmark(navX+64,headerPower.x-20,12);
     if(PixelTheme()){headerDecoration=(Rectangle){navX+60,10,fmaxf(0,headerPower.x-navX-80),60};ArcadeMarquee(headerDecoration);}
     if(Hot(headerPower,true))UiText(lab_tr("Spegni e esci"),sw-24-UiMeasure(lab_tr("Spegni e esci"),12),70,12,muted);
     UiText(page==4?lab_tr("Integrazioni"):page==0?lab_tr("Libreria"):page==1?lab_tr("Carousel"):page==3?"Workshop":lab_tr("Impostazioni"),28,94,23,AppTheme.text);

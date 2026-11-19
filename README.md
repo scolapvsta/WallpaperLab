@@ -13,10 +13,13 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
-The source tree is now **1.2.1 (development)**, integrating community contributions for monitor
+The source tree is now **1.2.2 (development)**, integrating community contributions for monitor
 reconnection, rendering GPU selection, output-aware fullscreen pause, optional
 awww image rendering and persistent carousel controls. The downloadable stable
 installer below remains **1.0.0**; build from source to use these additions.
+Development builds also include the opt-in Integrations page and SDDM preview
+described below. The Cyberpunk header now fits its animated 2077 mark above the
+toolbar and omits it when navigation needs the available width.
 
 ## Download and install
 
