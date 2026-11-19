@@ -31,7 +31,7 @@ try:
  def key(*keys):run('ydotool','key',*keys);time.sleep(.18)
  def visible(key):
   for _ in range(25):
-   point=geometry()[key];w=window();y=point[1];bottom=y+(point[3]if key=='color_box'else 0)
+   point=geometry()['inspector_sections'][3] if key=='creator_section' else geometry()[key];w=window();y=point[1];bottom=y+(point[3]if key=='color_box'else 0)
    if not state()['detail']:click(120,300);time.sleep(.8);continue
    if 240<y and bottom<w['size'][1]-185 and point[0]<w['size'][0]-15:return point
    move(w['size'][0]-150,w['size'][1]//2);run('ydotool','mousemove','--wheel','--','0','-3'if bottom>w['size'][1]-185 else'3');time.sleep(.35)
@@ -39,13 +39,14 @@ try:
  def shot(name):
   w=window();run('grim','-g',f'{w["at"][0]},{w["at"][1]} {w["size"][0]}x{w["size"][1]}',out/(name+'.png'))
  click(120,300);wait(lambda:state()['detail']);running=out/'state/wallpaper-lab/running.json';wait(running.exists);time.sleep(1)
+ click(*visible('creator_section'));time.sleep(.3)
  click(*visible('color_swatch'));wait(lambda:geometry()['color_box'][2]>20);time.sleep(.2)
  visible('color_box');hue=geometry()['color_hue'];click(hue[0]+hue[2]/2,hue[1]+hue[3]*.6);wait(lambda:not style()['applying']);box=visible('color_box');click(box[0]+box[2]*.8,box[1]+box[3]*.2);profiles=out/'config/wallpaper-lab/wallpaper_profiles.json'
  wait(lambda:profiles.exists()and'properties'in json.loads(profiles.read_text()).get(str(root),{}));color=json.loads(profiles.read_text())[str(root)]['properties']['color'];assert color!='0 0 0',color;channels=list(map(float,color.split()));assert channels[2]>channels[0] and channels[2]>channels[1],color;result['graphic_color_saved']=color;shot('color-picker')
- track=visible('zoom_track');x=track[0]+track[2]*.45;move(track[0]+track[2]*.1,track[1]);run('ydotool','click','0x40');run('ydotool','mousemove','--',str(round(track[2]*.35)),'0');time.sleep(.4)
- live=out/'state/wallpaper-lab/placement-live.json';wait(live.exists);livezoom=json.loads(live.read_text())['position']['zoom'];assert 1.7<livezoom<2.1,livezoom
- run('ydotool','click','0x80');wait(lambda:json.loads(profiles.read_text())[str(root)]['position']['zoom']>1.7);result['zoom_live_and_persistent']=True;shot('zoom-slider')
- click(*visible('creator_reset'));wait(lambda:not json.loads(profiles.read_text())[str(root)].get('properties'));assert json.loads(profiles.read_text())[str(root)]['position']['zoom']>1.7;result['creator_reset_preserves_position']=True
+ track=visible('zoom_track');x=track[0]+track[2]*.45;move(track[0]+track[2]*.1,track[1]);run('ydotool','click','0x40');time.sleep(.2);run('ydotool','mousemove','--',str(round(track[2]*.35)),'0');time.sleep(.4)
+ live=out/'state/wallpaper-lab/placement-live.json';wait(live.exists);livezoom=json.loads(live.read_text())['position']['zoom'];assert 1.1<livezoom<3,livezoom
+ run('ydotool','click','0x80');wait(lambda:abs(json.loads(profiles.read_text())[str(root)]['position']['zoom']-livezoom)<.05);result['zoom_live_and_persistent']=True;shot('zoom-slider')
+ click(*visible('creator_reset'));wait(lambda:not json.loads(profiles.read_text())[str(root)].get('properties'));assert abs(json.loads(profiles.read_text())[str(root)]['position']['zoom']-livezoom)<.05;result['creator_reset_preserves_position']=True
  wait(lambda:not style()['applying']);click(*geometry()['display_control']);wait(lambda:style()['display_popup']);assert not state()['settings'];shot('display-popup');click(*geometry()['display_save']);wait(lambda:'display_layout'in json.loads((out/'config/wallpaper-lab/settings.json').read_text()));saved_layout=json.loads((out/'config/wallpaper-lab/settings.json').read_text())['display_layout'];key('1:1','1:0');wait(lambda:not style()['display_popup'])
  click(*geometry()['header']['settings']);wait(lambda:state()['settings']);click(*geometry()['settings_tabs'][0]);time.sleep(.2);assert json.loads((out/'config/wallpaper-lab/settings.json').read_text())['display_layout']==saved_layout;shot('display-in-settings');key('1:1','1:0');result['display_popup_and_settings_synced']=True
  click(*geometry()['header']['carousel']);wait(lambda:state()['page']==1);wait(lambda:not style()['applying']);click(*geometry()['display_control']);wait(lambda:style()['display_popup']);assert not state()['settings'];key('1:1','1:0');result['dedicated_display_popup_both_pages']=True

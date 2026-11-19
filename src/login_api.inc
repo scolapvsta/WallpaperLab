@@ -17,10 +17,15 @@ int lab_login_supported(int i){return i>=0&&i<int(items.size())&&login::supporte
 int lab_login_select(int i){return guarded([&]{ensureLogin();if(!lab_login_supported(i))throw std::invalid_argument("Wallpaper is unsupported for native login");if(loginDocument.value("mode",std::string())=="single")loginDocument["wallpapers"][loginDocument["output"].get<std::string>()]=items[i].path;else loginDocument["source"]=items[i].path;loginChangedNow();});}
 int lab_login_output_selected(int output){ensureLogin();if(output<0||output>=int(monitors.size()))return -1;auto source=login::sourceFor(loginDocument,monitors[output]);for(size_t i=0;i<items.size();i++)if(items[i].path==source)return i;return -1;}
 int lab_login_display_rect(int i,float* x,float* y,float* w,float* h){auto canvas=displayCanvas(displayData,settings);if(i<0||i>=int(canvas.rects.size()))return 0;auto& r=canvas.rects[i];*x=r.x;*y=r.y;*w=r.w;*h=r.h;return 1;}
+int lab_login_display_pixels(int i,float* w,float* h){if(i<0||i>=int(monitors.size()))return 0;for(const auto& display:displayData)if(display.name==monitors[i]){*w=display.width;*h=display.height;return *w>0&&*h>0;}return 0;}
 float lab_login_number(const char* path){try{ensureLogin();auto v=loginDocument.at(json::json_pointer(path));return v.is_boolean()?float(v.get<bool>()):v.get<float>();}catch(...){return 0;}}
 const char* lab_login_text(const char* path){static std::string value;try{ensureLogin();value=loginDocument.at(json::json_pointer(path)).get<std::string>();}catch(...){value.clear();}return value.c_str();}
 int lab_login_set_number(const char* path,float value){return guarded([&]{ensureLogin();auto next=loginDocument;auto pointer=json::json_pointer(path);auto replacement=next.at(pointer).is_boolean()?json(bool(value)):json(value);if(next.at(pointer)==replacement)return;next.at(pointer)=replacement;loginDocument=login::validate(next);loginChangedNow();});}
 int lab_login_set_text(const char* path,const char* value){return guarded([&]{ensureLogin();auto next=loginDocument;auto pointer=json::json_pointer(path);if(!next.at(pointer).is_string())throw std::invalid_argument("Login field is not text");if(next.at(pointer)==value)return;next.at(pointer)=value;loginDocument=login::validate(next);loginChangedNow();});}
+int lab_login_reset_ui(int widget){return guarded([&]{ensureLogin();writeJson(stateDir()/"backups"/("login-ui-"+std::to_string(std::chrono::system_clock::now().time_since_epoch().count()))/"login-screen.json",loginDocument);loginDocument=login::resetUi(loginDocument,widget);loginChangedNow();});}
+int lab_login_palette(const unsigned char* rgb,int count){return guarded([&]{ensureLogin();if(count<1||count>4096)return;auto next=login::applyPalette(loginDocument,rgb,count);if(next!=loginDocument){loginDocument=next;loginChangedNow();}});}
+int lab_login_variant_selected(int i){ensureLogin();auto choice=loginDocument["variants"].value(items.at(i).path,json::object());for(size_t n=0;n<items[i].variants.size();n++){auto& v=items[i].variants[n];if(choice.value("property",std::string())==v.property&&choice.value("value",std::string())==v.value)return n;}return -1;}
+int lab_login_variant_set(int i,int v){return guarded([&]{ensureLogin();if(v<0)loginDocument["variants"].erase(items.at(i).path);else{auto& choice=items.at(i).variants.at(v);loginDocument["variants"][items[i].path]={{"property",choice.property},{"value",choice.value}};}loginChangedNow();});}
 int lab_login_save(){if(!loginLoaded||!loginDirty)return 1;return guarded([&]{login::save(loginDocument);loginDirty=false;loginNotice="Bozza salvata. Applica per aggiornare il login all’avvio.";});}
 float lab_login_image(const char* key){ensureLogin();return login::imageProfile(loginDocument).at(key);}
 int lab_login_image_set(const char* key,float value){return guarded([&]{ensureLogin();auto next=loginDocument;if(next.value("mode",std::string())=="single")next["output_profiles"][next["output"].get<std::string>()][login::sourceFor(next)][key]=value;else next["profiles"][login::sourceFor(next)][key]=value;loginDocument=login::validate(next);loginChangedNow();});}
@@ -39,10 +44,10 @@ static void pollLoginStill(){
 const char* lab_login_still(int index){
  static std::string path;pollLoginStill();path.clear();if(index<0||index>=int(items.size())||!login::supported(items[index]))return path.c_str();
  const auto item=items[index];auto profiles=placements.value(item.path,json::object()).value("properties",json::object());
- auto key=std::to_string(std::hash<std::string>{}(item.path+profiles.dump()));auto destination=stateDir()/"login-screen/stills"/(key+".png");
+ auto variants=loginDocument.value("variants",json::object());auto key=std::to_string(std::hash<std::string>{}(item.path+profiles.dump()+variants.value(item.path,json::object()).dump()));auto destination=stateDir()/"login-screen/stills"/(key+".png");
  if(fs::is_regular_file(destination)){path=destination.string();return path.c_str();}
  if(loginStillJob.valid()||loginStillFailed.contains(key))return path.c_str();
- auto desktop=settings;auto config=login::defaults();config["source"]=item.path;config["mode"]="mirror";
+ auto desktop=settings;auto config=login::defaults();config["source"]=item.path;config["mode"]="mirror";config["variants"]=variants;
  loginStillStatus="Attendi la fine del caricamento";
  loginStillJob=std::async(std::launch::async,[item,desktop,config,key,destination]{
   json process;fs::path dir;

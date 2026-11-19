@@ -1,6 +1,6 @@
 # Native login screen (experimental)
 
-Source version 2.2 extends the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
+Source version 2.3 extends the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
 its own editor, native wallpaper rendering, widgets and login controls. greetd
 provides PAM authentication and session startup; Hyprland provides the dedicated
 pre-login Wayland compositor. The normal desktop launcher is not required at boot.
@@ -12,8 +12,9 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
 2. Open the **Login screen** tab and select a compatible local or Steam wallpaper.
    Import images/GIFs/videos with the library import button. Steam projects must
    already be downloaded; compatible Workshop scenes use the native engine.
-3. The **Wallpapers** tab combines the library, monitor preview and **Display /
-   Image** inspector. Display controls include single/mirror/panorama, primary
+3. The **Wallpapers** tab combines the library, monitor preview and shared library image inspector.
+   Search supports Ctrl+L. The filter panel uses the same source, type, audio,
+   resolution groups and AND/OR rules as Library. Display controls include single/mirror/panorama, primary
    output, login UI placement and FPS. Single mode exposes output tabs; each
    output retains its own wallpaper and image edits. Mirror/panorama use the
    shared source. Image controls reuse colour, crop/fit, position, zoom, rotation
@@ -26,12 +27,13 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
 5. Open **Login UI editor**. Only **Clock, Date and Login UI** remain. Select a
    widget using the persistent selector above its **Widget / Appearance** tabs.
    Drag widgets with the optional grid and magnetic snapping; configure the grid
-   spacing or use left/center/right placement buttons. Grid/snap are editor aids
+   spacing or use left/center/right placement buttons. X/Y sliders show pixels on
+   the reference monitor and cover the full legal widget position range. Grid/snap are editor aids
    and do not appear in the real login screen.
 6. Each widget has its own font (Automatic inherits the base font), text colour,
    bold/italic/underline, alignment, letter spacing, shadow/3D relief, opacity,
-   background, rounded corners and border. Clock styles include digital,
-   minimal/classic analog and rings, 12/24-hour digital format and optional seconds.
+   background, rounded corners and border. The digital clock supports 12/24-hour
+   format and optional seconds; retired analog styles migrate automatically.
    Dates support long, short, ISO and weekday formats plus uppercase.
 7. Login UI's Widget controls contain the welcome toggle and optional time-based
    greeting with the current username. Custom labels cover welcome, username,
@@ -45,6 +47,18 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
    Sign in only simulates the preview interaction. Preview never connects to
    greetd, authenticates, launches a session or saves the entered text. Esc closes
    it (first closing an open session menu). The desktop wallpaper keeps running.
+
+**Wallpaper palette** extracts a dominant colour from the edited wallpaper frame,
+with separate light/dark tones. The colour sample is cached until the wallpaper,
+image edits or mode change. Text and panel tones are paired for readability; button
+text has at least 4.5:1 contrast against its fill. The palette is saved in the draft
+and exported with the login bundle. A manual colour edit disables automatic colours.
+Visual HSV and RGB pickers are shared with the library's project colour controls.
+
+**Reset widget** restores the selected widget; **Reset login UI** restores all
+widgets, base styling and grid settings. Both save a draft backup under the state
+backups directory and preserve wallpapers, image profiles, monitors and FPS.
+Text labels use bordered input fields with a caret, selection and clipboard support.
 
 The native session selector opens an actual dropdown. Click an entry or use
 Up/Down, Home/End and Enter; Escape dismisses the menu without changing the choice.

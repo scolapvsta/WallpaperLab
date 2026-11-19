@@ -296,7 +296,14 @@ never constructs an Auth object or persists input. Session dropdown geometry is
 shared by drawing and hit-testing. Version 3 documents retain three widgets,
 per-widget style/font records and editor-only grid/snap settings. Native clocks
 refresh once per second only when seconds are requested; other canvases keep the
-minute/input cache. Publication includes each selected widget font.
+minute/input cache. Publication includes each selected widget font. Retired clock
+styles migrate to digital without changing format/seconds preferences. The login
+library calls the same filter, adjustment and placement controls as Library, with
+an explicit backend route that preserves desktop profiles. Login resolution
+variants also remain independent. A cached 64×64 shader sample feeds a native
+colour histogram; tonal surfaces and contrasting button text are saved into the
+document. HSV/RGB pickers are shared with creator properties; manual colours
+turn off automatic palette updates. UI reset backs up the draft first.
 
 `login_deploy.py` exports an independent bundle and publishes an immutable root-owned
 release. Privileged copying uses no-follow directory descriptors and hashes the

@@ -4,6 +4,8 @@
 namespace lab::login {
 inline constexpr std::array<const char*,3> widgets={"clock","date","login"};
 json defaults();
+json resetUi(json document,int widget=-1);
+json applyPalette(json document,const unsigned char* rgb,int count);
 std::string sourceFor(const json& document,const std::string& output="");
 json validate(json document);
 json load();

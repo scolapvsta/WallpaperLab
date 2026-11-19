@@ -11,9 +11,10 @@ json defaults(){
     json d={{"schema",3},{"enabled",false},{"source",""},{"mode","span"},{"output",""},{"ui_outputs","primary"},{"ui_primary",""},{"fps",60},{"muted",true},{"profiles",json::object()},{"wallpapers",json::object()},{"output_profiles",json::object()},{"message","Wallpaper Lab"},{"font","Oxanium"},{"accent","#87cfdf"},{"light",false},{"panel_opacity",.65},{"radius",20},{"field_opacity",.10},{"border_width",1.0},{"field_radius",10},{"show_welcome",true},{"show_labels",true}};
     auto widget=[&](const char* id,bool enabled,double x,double y,double w,double h,int size){d["widgets"][id]={{"enabled",enabled},{"x",x},{"y",y},{"width",w},{"height",h},{"size",size}};};
     widget("clock",true,.36,.12,.28,.12,86);widget("date",true,.32,.25,.36,.05,22);widget("login",true,.36,.39,.28,.43,20);
+    d["auto_palette"]=false;d["variants"]=json::object();
     d["grid"]={{"visible",true},{"snap",true},{"step",.025}};
     for(auto id:widgets){auto& w=d["widgets"][id];w.update(json{{"font",""},{"color","#f5f5f5"},{"accent","#87cfdf"},{"background","#101522"},{"background_opacity",std::string(id)=="login"?.65:0.},{"opacity",1.},{"radius",20.},{"bold",std::string(id)=="clock"},{"italic",false},{"underline",false},{"effect","shadow"},{"effect_depth",2.},{"effect_color","#000000"},{"align","center"},{"tracking",0.},{"border_width",0.},{"border_color","#87cfdf"}});}
-    d["widgets"]["clock"].update(json{{"style","digital"},{"format","24"},{"seconds",false}});
+    d["widgets"]["clock"].update(json{{"format","24"},{"seconds",false}});
     d["widgets"]["date"].update(json{{"format","long"},{"uppercase",false}});
     d["widgets"]["login"].update(json{{"welcome_enabled",true},{"dynamic_welcome",false},{"welcome_text",""},{"user_label",""},{"password_label",""},{"session_label",""},{"button_label",""},{"labels",true},{"field_color","#ffffff"},{"field_opacity",.1},{"field_radius",10.},{"focus_width",1.},{"button_color","#87cfdf"},{"button_text_color","#101522"},{"padding",24.},{"field_height",.13},{"button_height",.12},{"animation",.18},{"dot_size",3.1},{"label_size",.65}});
     return d;
@@ -33,7 +34,7 @@ json validate(json d){
     for(auto key:{"message","show_welcome","show_labels","panel_opacity","radius","field_opacity","field_radius","border_width"})d.erase(key);
     auto choice=[&](const char* key,std::initializer_list<const char*> values){auto v=d.at(key).get<std::string>();for(auto item:values)if(v==item)return;throw std::invalid_argument(std::string("Invalid login option: ")+key);};
     choice("mode",{"span","mirror","single"});choice("ui_outputs",{"primary","secondary","all"});
-    for(auto key:{"enabled","muted","light"})if(!d[key].is_boolean())throw std::invalid_argument("Invalid login boolean");
+    for(auto key:{"enabled","muted","light","auto_palette"})if(!d[key].is_boolean())throw std::invalid_argument("Invalid login boolean");
     for(auto key:{"source","output","ui_primary","font","accent"})if(!d[key].is_string()||d[key].get_ref<const std::string&>().size()>4096)throw std::invalid_argument("Invalid login text");
     if(d["font"].get<std::string>().size()>96)throw std::invalid_argument("Login text is too long");
     auto color=d["accent"].get<std::string>();if(color.size()!=7||color[0]!='#'||color.find_first_not_of("0123456789abcdefABCDEF",1)!=std::string::npos)throw std::invalid_argument("Invalid login colour");
@@ -43,7 +44,7 @@ json validate(json d){
     auto colour=[](const json& value){auto c=value.get<std::string>();if(c.size()!=7||c[0]!='#'||c.find_first_not_of("0123456789abcdefABCDEF",1)!=std::string::npos)throw std::invalid_argument("Invalid login colour");};
     auto option=[](const json& value,std::initializer_list<const char*> choices){auto v=value.get<std::string>();for(auto c:choices)if(v==c)return;throw std::invalid_argument("Invalid widget style");};
     for(auto id:widgets){auto& w=d["widgets"][id];for(auto key:{"color","accent","background","border_color","effect_color"})colour(w[key]);for(auto key:{"bold","italic","underline"})if(!w[key].is_boolean())throw std::invalid_argument("Invalid widget style");if(!w["font"].is_string()||w["font"].get_ref<const std::string&>().size()>96)throw std::invalid_argument("Invalid widget font");number(w["opacity"],0,1);number(w["background_opacity"],0,1);number(w["radius"],0,80);number(w["border_width"],0,8);number(w["effect_depth"],0,10);number(w["tracking"],-2,12);option(w["effect"],{"none","shadow","extrude"});option(w["align"],{"left","center","right"});}
-    auto& clock=d["widgets"]["clock"];option(clock["style"],{"digital","minimal","classic","rings"});option(clock["format"],{"24","12"});if(!clock["seconds"].is_boolean())throw std::invalid_argument("Invalid clock format");
+    auto& clock=d["widgets"]["clock"];clock.erase("style");option(clock["format"],{"24","12"});if(!clock["seconds"].is_boolean())throw std::invalid_argument("Invalid clock format");
     auto& date=d["widgets"]["date"];option(date["format"],{"long","short","iso","weekday"});if(!date["uppercase"].is_boolean())throw std::invalid_argument("Invalid date format");
     auto& login=d["widgets"]["login"];for(auto key:{"welcome_enabled","dynamic_welcome","labels"})if(!login[key].is_boolean())throw std::invalid_argument("Invalid login boolean");for(auto key:{"welcome_text","user_label","password_label","session_label","button_label"})if(!login[key].is_string()||login[key].get_ref<const std::string&>().size()>256)throw std::invalid_argument("Login text is too long");
     for(auto key:{"field_color","button_color","button_text_color"})colour(login[key]);number(login["field_opacity"],0,1);number(login["field_radius"],0,40);number(login["focus_width"],0,4);number(login["padding"],8,64);number(login["field_height"],.08,.16);number(login["button_height"],.08,.15);number(login["animation"],.05,.5);number(login["dot_size"],1,7);number(login["label_size"],.45,1);
@@ -55,7 +56,31 @@ json validate(json d){
     auto checkProfiles=[&](const json& profiles){if(!profiles.is_object())throw std::invalid_argument("Invalid login image profile");for(auto& [path,p]:profiles.items()){if(!p.is_object())throw std::invalid_argument("Invalid login image profile");for(auto& [key,value]:p.items()){auto it=ranges.find(key);if(it==ranges.end())throw std::invalid_argument("Unknown login image control");number(value,it->second.first,it->second.second);}}};
     checkProfiles(d["profiles"]);for(auto& [output,profiles]:d["output_profiles"].items())checkProfiles(profiles);
     for(auto& [output,path]:d["wallpapers"].items())if(output.empty()||output.size()>128||!path.is_string()||path.get_ref<const std::string&>().size()>4096)throw std::invalid_argument("Invalid login text");
+    if(!d["variants"].is_object())throw std::invalid_argument("Invalid login collections");
+    for(auto& [path,v]:d["variants"].items())for(auto key:{"property","value"})if(!v.is_object()||!v.contains(key)||!v[key].is_string()||v[key].get_ref<const std::string&>().size()>256)throw std::invalid_argument("Invalid login text");
     return d;
+}
+json resetUi(json d,int widget){
+    auto base=validate(defaults());
+    if(widget>=0)d["widgets"][widgets.at(widget)]=base["widgets"][widgets.at(widget)];
+    else for(auto key:{"widgets","grid","font","accent","light","auto_palette"})d[key]=base[key];
+    d["auto_palette"]=false;return validate(d);
+}
+// A quantized dominant chroma, weighted by population rather than isolated pixels.
+// Tonal surfaces remain readable in either mode; button text meets WCAG AA contrast.
+json applyPalette(json d,const unsigned char* rgb,int count){
+    if(!rgb||count<1)return d;
+    struct Bin{double weight=0,r=0,g=0,b=0;};std::array<Bin,512> bins{};
+    for(int n=0;n<count;n++){double r=rgb[n*3]/255.,g=rgb[n*3+1]/255.,b=rgb[n*3+2]/255.;double high=std::max({r,g,b}),low=std::min({r,g,b}),weight=.15+(high-low);auto& bin=bins[(int(r*7.99)<<6)|(int(g*7.99)<<3)|int(b*7.99)];bin.weight+=weight;bin.r+=r*weight;bin.g+=g*weight;bin.b+=b*weight;}
+    const auto& bin=*std::max_element(bins.begin(),bins.end(),[](auto& a,auto& b){return a.weight<b.weight;});
+    std::array<double,3> accent={bin.r/bin.weight,bin.g/bin.weight,bin.b/bin.weight};bool light=d.value("light",false);
+    double peak=*std::max_element(accent.begin(),accent.end());if(peak<.01)accent={.5,.5,.5};else for(auto& c:accent)c=c/peak;
+    auto hex=[](const std::array<double,3>& c){char s[8];snprintf(s,sizeof(s),"#%02x%02x%02x",int(std::round(c[0]*255)),int(std::round(c[1]*255)),int(std::round(c[2]*255)));return std::string(s);};
+    std::array<double,3> surface;for(int n=0;n<3;n++){surface[n]=light?.93+accent[n]*.05:.055+accent[n]*.055;accent[n]=light?.12+accent[n]*.43:.40+accent[n]*.45;}
+    auto lum=[](auto c){for(auto& v:c)v=v<=.04045?v/12.92:std::pow((v+.055)/1.055,2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2];};
+    auto text=light?"#141820":"#f5f7fb";auto buttonText=lum(accent)>.179?"#000000":"#ffffff";
+    for(auto id:widgets){auto& w=d["widgets"][id];w["color"]=text;w["accent"]=hex(accent);w["background"]=hex(surface);w["border_color"]=hex(accent);w["effect_color"]=light?"#ffffff":"#000000";w["background_opacity"]=std::string(id)=="login"?.96:.85;}
+    auto& form=d["widgets"]["login"];form["button_color"]=hex(accent);form["button_text_color"]=buttonText;form["field_color"]=light?"#000000":"#ffffff";form["field_opacity"]=.08;d["accent"]=hex(accent);return validate(d);
 }
 json load(){auto p=configDir()/"login-screen.json";return fs::exists(p)?validate(readJson(p)):defaults();}
 void save(const json& d){ControllerLock lock;writeJson(configDir()/"login-screen.json",validate(d));}
@@ -97,7 +122,7 @@ fs::path prepare(const json& document,const Item& item,const json& desktop,const
         if(desktop.contains("display_layout"))d["display_layout"]=desktop["display_layout"];
         auto profile=imageProfile(d);d["image_profile"]=profile;profile.erase("crop");
         // Use the renderer's exact profile shape, including independently saved creator properties.
-        auto original=loadPlacements().value(item.path,json::object());for(auto& [key,value]:profile.items())if(key=="x"||key=="y"||key=="zoom")original["position"][key]=value;else original["image"][key]=value;
+        auto original=loadPlacements().value(item.path,json::object());original.erase("variant");if(d["variants"].contains(item.path)){original["variant"]=d["variants"][item.path];for(const auto& variant:item.variants)if(original["variant"]["property"]==variant.property&&original["variant"]["value"]==variant.value)original["properties"][variant.property]=variant.value;}for(auto& [key,value]:profile.items())if(key=="x"||key=="y"||key=="zoom")original["position"][key]=value;else original["image"][key]=value;
         writeJson(dir/"wallpaper_profiles.json",{{item.path,original}});
         d["profile_file"]=(dir/"wallpaper_profiles.json").string();writeJson(dir/"settings.json",{{"muted",d["muted"]}});
         if(d.value("mode",std::string())=="single"){

@@ -6,6 +6,13 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Native login library and editor polish — 2026-11-19 (source 2.3.0)
+
+Shared library filters/inspector controls, visual colours, light/dark wallpaper
+palettes, reset backups and pixel widget positions are covered by the
+[native login polish report](../docs/LOGIN_POLISH_TEST_RESULTS.md). The digital
+clock replaces the retired analog styles. Earlier reports remain historical.
+
 ## Native login customization — 2026-11-19 (source 2.2.0)
 
 See [customization validation](../docs/LOGIN_CUSTOMIZATION_TEST_RESULTS.md) for the

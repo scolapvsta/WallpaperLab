@@ -110,6 +110,7 @@ static bool EntrySlider(int x,int* y,int w,const char* label,float* value){
 static bool NumberSlider(int id,int x,int* y,int w,const char* label,float* value,float lo,float hi,const char* suffix){
  int top=*y;TextLines(label,x,top,w-90,14,2,AppTheme.text);const char* number=TextFormat(!strcmp(suffix,"×")?"%.2f%s":"%.0f%s",*value,suffix);UiText(number,x+w-UiMeasure(number,13),top,13,muted);Rectangle track={x+5,top+28,w-10,4};numberTracks[id]=track;
  if(Hot((Rectangle){x,top+18,w,25},!applying)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT))uiSliderDrag=id;
+ if(hi<=lo)hi=lo+.0001f;
  bool commit=false;if(uiSliderDrag==id){*value=lo+Clamp((GetMouseX()-track.x)/track.width,0,1)*(hi-lo);if(!IsMouseButtonDown(MOUSE_BUTTON_LEFT)){uiSliderDrag=-1;commit=true;}}
  ThemePanel(track,1,8,controlHover);DrawRectangle(track.x,track.y,track.width*(*value-lo)/(hi-lo),4,AppTheme.border);DrawCircleV((Vector2){track.x+track.width*(*value-lo)/(hi-lo),track.y+2},5,AppTheme.text);*y+=48;return commit;
 }

@@ -412,15 +412,19 @@ compositors retain the generic fullscreen detector behavior.
 
 Under **Settings → Integrations**, enable **Login screen** to reveal its own tab.
 The workspace has two tabs: **Wallpapers**, combining the supported-first library,
-monitor preview, Display and Image controls; and **Login UI editor**, with Clock,
+monitor preview and the shared library image inspector; and **Login UI editor**, with Clock,
 Date and Login UI widgets. Single mode exposes monitor tabs to assign different
 wallpapers. Unsupported entries are grouped at the end with individual reasons.
 
 The editor supports an optional magnetic grid, independent widget fonts, colours,
-text effects and backgrounds. Clock variants include digital 12/24-hour, minimal
-analog, classic analog and rings. Welcome and time-based greetings belong to the
+text effects and backgrounds. The clock is digital, with 12/24-hour format and
+optional seconds. X/Y widget sliders show monitor pixels. Welcome and time-based greetings belong to the
 Login UI widget, alongside editable labels and field/button/password styling.
-Preferences save automatically without changing the desktop wallpaper.
+Search and filters follow the same rules as Library. Visual colour pickers replace
+hex entry; optional wallpaper-derived palettes support light and dark colours.
+Reset a widget or the entire UI while preserving wallpaper/display settings; a
+backup of the previous draft is saved. Preferences save automatically without
+changing the desktop wallpaper.
 
 Cards use library posters. The editor asynchronously caches a native scene frame
 at its source aspect ratio. Live preview renders the actual scene and accepts

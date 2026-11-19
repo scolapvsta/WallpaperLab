@@ -263,6 +263,18 @@ static void FocusSearch(bool select){choiceOpen=-1;isSearching=true;EditFocus(&s
 static float ShortcutInline(float x,float y,float available);
 static float CompactGlyphWidth(const char* label);
 #include "settings_ui.h"
+// Shared inspector controls route edits to the active workspace only.
+static bool wallpaperLogin=false;
+static float WallpaperAdjust(int i,const char* key){return wallpaperLogin?lab_login_image(key):lab_adjust(i,key);}
+static void WallpaperAdjustSet(int i,const char* key,float value,int commit){if(wallpaperLogin)lab_login_image_set(key,value);else lab_adjust_set(i,key,value,commit);}
+static int ImageControls(int,int,int,int);
+static int PlacementControls(int,int,int,int);
+static void PlacementSync(int);
+static const char* ResolutionLabel(int);
+static bool InspectorSection(int,int,int*,int,const char*);
+static int ActiveResolutionCodes(int*);
+static void FiltersPanel(Rectangle);
+#include "color_picker.h"
 #include "login_ui.h"
 #include "integrations_ui.h"
 #include "resolution_picker.h"
@@ -770,9 +782,10 @@ int selector_main(int argc,char**argv){
         if(escape&&(transitionPreview||switcherPreview||animationCustomize)){if(choiceOpen>=0)choiceOpen=-1;else{transitionPreview=switcherPreview=false;animationCustomize=0;}escape=false;}
         if(escape&&page==5&&(loginSearching||loginEditing>=0)){loginSearching=false;loginEditing=-1;escape=false;}
         if(escape){if(choiceOpen>=0)choiceOpen=-1;else if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}
+        if(page==5&&!loginTab&&!inputBlocked&&(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))&&IsKeyPressed(KEY_L)){loginSearching=true;loginEditing=-1;choiceOpen=-1;EditFocus(&loginSearchEdit,loginSearch,true);}
         if(recordingKey)RecordShortcut();
         else if(!inputBlocked&&!ManagementPage()&&(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))&&IsKeyPressed(KEY_L)){FocusSearch(true);creatorEdit=-1;wsAuthorEditing=false;}
-        else if(isSearching&&!inputBlocked){SearchInput();if(page==3&&IsKeyPressed(KEY_ENTER))WorkshopSearch(1);}
+        else if(isSearching&&!inputBlocked&&!ManagementPage()){SearchInput();if(page==3&&IsKeyPressed(KEY_ENTER))WorkshopSearch(1);}
         else if(!inputBlocked&&!ManagementPage()){
             if(IsKeyPressed(KEY_SLASH))FocusSearch(false);
 
@@ -804,7 +817,7 @@ int selector_main(int argc,char**argv){
         detailWidth=lab_option("reduce_motion")?target:Lerp(detailWidth,target,1-expf(-dt*15));if(fabsf(detailWidth-target)<0.5f)detailWidth=target;
         int top=page==1?252:headerHeight;
         Rectangle content={filterWidth,top,fmaxf(100,sw-detailWidth-filterWidth),sh-top-statusHeight};
-        UploadImages();int transparency=uiSliderDrag==0?roundf(opacityDraft*100):lab_option("window_transparency");uiCanvasActive=transparency>0;
+        UploadImages();if(page==5)LoginPaletteUpdate();int transparency=uiSliderDrag==0?roundf(opacityDraft*100):lab_option("window_transparency");uiCanvasActive=transparency>0;
         if(uiCanvasActive&&(uiCanvas.texture.width!=sw||uiCanvas.texture.height!=sh)){if(uiCanvas.id)UnloadRenderTexture(uiCanvas);uiCanvas=LoadRenderTexture(sw,sh);}
         BeginDrawing();if(uiCanvasActive)BeginTextureMode(uiCanvas);rlSetBlendFactorsSeparate(RL_SRC_ALPHA,RL_ONE_MINUS_SRC_ALPHA,RL_ONE,RL_ONE_MINUS_SRC_ALPHA,RL_FUNC_ADD,RL_FUNC_ADD);BeginBlendMode(BLEND_CUSTOM_SEPARATE);ClearBackground(uiCanvasActive?BLANK:AppTheme.bg);DrawBackdrop(sw,sh);
         if(page==5)LoginWorkspace((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});

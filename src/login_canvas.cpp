@@ -47,20 +47,7 @@ Pixels draw(const json& d,int width,int height,const CanvasState& state,std::tim
         auto& v=d.at("widgets").at(widgets[i]);if(!v.at("enabled").get<bool>())continue;style=&v;auto r=widgetRect(d,i);double x=r[0]*width,y=r[1]*height,w=r[2]*width,h=r[3]*height,size=v.at("size").get<double>()*scale;
         cairo_save(cr);cairo_rectangle(cr,x,y,w,h);cairo_clip(cr);cairo_push_group(cr);panel(x,y,w,h);ink(v["color"]);
         if(i==0){
-            auto type=v.value("style",std::string("digital"));bool seconds=v.value("seconds",false);
-            if(type=="digital"){char buffer[64];std::strftime(buffer,sizeof(buffer),v.value("format",std::string("24"))=="12"?(seconds?"%I:%M:%S %p":"%I:%M %p"):(seconds?"%H:%M:%S":"%H:%M"),&now);text(buffer,x,y,w,h,size);}
-            else{
-                double cx=x+w/2,cy=y+h/2,radius=std::min(w,h)*.43;auto accent=v["accent"].get<std::string>();
-                auto ring=[&](double rad,double fraction,double line,const std::string& colour){ink(colour,.18);cairo_set_line_width(cr,line);cairo_arc(cr,cx,cy,rad,0,2*M_PI);cairo_stroke(cr);ink(colour);cairo_arc(cr,cx,cy,rad,-M_PI/2,-M_PI/2+fraction*2*M_PI);cairo_stroke(cr);};
-                if(type=="rings"){ring(radius,((now.tm_hour%12)+now.tm_min/60.)/12.,radius*.08,v["color"]);ring(radius*.78,now.tm_min/60.,radius*.07,accent);if(seconds)ring(radius*.56,now.tm_sec/60.,radius*.05,accent);}
-                else{
-                    ink(v["color"],.65);cairo_set_line_width(cr,std::max(scale,radius*.015));cairo_arc(cr,cx,cy,radius,0,2*M_PI);cairo_stroke(cr);
-                    for(int n=0;n<60;n++){if(type=="minimal"&&n%5)continue;double a=n*M_PI/30-M_PI/2,length=radius*(n%5?.035:.09);cairo_move_to(cr,cx+std::cos(a)*(radius-length),cy+std::sin(a)*(radius-length));cairo_line_to(cr,cx+std::cos(a)*radius,cy+std::sin(a)*radius);cairo_stroke(cr);}
-                    if(type=="classic")for(int n=1;n<=12;n++){double a=n*M_PI/6-M_PI/2;auto label=std::to_string(n);text(label,cx+std::cos(a)*radius*.73-radius*.11,cy+std::sin(a)*radius*.73-radius*.1,radius*.22,radius*.2,radius*.14);}
-                    auto hand=[&](double a,double length,double thick,const std::string& color){ink(color);cairo_set_line_width(cr,thick);cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);cairo_move_to(cr,cx,cy);cairo_line_to(cr,cx+std::cos(a)*length,cy+std::sin(a)*length);cairo_stroke(cr);};
-                    hand(((now.tm_hour%12)+now.tm_min/60.)*M_PI/6-M_PI/2,radius*.49,radius*.055,v["color"]);hand((now.tm_min+(seconds?now.tm_sec/60.:0))*M_PI/30-M_PI/2,radius*.78,radius*.035,v["color"]);if(seconds)hand(now.tm_sec*M_PI/30-M_PI/2,radius*.84,radius*.015,accent);ink(accent);cairo_arc(cr,cx,cy,radius*.055,0,2*M_PI);cairo_fill(cr);
-                }
-            }
+            bool seconds=v.value("seconds",false);char buffer[64];std::strftime(buffer,sizeof(buffer),v.value("format",std::string("24"))=="12"?(seconds?"%I:%M:%S %p":"%I:%M %p"):(seconds?"%H:%M:%S":"%H:%M"),&now);text(buffer,x,y,w,h,size);
         }else if(i==1){
             auto format=v.value("format",std::string("long"));char buffer[160];std::strftime(buffer,sizeof(buffer),format=="iso"?"%Y-%m-%d":format=="short"?"%d/%m/%Y":format=="weekday"?"%A":"%A, %d %B",&now);std::string label=buffer;if(v.value("uppercase",false)){auto upper=g_utf8_strup(label.c_str(),-1);label=upper;g_free(upper);}text(label,x,y,w,h,size);
         }else{

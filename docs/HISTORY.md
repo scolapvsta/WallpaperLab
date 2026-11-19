@@ -1,3 +1,13 @@
+# Version 2.3.0 — login library and editor polish
+
+- Reuse Library filters and image/crop controls in the native login workspace,
+  with an inspector preview and independently stored resolution variants.
+- Make search focus, caret and text labels explicit; space the two workspace tabs
+  evenly and place grid tools alongside the canvas.
+- Add shared visual HSV/RGB pickers, cached wallpaper-derived light/dark palettes,
+  UI/widget reset with backups and pixel-based widget positioning.
+- Remove analog/ring clocks and their selector, migrating older settings to digital.
+
 # Version 2.2.0 — native login customization
 
 - Combine wallpapers, output configuration and monitor preview in one tab.
