@@ -21,6 +21,7 @@ env=os.environ|dict(XDG_CONFIG_HOME=str(out/'config'),XDG_STATE_HOME=str(out/'st
     XDG_CACHE_HOME=str(out/'cache'),WALLPAPER_LAB_LIBRARY=str(library),WALLPAPER_LAB_UI_STATE=str(out/'ui.json'),
     WALLPAPER_LAB_UI_READ_ONLY='1',WALLPAPER_LAB_CAELESTIA_HELPER=str(helper),YDOTOOL_SOCKET=str(socket))
 (config/'settings.json').write_text(json.dumps(dict(theme_scoped_v3=True,ui_design=0,ui_theme=14,language='en',caelestia_enabled=False)))
+(config/'login-screen.json').unlink(missing_ok=True)
 log=(out/'ui.log').open('w');ui=None;daemon=None;results={}
 def run(*args):return subprocess.check_output([str(a) for a in args],env=env,text=True)
 def read(name):return json.loads((out/name).read_text())
@@ -45,7 +46,7 @@ def click(point):
         run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={x},y={y},relative=false}}))');time.sleep(.15)
         cursor=json.loads(run('hyprctl','cursorpos','-j'))
         if json.loads(run('hyprctl','activewindow','-j')).get('pid')==ui.pid and abs(cursor['x']-x)<2 and abs(cursor['y']-y)<2:break
-    else:raise AssertionError('Test window could not retain focus; no click sent')
+    else:raise AssertionError(('Test window could not retain focus; no click sent',point,w['at'],cursor,json.loads(run('hyprctl','activewindow','-j')).get('pid'),ui.pid))
     run('ydotool','click','0xC0');time.sleep(.25)
 def toggle(id):click(g()['choices'][str(id)]['control'])
 def shot(name):
@@ -70,39 +71,33 @@ try:
     daemon=subprocess.Popen(['ydotoold','--socket-path='+str(socket)],stdout=log,stderr=log);wait(socket.exists)
     ui=subprocess.Popen([str(app),'--integrations'],env=env,stdout=log,stderr=log);wait(window)
     run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1400,y=900,relative=false}}));hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}))')
-    wait(lambda:s()['settings_tab']==7 and not s()['sddm_busy']);time.sleep(.5)
+    wait(lambda:s()['settings_tab']==7);time.sleep(.5)
     assert not s()['integrations_visible'];assert g()['header']['integrations']==[0,0]
     assert len(g()['settings_tabs'])==8
     shot('activation-settings');results['none_hides_tab']=True
     toggle(73);wait(lambda:s()['caelestia_enabled'] and s()['integrations_visible'])
-    hub();wait(lambda:s()['integration_tab']==0)
-    assert g()['integration_tabs'][1]==[0,0];assert g()['header']['integrations'][0]>g()['header']['workshop'][0]
+    hub()
+    assert g()['header']['integrations'][0]>g()['header']['workshop'][0]
     run('ydotool','key','29:1','38:1','38:0','29:0');time.sleep(.3)
     assert not s()['search_focus'];results['hub_blocks_library_search_shortcut']=True
     choose(78,2);wait(lambda:json.loads((config/'settings.json').read_text()).get('caelestia_palette')==2)
     shot('caelestia-only');results['caelestia_only_and_saved_palette']=True
-    settings();toggle(88);wait(lambda:s()['sddm_enabled'] and s()['sddm_ready'] and not s()['sddm_busy'])
-    hub();click(g()['integration_tabs'][1]);wait(lambda:s()['integration_tab']==1)
-    assert all(point[0]>0 for point in g()['integration_tabs'])
-    click(g()['sddm_tabs'][1]);wait(lambda:any(card['index']==1 for card in g()['sddm_cards']))
-    card=next(card['rect'] for card in g()['sddm_cards'] if card['index']==1)
-    click((card[0]+card[2]/2,card[1]+card[3]/2));wait(lambda:not s()['sddm_busy'])
-    preset=json.loads((config/'sddm.json').read_text())['ui']['preset']
-    shot('both-sddm');click(g()['integration_tabs'][0]);wait(lambda:s()['integration_tab']==0)
-    assert json.loads((config/'settings.json').read_text())['caelestia_palette']==2
-    results['both_panels_and_independent_choices']=True
-    # Disabling the visible panel switches to the remaining integration.
+    settings();toggle(88);wait(lambda:s()['login_enabled'])
+    close_settings();wait(lambda:g()['login_header'][0]>0);click(g()['login_header']);wait(lambda:state()['page']==5)
+    assert g()['header']['integrations'][0]>0 and g()['login_header'][0]>g()['header']['workshop'][0]
+    click(g()['login_tabs'][1]);wait(lambda:g()['login_tab']==1)
+    click(g()['login_templates'][2]);wait(lambda:json.loads((config/'login-screen.json').read_text())['template']==2)
+    shot('native-login');assert json.loads((config/'settings.json').read_text())['caelestia_palette']==2
+    results['native_login_separate_and_saved_template']=True
     settings();toggle(73);wait(lambda:not s()['caelestia_enabled']);close_settings()
-    wait(lambda:s()['integration_tab']==1 and state()['page']==4)
-    assert g()['integration_tabs'][0]==[0,0]
-    assert json.loads((config/'sddm.json').read_text())['ui']['preset']==preset
-    shot('sddm-only');results['disable_current_routes_to_remaining']=True
-    settings();toggle(88);wait(lambda:not s()['sddm_enabled'] and not s()['sddm_busy'])
-    wait(lambda:not s()['integrations_visible'] and state()['page']==0)
-    assert state()['settings'];assert g()['header']['integrations']==[0,0]
-    results['disable_last_hides_tab_preserves_settings_modal']=True
-    toggle(73);wait(lambda:s()['caelestia_enabled']);hub();wait(lambda:state()['page']==4)
-    assert json.loads((config/'settings.json').read_text())['caelestia_palette']==2
+    assert state()['page']==5 and g()['header']['integrations']==[0,0]
+    assert json.loads((config/'login-screen.json').read_text())['template']==2
+    results['caelestia_toggle_preserves_native_editor']=True
+    settings();toggle(88);wait(lambda:not s()['login_enabled'] and state()['page']==0)
+    assert state()['settings'];assert g()['login_header']==[0,0]
+    results['disable_login_hides_tab_preserves_settings_modal']=True
+    toggle(88);wait(lambda:s()['login_enabled']);close_settings();wait(lambda:g()['login_header'][0]>0);click(g()['login_header']);wait(lambda:state()['page']==5)
+    assert json.loads((config/'login-screen.json').read_text())['template']==2
     results['reenable_preserves_preferences']=True
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))
 finally:

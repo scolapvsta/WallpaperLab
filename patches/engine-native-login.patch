@@ -1,0 +1,196 @@
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -1,3 +1,4 @@
++#include "WallpaperEngine/Render/Helpers/LoginOverlay.h"
+ #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
+ #include "WallpaperEngine/Render/Helpers/LiveFeed.h"
+ #include "WallpaperApplication.h"
+@@ -900,7 +901,7 @@
+ 	// keep track of the previous frame's time
+ 	g_TimeLast = g_Time;
+ 	// calculate the current time value
+-	g_Time = m_videoDriver->getRenderTime ();
++	g_Time = labLoginActive()?wallpaper_lab_login_time(m_videoDriver->getRenderTime()):m_videoDriver->getRenderTime ();
+ 	// update audio recorder
+ 	m_audioDriver->update ();
+ 	// update the media source
+--- a/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
++++ b/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
+@@ -1,3 +1,4 @@
++#include "WallpaperEngine/Render/Helpers/LoginOverlay.h"
+ #include "GLFWOpenGLDriver.h"
+ #include "VideoFactories.h"
+ #include "WallpaperEngine/Logging/Log.h"
+@@ -58,10 +59,18 @@
+     // Wallpaper Lab previews can be dismissed without compositor shortcuts.
+     if (context.settings.render.mode != ApplicationContext::DESKTOP_BACKGROUND) {
+         glfwSetKeyCallback(this->m_window, [](GLFWwindow* window, int key, int, int action, int) {
++            if(labLoginActive()){
++                if(action==GLFW_PRESS||action==GLFW_REPEAT){unsigned symbol=key==GLFW_KEY_ESCAPE?0xff1b:key==GLFW_KEY_ENTER||key==GLFW_KEY_KP_ENTER?0xff0d:key==GLFW_KEY_BACKSPACE?0xff08:key==GLFW_KEY_TAB?0xff09:key==GLFW_KEY_LEFT?0xff51:key==GLFW_KEY_RIGHT?0xff53:0;if(symbol)wallpaper_lab_login_symbol(symbol);}return;
++            }
+             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
+         });
+     }
+ 
++    if(labLoginActive()){
++        glfwSetCharCallback(m_window,[](GLFWwindow*,unsigned int code){wallpaper_lab_login_text(code);});
++        glfwSetCursorPosCallback(m_window,[](GLFWwindow* window,double x,double y){int w,h;glfwGetWindowSize(window,&w,&h);wallpaper_lab_login_pointer("default",x/std::max(1,w),y/std::max(1,h),0);});
++        glfwSetMouseButtonCallback(m_window,[](GLFWwindow*,int button,int action,int){if(button==GLFW_MOUSE_BUTTON_LEFT&&action==GLFW_PRESS)wallpaper_lab_login_pointer("default",-1,-1,1);});
++    }
+     // make context current, required for glew initialization
+     glfwMakeContextCurrent (this->m_window);
+ 
+--- a/src/WallpaperEngine/Render/Drivers/Output/WaylandOutputViewport.cpp
++++ b/src/WallpaperEngine/Render/Drivers/Output/WaylandOutputViewport.cpp
+@@ -1,3 +1,4 @@
++#include "WallpaperEngine/Render/Helpers/LoginOverlay.h"
+ #include "WaylandOutputViewport.h"
+ #include "WallpaperEngine/Logging/Log.h"
+ 
+@@ -181,7 +182,7 @@
+     }
+ 
+     layerSurface = zwlr_layer_shell_v1_get_layer_surface (
+-	m_driver->getWaylandContext ()->layerShell, surface, output, wlrLayer, "wallpaper-lab-background"
++	m_driver->getWaylandContext ()->layerShell, surface, output, wlrLayer, labLoginActive()?"wallpaper-lab-login":"wallpaper-lab-background"
+     );
+ 
+     if (!layerSurface) {
+@@ -189,7 +190,7 @@
+     }
+ 
+     wl_region* region = wl_compositor_create_region (m_driver->getWaylandContext ()->compositor);
+-    if (m_driver->getApp ().getContext ().settings.mouse.enabled) {
++    if (labLoginActive() || m_driver->getApp ().getContext ().settings.mouse.enabled) {
+ 	wl_region_add (region, 0, 0, INT32_MAX, INT32_MAX);
+     }
+ 
+@@ -207,7 +208,7 @@
+ 	ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT | ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
+ 	    | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM
+     );
+-    zwlr_layer_surface_v1_set_keyboard_interactivity (layerSurface, false);
++    zwlr_layer_surface_v1_set_keyboard_interactivity (layerSurface, labLoginActive()?1:0);
+     zwlr_layer_surface_v1_add_listener (layerSurface, &layerSurfaceListener, this);
+     zwlr_layer_surface_v1_set_exclusive_zone (layerSurface, -1);
+     wl_surface_set_input_region (surface, region);
+--- a/src/WallpaperEngine/Render/Drivers/WaylandOpenGLDriver.cpp
++++ b/src/WallpaperEngine/Render/Drivers/WaylandOpenGLDriver.cpp
+@@ -1,3 +1,4 @@
++#include "WallpaperEngine/Render/Helpers/LoginOverlay.h"
+ #include "WaylandOpenGLDriver.h"
+ #include "VideoFactories.h"
+ #include "WallpaperEngine/Application/WallpaperApplication.h"
+@@ -30,6 +31,7 @@
+     const auto driver = static_cast<WaylandOpenGLDriver*> (data);
+     const auto viewport = driver->surfaceToViewport (surface);
+     driver->viewportInFocus = viewport;
++    if (labLoginActive() && viewport) wallpaper_lab_login_pointer(viewport->name.c_str(),wl_fixed_to_double(surface_x)/std::max(1,viewport->size.x),wl_fixed_to_double(surface_y)/std::max(1,viewport->size.y),0);
+     if (!viewport || !viewport->cursorSurface) {
+ 	return;
+     }
+@@ -59,6 +61,8 @@
+ 	return;
+     }
+ 
++    if (labLoginActive()) wallpaper_lab_login_pointer(driver->viewportInFocus->name.c_str(),x/std::max(1,driver->viewportInFocus->size.x),y/std::max(1,driver->viewportInFocus->size.y),0);
++
+     // Convert from Wayland coordinate system (Y=0 at top) to OpenGL coordinate system (Y=0 at bottom)
+     const double viewportHeight = static_cast<double> (driver->viewportInFocus->size.y);
+     y = viewportHeight - y;
+@@ -74,6 +78,8 @@
+     if (!driver->viewportInFocus) {
+ 	return;
+     }
++
++    if (labLoginActive() && button==BTN_LEFT && button_state==WL_POINTER_BUTTON_STATE_PRESSED) wallpaper_lab_login_pointer(driver->viewportInFocus->name.c_str(),-1,-1,1);
+ 
+     if (button == BTN_LEFT) {
+ 	if (button_state == WL_POINTER_BUTTON_STATE_PRESSED) {
+@@ -96,7 +102,15 @@
+ 							 .button = handlePointerButton,
+ 							 .axis = handlePointerAxis };
+ 
++static void loginKeymap(void*,wl_keyboard*,uint32_t format,int32_t fd,uint32_t size){if(format==WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 && labLoginActive())wallpaper_lab_login_keymap(fd,size);else close(fd);}
++static void loginEnter(void*,wl_keyboard*,uint32_t,wl_surface*,wl_array*){}
++static void loginLeave(void*,wl_keyboard*,uint32_t,wl_surface*){}
++static void loginKey(void*,wl_keyboard*,uint32_t,uint32_t,uint32_t key,uint32_t state){if(labLoginActive())wallpaper_lab_login_key(key,state);}
++static void loginModifiers(void*,wl_keyboard*,uint32_t,uint32_t depressed,uint32_t latched,uint32_t locked,uint32_t group){if(labLoginActive())wallpaper_lab_login_modifiers(depressed,latched,locked,group);}
++constexpr wl_keyboard_listener loginKeyboardListener={.keymap=loginKeymap,.enter=loginEnter,.leave=loginLeave,.key=loginKey,.modifiers=loginModifiers};
++
+ static void handleCapabilities (void* data, wl_seat* wl_seat, uint32_t capabilities) {
++    if(labLoginActive() && (capabilities & WL_SEAT_CAPABILITY_KEYBOARD)) wl_keyboard_add_listener(wl_seat_get_keyboard(wl_seat),&loginKeyboardListener,data);
+     if (capabilities & WL_SEAT_CAPABILITY_POINTER) {
+ 	wl_pointer_add_listener (wl_seat_get_pointer (wl_seat), &pointerListener, data);
+     }
+--- a/src/WallpaperEngine/Render/RenderContext.cpp
++++ b/src/WallpaperEngine/Render/RenderContext.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "CWallpaper.h"
+ #include "Helpers/LiveFeed.h"
++#include "Helpers/LoginOverlay.h"
+ #include "Helpers/Transition.h"
+ #include "RenderContext.h"
+ 
+@@ -28,6 +29,8 @@
+ 
+     glPushDebugGroup (GL_DEBUG_SOURCE_APPLICATION, 0, -1, str.c_str ());
+ #endif /* DEBUG */
++
++    if (labLoginActive()) setPause(wallpaper_lab_login_paused());
+ 
+     // search the background in the viewport selection
+ 
+@@ -76,6 +79,7 @@
+     }
+     Helpers::transitionFrame(viewport->name,viewport->viewport,sourceReady);
+     Helpers::publishLiveFrame(viewport->name,viewport->viewport);
++    if (labLoginActive()) wallpaper_lab_login_draw(viewport->name.c_str(),viewport->viewport.x,viewport->viewport.y,viewport->viewport.z,viewport->viewport.w);
+     viewport->swapOutput ();
+ }
+ 
+--- a/src/WallpaperEngine/Render/Drivers/Output/GLFWWindowOutput.cpp
++++ b/src/WallpaperEngine/Render/Drivers/Output/GLFWWindowOutput.cpp
+@@ -5,6 +5,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <unistd.h>
++#include <cstdlib>
+ 
+ using namespace WallpaperEngine::Render::Drivers::Output;
+ 
+@@ -15,7 +16,7 @@
+     }
+ 
+     // window should be visible
+-    driver.showWindow ();
++    if (!std::getenv("WALLPAPER_LAB_HIDDEN_RENDER")) driver.showWindow ();
+ 
+     if (this->m_context.settings.render.mode == Application::ApplicationContext::EXPLICIT_WINDOW) {
+ 	this->m_fullWidth = this->m_context.settings.render.window.geometry.z;
+@@ -63,4 +64,4 @@
+ 
+     // update the default viewport
+     this->m_viewports["default"]->viewport = { 0, 0, this->m_fullWidth, this->m_fullHeight };
+-}
+\ No newline at end of file
++}
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/LoginOverlay.h
+@@ -0,0 +1,15 @@
++#pragma once
++// Optional application-owned native login overlay. No dependency in upstream tools.
++extern "C" {
++int wallpaper_lab_login_active() __attribute__((weak));
++void wallpaper_lab_login_draw(const char*,int,int,int,int) __attribute__((weak));
++void wallpaper_lab_login_pointer(const char*,double,double,int) __attribute__((weak));
++void wallpaper_lab_login_keymap(int,unsigned int) __attribute__((weak));
++void wallpaper_lab_login_key(unsigned int,unsigned int) __attribute__((weak));
++void wallpaper_lab_login_modifiers(unsigned int,unsigned int,unsigned int,unsigned int) __attribute__((weak));
++void wallpaper_lab_login_symbol(unsigned int) __attribute__((weak));
++void wallpaper_lab_login_text(unsigned int) __attribute__((weak));
++int wallpaper_lab_login_paused() __attribute__((weak));
++float wallpaper_lab_login_time(float) __attribute__((weak));
++}
++inline bool labLoginActive(){return wallpaper_lab_login_active && wallpaper_lab_login_active();}

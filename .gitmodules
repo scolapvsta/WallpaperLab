@@ -7,6 +7,3 @@
 [submodule "vendor/raylib"]
 	path = vendor/raylib
 	url = https://github.com/raysan5/raylib.git
-[submodule "vendor/sddm-astronaut-theme"]
-	path = vendor/sddm-astronaut-theme
-	url = https://github.com/Keyitdev/sddm-astronaut-theme.git

@@ -1,0 +1,29 @@
+#include "login_config.hpp"
+#include "login_canvas.hpp"
+#include "preferences.hpp"
+#include "../vendor/engine/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h"
+#include <iostream>
+#include <fstream>
+#include <unistd.h>
+using namespace lab;using namespace lab::login;
+void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
+template<class F>void rejects(F fn){bool rejected=false;try{fn();}catch(...){rejected=true;}check(rejected,"Invalid configuration accepted");}
+int main(){
+ auto root=fs::temp_directory_path()/("lab-login-"+std::to_string(getpid()));setenv("XDG_CONFIG_HOME",(root/"config").c_str(),1);setenv("XDG_STATE_HOME",(root/"state").c_str(),1);
+ try{
+  auto d=defaults();check(!d["enabled"],"Login must be opt-in");
+  for(int i=0;i<5;i++){auto t=validate(applyTemplate(d,i));auto p=draw(t,640,360,CanvasState{},1700000000);check(p.rgba.size()==640*360*4,"Native template raster size");for(size_t j=0;j<p.rgba.size();j+=4)for(int k=0;k<3;k++)check(p.rgba[j+k]<=p.rgba[j+3],"Canvas is not premultiplied");}
+  rejects([&]{auto t=d;t["mode"]="stretch";validate(t);});rejects([&]{auto t=d;t["fps"]=0;validate(t);});rejects([&]{auto t=d;t["accent"]="#ggffff";validate(t);});rejects([&]{auto t=d;t["widgets"]["clock"]["size"]=-1;validate(t);});
+  d["widgets"]["login"]={{"enabled",false},{"x",.95},{"y",.95},{"width",.02},{"height",.02},{"size",20}};d=validate(d);check(d["widgets"]["login"]["enabled"]&&d["widgets"]["login"]["width"]>=.2,"Required login controls disappeared");auto rect=widgetRect(d,5);check(rect[0]+rect[2]<=1&&rect[1]+rect[3]<=1,"Widget escaped monitor");check(hit(d,rect[0]+rect[2]/2,rect[1]+rect[3]*.75)==3,"Login button hit test");
+  auto project=root/"local";fs::create_directories(project);{std::ofstream image(project/"picture.ppm");image<<"P3\n1 1\n255\n30 40 50\n";}writeJson(project/"project.json",{{"type","web"},{"lab_media_file","picture.ppm"}});
+  Item item{"local","Local","web","",project.string(),""};item.origin="local";d["source"]=item.path;d["profiles"][item.path]={{"x",.35},{"zoom",.8},{"brightness",.2}};save(d);check(load()["profiles"]==d["profiles"],"Login settings persistence");
+  auto desktopProfile=json{{"position",{{"x",-.7},{"y",.5},{"zoom",2}}},{"properties",{{"customspeed",1.25}}}};
+  writeJson(configDir()/"wallpaper_profiles.json",{{item.path,desktopProfile}});
+  setenv("DESKTOP_SESSION","hyprland-uwsm",1);auto file=prepare(d,item,{{"language","it"}},{"DP-1","DP-2"});auto p=readJson(file);check(p["session"]=="hyprland-uwsm.desktop"&&!p["username"].get<std::string>().empty(),"Initial session hint missing");check(readJson(fs::path(p["project"].get<std::string>())/"project.json")["type"]=="video","Local image used web wrapper");auto saved=readJson(p["profile_file"].get<std::string>())[item.path];check(saved["position"]["x"]==.35&&saved["position"]["zoom"]==.8&&saved["image"]["brightness"]==.2&&saved["properties"]["customspeed"]==1.25,"Renderer profile shape");
+  setenv("WALLPAPER_LAB_PROFILE_FILE",p["profile_file"].get<std::string>().c_str(),1);setenv("WALLPAPER_LAB_PROJECT",item.path.c_str(),1);unsetenv("WALLPAPER_LAB_LIVE_FILE");
+  auto position=WallpaperEngine::Render::Helpers::WallpaperPlacement::configured();check(std::abs(position.x-.35)<.001&&std::abs(position.zoom-.8)<.001,"Renderer polled the desktop placement instead of the login placement");check(loadPlacements()[item.path]==desktopProfile,"Desktop profile changed");
+  auto args=renderArguments(p);check(std::find(args.begin(),args.end(),"customspeed=1.25")!=args.end(),"Scene creator property missing");check(std::find(args.begin(),args.end(),"--screen-span")!=args.end(),"Panoramic outputs missing");p["mode"]="mirror";args=renderArguments(p);check(std::count(args.begin(),args.end(),"--screen-root")==2,"Mirror outputs missing");check(readJson(project/"project.json")["type"]=="web","Original desktop project changed");
+  writeJson(project/"project.json",{{"type","web"},{"lab_media_file","../outside"}});rejects([&]{prepare(d,item,json::object(),{"DP-1"});});
+  fs::remove_all(root);std::cout<<"Native templates, profiles, bounds, opt-in persistence, local-media isolation and monitor arguments passed\n";
+ }catch(...){fs::remove_all(root);throw;}
+}

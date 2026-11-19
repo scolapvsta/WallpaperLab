@@ -6,5 +6,5 @@ uniform vec2 imageSize, outputSize;
 uniform vec3 basic, geometry, placement;
 uniform vec4 more;
 uniform float crop;
-@SDDM_ADJUST_GLSL@
+@LOGIN_ADJUST_GLSL@
 void main() { finalColor = labImage(texture0,fragTexCoord,imageSize,outputSize,basic,more,geometry,placement,crop,false); }

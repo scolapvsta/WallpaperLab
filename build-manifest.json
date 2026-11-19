@@ -1,12 +1,11 @@
 {
   "project": "Wallpaper Lab",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "date": "2026-11-19",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
     "hellpaper": "9774fe954bc01957defcb62629d71139231f2b8e",
-    "raylib": "c1ab645ca298a2801097931d1079b10ff7eb9df8",
-    "sddm-astronaut-theme": "abb3163c724935af888ba5ea9ac0c4f22afd8048"
+    "raylib": "c1ab645ca298a2801097931d1079b10ff7eb9df8"
   },
   "patches": {
     "patches/engine-integration.patch": "f9cfbc7137264b7d187d3dd311312141fe153a6e36918801456872bf32d234b7",
@@ -30,7 +29,7 @@
     "patches/engine-output-hotplug.patch": "dcb1db66ff61aa7fe72f056c0b25130f216a1111d455c483015c8c5bf617c9bf",
     "patches/engine-visible-fullscreen.patch": "12f0fdd0be5259ca857db9d512aa791547e797415ec5fd5cdcf0e3affff29c8a",
     "patches/engine-fullscreen-policy.patch": "b6f56b2720cf71b931c7a351bbf3c0bd573a4b7661f8436fe75cb9b0b25a7cee",
-    "patches/engine-sddm-scene-feed.patch": "fcc7693bc7c9d7f556896e39397514c17c831df6d47fe497d889a3c02058972d"
+    "patches/engine-native-login.patch": "7c91733decd53661107d09ba346566cefa79f84c4c1da8d94ab1a278fd7d08dd"
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",
@@ -39,6 +38,6 @@
   "caelestia": "Optional on-demand Material You helper; selectable monitor connector for the global shell palette; rendered frame preferred, thumbnail fallback; conditional restore",
   "channel": "beta",
   "distribution": "Arch Linux x86_64 self-extracting installer; system dependencies from pacman; separate optional Steamworks download",
-  "sddm": "Experimental Astronaut library with native scene feeds and mirror/panorama previews across monitors; separate image profiles; no system greeter publication",
-  "integration_ui": "Settings contains Caelestia/SDDM opt-in switches; a conditional Integrations launcher page manages enabled integrations"
+  "integration_ui": "Independent Caelestia integration and native Login screen editor activation in Settings",
+  "login_screen": "Opt-in native editor and engine overlay; standalone greetd session bundle with separate profiles, widgets and multi-monitor layout. Boot activation requires administrator authentication."
 }

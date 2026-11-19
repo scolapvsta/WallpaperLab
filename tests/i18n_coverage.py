@@ -8,7 +8,7 @@ keys = set(rules.values())
 literal = re.compile(r'"(?:[^"\\]|\\.)*"')
 tokenizer = re.compile(r'"(?:[^"\\]|\\.)*"|//[^\n]*|/\*[\s\S]*?\*/|[A-Za-z_]\w*|[^\s]')
 # Brand names, visual wordmarks, key names and protocol/unit notation stay literal.
-fixed = {'Wallpaper Lab','SDDM','Caelestia','awww','post-hook.log','s','Steam Workshop','Steam','Workshop','Ctrl + L','AND / OR',
+fixed = {'Wallpaper Lab','Caelestia','awww','post-hook.log','s','Steam Workshop','Steam','Workshop','Ctrl + L','AND / OR',
          'strawberry core','DESKTOP // CONTROL DECK'}
 raw_ui = []
 def strings(tokens):
@@ -25,11 +25,11 @@ def calls(tokens):
             if t in (')', '}', ']'):depth-=1
             arg.append(t)
 for file in (root/'src').iterdir():
-    if file.suffix not in ('.h','.hpp','.cpp','.c') or file.name in ('gif.c','gif.h'):continue
+    if file.suffix not in ('.h','.hpp','.cpp','.c','.inc') or file.name in ('gif.c','gif.h'):continue
     text=file.read_text()
     tokens=[t for t in tokenizer.findall(text) if not t.startswith(('//','/*'))]
     for name,args in calls(tokens):
-        if name=='lab_tr':
+        if name in ('lab_tr','translate'):
             for key in strings(args[0]):
                 if key not in fixed|{'span','mirror','muted'} and not re.fullmatch(r'[a-z]+_[a-z_]+',key):keys.add(key)
         if name=='snprintf' and args and args[0]==['notice']:
@@ -43,6 +43,9 @@ for file in (root/'src').iterdir():
             if len(label)==1 and literal.fullmatch(label[0]):
                 key=json.loads(label[0])
                 if key and re.search(r'[A-Za-zÀ-ž]',key) and key not in fixed:raw_ui.append((file.name,key))
+    for match in re.finditer(r'\bloginNotice\s*=\s*("(?:[^"\\]|\\.)*")',text):
+        key=json.loads(match[1])
+        if key:keys.add(key)
     # Every literal diagnostic must have an explicit localized route, even if
     # it later receives an OS message, a file path or a Steam error code.
     for match in re.finditer(r'(?:runtime_error\((?:std::string\()?|(?:reason|\["error"\])\s*=\s*)("(?:[^"\\]|\\.)*")',text):

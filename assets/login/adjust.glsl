@@ -1,4 +1,4 @@
-// Shared by the launcher preview and the Qt greeter. Colour controls use the
+// Native editor preview image controls. Colour controls use the
 // same ranges and colour operations as Wallpaper Lab's desktop renderer.
 vec4 labImage(sampler2D frame, vec2 uv, vec2 imageSize, vec2 outputSize,
               vec3 basic, vec4 more, vec3 geometry, vec3 placement, float crop, bool premultiplied) {
@@ -12,11 +12,11 @@ vec4 labImage(sampler2D frame, vec2 uv, vec2 imageSize, vec2 outputSize,
     vec2 q = (uv - 0.5) * view;
     q = mat2(c, -s, s, c) * q / max(1.0, fit);
     q = q * geometry.yz / display + 0.5;
-    q += placement.xy * max(vec2(0.0), 0.5 - view / (2.0 * display));
+    q -= placement.xy * abs(vec2(0.5) - view / (2.0 * display));
     if (any(lessThan(q, vec2(0.0))) || any(greaterThan(q, vec2(1.0)))) return vec4(0,0,0,1);
     vec4 pixel = texture(frame, q);
     vec3 rgb = pixel.rgb;
-    // Qt's offscreen texture is premultiplied; raylib's loaded PNG texture is not.
+    // The input texture may use premultiplied alpha.
     if (premultiplied) rgb = pixel.a > 0.0 ? rgb / pixel.a : vec3(0.0);
     float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
     rgb = mix(vec3(luma), rgb, basic.z);

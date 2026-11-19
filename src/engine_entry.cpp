@@ -9,6 +9,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/prctl.h>
+#include "login_runtime.hpp"
 #include "audio_policy.hpp"
 #include <chrono>
 #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
@@ -55,7 +56,7 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         app.setup();
         int frames=0;bool reportedReady=false;auto lastAudio=std::chrono::steady_clock::time_point{};
         auto audioSettings=std::filesystem::path(profileFile).parent_path()/"settings.json";
-        while(context.state.general.keepRunning && !stopRequested) {
+        while(context.state.general.keepRunning && !stopRequested && !wallpaper_lab_login_quit()) {
             auto now=std::chrono::steady_clock::now();
             if(!profileFile.empty()&&!project.empty()&&now-lastAudio>=std::chrono::milliseconds(100)){
                 lastAudio=now;if(auto enabled=lab::savedAudioEnabled(audioSettings,profileFile,project))context.state.audio.volume=context.settings.audio.enabled&&*enabled?100:0;

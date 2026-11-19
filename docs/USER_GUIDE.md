@@ -408,26 +408,35 @@ For a renderer spanning several outputs, all its outputs must be covered.
 The active-window policy and application exclusions still apply. Other
 compositors retain the generic fullscreen detector behavior.
 
-## SDDM login preview (source builds)
+## Optional native login screen
 
-Enable **Settings → Integrations → SDDM** to validate the installed Qt6 greeter.
-Once verified, open **Integrations → SDDM** in the launcher, select a wallpaper and choose the
-login UI independently. Compatible native scenes also render in the bounded test
-greeter. **Final preview → Display → Panoramic** spans one background across the
-connected monitors and shows a combined capture with a login form on each screen.
-The scene bridge is experimental, capped at 30 FPS and a 2560×1440 bounding box;
-it requires the original project and installed Wallpaper Engine assets. This
-prepares local previews only; system login installation and boot activation are
-planned separately. See the [SDDM guide](SDDM.md).
+Under **Settings → Integrations**, enable **Login screen** to reveal its own tab
+after the library, carousel and Workshop. Open **Wallpapers** for the existing
+local/Steam catalog and separate image adjustments; **Templates and widgets** for
+five native presets, dragging and widget appearance; **Monitors and startup** for
+single/mirror/panorama and login UI placement. The required login form cannot be
+hidden. Preferences save automatically without changing the desktop wallpaper.
 
-## Integration activation and management
+Cards and the editor composition use library posters. Live preview renders the
+actual animation/scene in a separate bounded process, with native widgets in the
+same graphics context. Esc closes it. Preview never accepts credentials.
 
-**Settings → Integrations** contains the independent Caelestia and SDDM on/off
-switches. Enabling either displays **Integrations** after Library, Carousel and
-Workshop. Its sidebar contains only enabled integrations.
+**Apply at next boot** copies the selected project, dependencies, engine assets,
+font, profile and runtime into a standalone system bundle. Administrator
+authentication is required. It enables the greetd service for the next boot and
+does not terminate the current desktop. Reapply after changing the draft to update
+the published login; the last successfully published version remains active.
+Disabling the feature after system publication requests administrator authentication
+to restore the original display-manager configuration, then hides the editor.
+Cancelling authentication leaves the current installation and settings intact.
 
-Select Caelestia to configure its source monitor, palette and brightness mode.
-Select SDDM to configure wallpaper and login UI or open the greeter preview.
-Disabling an integration removes its panel while preserving its preferences.
-Disabling the last integration hides the main tab; if it was open, the launcher
-returns to Library and keeps any Settings dialog open.
+Read [Login screen](LOGIN_SCREEN.md) for prerequisites, recovery and test limits.
+This replaces the retired SDDM preview integration. Existing SDDM system packages
+and historical user settings are retained for recovery.
+
+## Caelestia integration
+
+The independent **Settings → Integrations → Caelestia** switch reveals the
+**Integrations** launcher tab. Configure source monitor, palette and brightness
+there. Disabling it hides that tab and preserves its choices; native login-screen
+preferences remain independent.

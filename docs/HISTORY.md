@@ -1,3 +1,18 @@
+# Version 2.0.0 — native login screen (experimental source update)
+
+- Replace the SDDM/Qt integration with a separate optional native editor and
+  a greetd-backed login session using the same application executable.
+- Share catalog thumbnails and cache native UI canvases for immediate editing;
+  draw real scene/video/GIF previews directly in the engine graphics context.
+- Add five original templates, movable widgets, fonts, appearance and independent
+  wallpaper image profiles. Keep single/mirror/panorama and UI monitor selection.
+- Export a standalone pre-login runtime, wallpaper, assets and font. Publish
+  immutable system bundles after administrator authentication, with backup and
+  restoration of the original display manager. Never restart the live session.
+- Preserve Caelestia, all four carousel layouts and the responsive Cyberpunk header.
+- See [native login verification](NATIVE_LOGIN_TEST_RESULTS.md) for tested behavior
+  and boot/session limitations. The downloadable stable installer remains 1.0.0.
+
 # Version 1.4.0 — source update
 
 - Render compatible native scenes inside SDDM previews through one hidden,

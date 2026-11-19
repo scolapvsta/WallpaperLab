@@ -27,7 +27,8 @@ results['native_previews']=[]
 for item in previews:
     process=json.loads(run('--preview',item).stdout)
     try:
-        assert Path(f"/proc/{process['pid']}/exe").resolve().name=='wallpaper-lab'
+        renderer_exe=Path(f"/proc/{process['pid']}/exe").resolve()
+        assert renderer_exe.name=='wallpaper-lab'
         time.sleep(1)
         assert Path(f"/proc/{process['pid']}").exists()
         results['native_previews'].append('passed')
@@ -35,7 +36,7 @@ for item in previews:
         try:
             proc=Path(f"/proc/{process['pid']}")
             start=proc.joinpath('stat').read_text().rsplit(')',1)[1].split()[19]
-            if start==process['start'] and proc.joinpath('exe').resolve().name=='wallpaper-lab':
+            if start==process['start'] and proc.joinpath('exe').resolve()==renderer_exe:
                 os.killpg(process['pid'],signal.SIGTERM)
         except (ProcessLookupError, FileNotFoundError):pass
 with tempfile.TemporaryDirectory(prefix='wallpaper-lab-process-test-') as tmp:

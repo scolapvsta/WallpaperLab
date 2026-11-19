@@ -6,6 +6,13 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Native login screen — 2026-11-19 (source 2.0.0)
+
+See [native login validation](../docs/NATIVE_LOGIN_TEST_RESULTS.md) for the native
+canvas/renderer, greetd protocol, export/rollback, real dual-output previews and
+local runtime update. Physical cold-boot/PAM validation is recorded separately
+from desktop previews and fake IPC tests. The SDDM reports below are historical.
+
 ## SDDM native scenes and panorama — 2026-11-19 (source 1.4.0)
 
 See the [scene and panoramic preview report](../docs/SDDM_SCENE_TEST_RESULTS.md)

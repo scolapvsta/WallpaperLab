@@ -264,18 +264,32 @@ verify all 22 catalog columns, stable string lifetimes, live language changes an
 font coverage. A fake Steamworks component reproduces initialization errors in a
 hidden native UI; framebuffer captures avoid desktop occlusion and focus changes.
 
-## Optional SDDM preview
+## Optional native login screen
 
-The C++ controller invokes the packaged `sddm_integration.py` helper asynchronously
-and exposes a cached view to the C launcher. The Settings integration section contains independent Caelestia/SDDM activation
-switches. Either opt-in exposes a shared Integrations page after Workshop. Only
-enabled panels are listed; SDDM controls additionally require a valid health check.
-The helper builds a local Astronaut theme from pinned templates and a copied
-media file or native scene reference, then checks it with SDDM test mode before
-publishing it locally. `sddm_scene.py` owns a separate hidden instance of the same
-application's render mode, sharing atomic RGB frames between QML views at up to
-30 FPS and 2560×1440. A parent-death signal and verified child cleanup bound its
-lifetime. Panoramic backgrounds sample each screen's region of the complete Qt
-desktop; combined captures scale fully laid-out login views into one image.
-Wallpaper/UI preferences are separate from desktop preferences. See [SDDM](SDDM.md)
-for storage, process boundaries and the unimplemented system-login phase.
+`login_config` owns a validated, versioned document separate from desktop profiles.
+`login_canvas` rasterizes widgets using Cairo/Pango. The launcher caches these
+textures and shares catalog thumbnails instead of rescanning files, invoking Qt
+or starting a renderer when a card changes. Draft writes are debounced. Real
+previews are asynchronous, bounded and owned by verified PID/start-time/executable
+identity; failed replacements leave the previous preview and desktop intact.
+
+The ordered native-login engine patch exposes weak application hooks for drawing
+and input. Normal desktop rendering has no login behavior. Login mode composites
+one cached premultiplied widget texture per output directly onto the engine's
+framebuffer, refreshing on input, resize or minute changes. Scenes and mpv media
+retain their normal native render path; there is no continuous CPU frame-file
+transport. Output geometry reuses the desktop canvas/layout implementation.
+
+`login_auth` implements the length-prefixed greetd protocol over a private Unix
+socket, asynchronously handling arbitrary secret/visible/informational PAM prompts.
+Only authenticated sessions can start. Desktop commands come from installed
+Wayland session descriptors. Remembered state contains username and session ID;
+passwords are never written to settings or logs. Live preview rejects credentials.
+
+`login_deploy.py` exports an independent bundle and publishes an immutable root-owned
+release. Privileged copying uses no-follow directory descriptors and hashes the
+bytes actually copied. Config/service aliases have rollback snapshots. Activation
+uses `systemctl enable --force`, never `--now`. `login_session.py` supervises a
+private Hyprland compositor, native background fallback and terminal agreety
+fallback. Startup has a deadline. See [Login screen](LOGIN_SCREEN.md) and the
+[verification report](NATIVE_LOGIN_TEST_RESULTS.md) for current boundaries.

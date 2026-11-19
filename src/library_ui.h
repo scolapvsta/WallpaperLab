@@ -34,7 +34,7 @@ static bool settingsOpen=false,filtersOpen=false,detailOpen=false,recordingKey=f
 static bool deleted[MAX_POSSIBLE_WALLPAPERS]={0},modalDrawing=false,inputBlocked=false;
 static float starPulse[MAX_POSSIBLE_WALLPAPERS]={0},detailWidth=0,detailScroll=0,settingsScroll=0,detailScrollDraw=0,settingsScrollDraw=0;
 static Rectangle libraryCards[MAX_POSSIBLE_WALLPAPERS],inspectorPreviewRect;
-static Rectangle inputClip,headerFilter,headerMoon,headerRefresh,headerDisplay,headerSettings,headerLibrary,headerCarousel,headerWorkshop,headerIntegrations,headerImport,headerPower,headerDecoration;
+static Rectangle inputClip,headerFilter,headerMoon,headerRefresh,headerDisplay,headerSettings,headerLibrary,headerCarousel,headerWorkshop,headerIntegrations,headerLogin,headerImport,headerPower,headerDecoration;
 static char notice[256]="";
 static void StartLibraryScan(void){if(lab_rescan_start()){scanning=true;snprintf(notice,sizeof(notice),"Rilettura della libreria Steam...");}}
 static const int headerHeight=164,statusHeight=42;
@@ -263,7 +263,7 @@ static void FocusSearch(bool select){choiceOpen=-1;isSearching=true;EditFocus(&s
 static float ShortcutInline(float x,float y,float available);
 static float CompactGlyphWidth(const char* label);
 #include "settings_ui.h"
-#include "sddm_ui.h"
+#include "login_ui.h"
 #include "integrations_ui.h"
 #include "resolution_picker.h"
 #include "display_editor.h"
@@ -360,10 +360,11 @@ static void SettingsBody(Rectangle area){
         int current=lab_option("caelestia_enabled"),value=BoolChoice(73,x,&y,w,"Caelestia",current);
         if(current!=value)lab_set_option("caelestia_enabled",value);
         y+=TextLines(lab_tr("Colori dal wallpaper"),x,y,w,13,3,muted)+24;
-        bool enabled=lab_sddm_enabled();choiceEnabled=!lab_sddm_busy();int enabledNext=BoolChoice(88,x,&y,w,"SDDM",enabled);choiceEnabled=true;
-        if(enabledNext!=enabled)lab_sddm_action(enabledNext?"enable":"disable","");
-        y+=TextLines(lab_tr(lab_sddm_busy()?"Attendi la fine del caricamento":!enabled?"Disattivo":lab_sddm_ready()?"Attivo":"Da verificare"),x,y,w,13,3,muted)+12;
-        if(!lab_sddm_ok()&&!lab_sddm_busy())y+=TextLines(lab_tr("Operazione non riuscita. Dettagli nel registro."),x,y,w,13,3,muted)+12;
+        bool enabled=lab_login_enabled();choiceEnabled=!lab_login_busy();int enabledNext=BoolChoice(88,x,&y,w,lab_tr("Schermata di accesso"),enabled);choiceEnabled=true;
+        if(enabledNext!=enabled)lab_login_enable(enabledNext);
+        y+=TextLines(lab_tr("Wallpaper Lab permette anche di personalizzare la schermata di accesso. Attiva questa funzione per aprire l’editor nativo."),x,y,w,13,5,muted)+18;
+        if(lab_login_busy()||*lab_login_notice())y+=TextLines(lab_tr(lab_login_busy()?"Attendi la fine del caricamento":lab_login_notice()),x,y,w,12,3,muted)+12;
+
     }else{
         UiText("Steam Workshop",x,y,22,AppTheme.text);y+=40;
         y+=TextLines(lab_tr("I download usano Steam e restano sottoscritti per ricevere gli aggiornamenti. La libreria si aggiorna al termine."),x,y,w,15,5,muted)+24;
@@ -440,17 +441,19 @@ static void Header(int sw,int top,int count){
     if(CyberTheme()){
         DrawRectangle(24,22,3,31,AppTheme.border);ShapedText* brand=ShapeFamily("WALLPAPER LAB",22,lab_option("general_font_enabled")?lab_font_family():"Oxanium");DrawTexture(brand->texture,39,20,AppTheme.text);
     }else UiText("Wallpaper Lab",72,22,25,AppTheme.text);
-    float navX=fmaxf(285,72+UiMeasure("Wallpaper Lab",25)+30);const char* navNames[]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop",lab_tr("Integrazioni")};UiIcon navIcons[]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD,UI_CUSTOM};int navCount=IntegrationsEnabled()?4:3;headerIntegrations=(Rectangle){0};
+    float navX=fmaxf(285,72+UiMeasure("Wallpaper Lab",25)+30);const char* navNames[5]={lab_tr("Libreria"),lab_tr("Carousel"),"Workshop"};UiIcon navIcons[5]={UI_LIBRARY,UI_CAROUSEL,UI_DOWNLOAD};int navPages[5]={0,1,3},navCount=3;headerIntegrations=headerLogin=(Rectangle){0};
+    if(IntegrationsEnabled()){navNames[navCount]=lab_tr("Integrazioni");navIcons[navCount]=UI_CUSTOM;navPages[navCount++]=4;}
+    if(lab_login_enabled()){navNames[navCount]=lab_tr("Schermata di accesso");navIcons[navCount]=UI_DISPLAY;navPages[navCount++]=5;}
     float navWidth=0;for(int i=0;i<navCount;i++)navWidth+=UiMeasure(navNames[i],15)+70;
     bool compactNav=navX+navWidth+64>headerPower.x;
-    for(int i=0;i<navCount;i++){int navPage=i==3?4:i==2?3:i;float width=compactNav?44:UiMeasure(navNames[i],15)+62;if(i==0)headerLibrary=(Rectangle){navX,22,width,38};else if(i==1)headerCarousel=(Rectangle){navX,22,width,38};else if(i==2)headerWorkshop=(Rectangle){navX,22,width,38};else headerIntegrations=(Rectangle){navX,22,width,38};if(GlyphButton((Rectangle){navX,22,width,38},navIcons[i],page==navPage,!applying,compactNav?"":navNames[i])){ChangePage(navPage);choiceOpen=-1;}navX+=width+8;}
+    for(int i=0;i<navCount;i++){int navPage=navPages[i];float width=compactNav?44:UiMeasure(navNames[i],15)+62;Rectangle r={navX,22,width,38};if(i==0)headerLibrary=r;else if(i==1)headerCarousel=r;else if(i==2)headerWorkshop=r;else if(navPage==4)headerIntegrations=r;else headerLogin=r;if(GlyphButton(r,navIcons[i],page==navPage,!applying,compactNav?"":navNames[i])){ChangePage(navPage);choiceOpen=-1;}if(compactNav&&Hot(r,true))UiText(navNames[i],r.x,72,12,muted);navX+=width+8;}
     if(GlyphButton(headerPower,UI_POWER,false,!applying&&!lab_files_busy(),"")){if(lab_stop_wallpapers())quitWallpaperLab=true;else snprintf(notice,sizeof(notice),"%s",lab_error());}
     headerSettings=(Rectangle){navX,22,40,38};if(GlyphButton(headerSettings,UI_GEAR,settingsOpen||page==2,!applying,"")){settingsOpen=!settingsOpen;choiceOpen=-1;settingsScroll=settingsScrollDraw=0;SetRecording(false);}
     if(StrawberryTheme()&&headerPower.x-navX>224){BerryBow(sw-206,29,.8f);BerryFruit(sw-142,37,20);BerryBunny(sw-114,88,.9f);headerDecoration=(Rectangle){sw-232,5,146,110};}
     if(CyberTheme())CyberWordmark(navX+64,headerPower.x-20,12);
     if(PixelTheme()){headerDecoration=(Rectangle){navX+60,10,fmaxf(0,headerPower.x-navX-80),60};ArcadeMarquee(headerDecoration);}
     if(Hot(headerPower,true))UiText(lab_tr("Spegni e esci"),sw-24-UiMeasure(lab_tr("Spegni e esci"),12),70,12,muted);
-    UiText(page==4?lab_tr("Integrazioni"):page==0?lab_tr("Libreria"):page==1?lab_tr("Carousel"):page==3?"Workshop":lab_tr("Impostazioni"),28,94,23,AppTheme.text);
+    UiText(page==5?lab_tr("Schermata di accesso"):page==4?lab_tr("Integrazioni"):page==0?lab_tr("Libreria"):page==1?lab_tr("Carousel"):page==3?"Workshop":lab_tr("Impostazioni"),28,94,23,AppTheme.text);
     UiText(ManagementPage()?lab_tr("Tutto in un posto"):TextFormat(lab_tr("%d sfondi"),page==3?(int)lab_ws_number(-1,"total"):libraryTotal),28,126,13,muted);
     if(!ManagementPage()){
         int width=fminf(page==3?440:530,fmaxf(200,sw-(page==3?610:520)));Rectangle search={fmaxf(190,(sw-width)/2.f),89,width,46};SearchBar(search);
@@ -679,7 +682,8 @@ static void CustomizationGeometry(FILE* f){
     fprintf(f,",\"zoom_track\":[%.1f,%.1f,%.1f],\"creator_reset\":[%.1f,%.1f],\"color_swatch\":[%.1f,%.1f],\"color_box\":[%.1f,%.1f,%.1f,%.1f]",zoomTrack.x,zoomTrack.y,zoomTrack.width,creatorReset.x+creatorReset.width/2,creatorReset.y+creatorReset.height/2,creatorColorSwatch.x+creatorColorSwatch.width/2,creatorColorSwatch.y+creatorColorSwatch.height/2,creatorColorBox.x,creatorColorBox.y,creatorColorBox.width,creatorColorBox.height);
     fprintf(f,",\"color_hue\":[%.1f,%.1f,%.1f,%.1f]",creatorHue.x,creatorHue.y,creatorHue.width,creatorHue.height);
     fprintf(f,",\"stop_and_quit\":[%.1f,%.1f],\"power_rect\":[%.1f,%.1f,%.1f,%.1f],\"header_decoration\":[%.1f,%.1f,%.1f,%.1f]",headerPower.x+headerPower.width/2,headerPower.y+headerPower.height/2,headerPower.x,headerPower.y,headerPower.width,headerPower.height,headerDecoration.x,headerDecoration.y,headerDecoration.width,headerDecoration.height);
-    SddmGeometry(f);
+    LoginGeometry(f);
+    fprintf(f,",\"login_header\":[%.1f,%.1f]",headerLogin.x+headerLogin.width/2,headerLogin.y+headerLogin.height/2);
     fprintf(f,",\"display_cards\":");GeometryCenters(f,displayCards,lab_monitor_count());fprintf(f,",\"display_selected\":%d,\"screen\":%d,\"animation_controls\":",displaySelected,lab_screen());Rectangle animations[]={switcherEye,transitionEye,switcherCustomize,transitionCustomize};GeometryCenters(f,animations,4);
     fprintf(f,",\"number_tracks\":{");bool firstNumber=true;for(int id=0;id<160;id++)if(numberTracks[id].width){Rectangle r=numberTracks[id];fprintf(f,"%s\"%d\":[%.1f,%.1f,%.1f]",firstNumber?"":",",id,r.x,r.y,r.width);firstNumber=false;}fprintf(f,"}");
     fprintf(f,",\"number_fields\":{");bool firstField=true;for(int id=0;id<160;id++)if(numberFields[id].width){Rectangle r=numberFields[id],up=numberUp[id],down=numberDown[id];fprintf(f,"%s\"%d\":{\"value\":[%.1f,%.1f],\"up\":[%.1f,%.1f],\"down\":[%.1f,%.1f]}",firstField?"":",",id,r.x+r.width/2,r.y+r.height/2,up.x+up.width/2,up.y+up.height/2,down.x+down.width/2,down.y+down.height/2);firstField=false;}fprintf(f,"}");
@@ -729,8 +733,8 @@ int selector_main(int argc,char**argv){
     if(argc>1&&!strcmp(argv[1],"--display-settings")){settingsOpen=true;settingsTab=0;}
     if(argc>1&&!strcmp(argv[1],"--appearance-settings")){settingsOpen=true;settingsTab=3;}
     if(argc>1&&!strcmp(argv[1],"--language-settings")){settingsOpen=true;settingsTab=4;}
-    lab_sddm_action("status","");
-    bool integrationEntry=argc>1&&(!strcmp(argv[1],"--sddm-settings")||!strcmp(argv[1],"--integrations"));
+    bool integrationEntry=argc>1&&!strcmp(argv[1],"--integrations");
+    if(argc>1&&!strcmp(argv[1],"--login-editor")){if(lab_login_enabled())ChangePage(5);else{settingsOpen=true;settingsTab=7;}}
     if(integrationEntry){ChangePage(2);settingsTab=7;}
     filterSize=lab_option("filter_width")>0?lab_option("filter_width"):260;
     if(argc>1&&(!strcmp(argv[1],"--workshop")||!strcmp(argv[1],"--workshop-ui-test"))){ChangePage(3);filtersOpen=true;}
@@ -738,8 +742,9 @@ int selector_main(int argc,char**argv){
     pthread_t loaders[4];for(int n=0;n<4;n++)pthread_create(&loaders[n],NULL,LoaderThread,NULL);
     float refreshClock=0,stateClock=0;
     while(!WindowShouldClose()&&!quitWallpaperLab){
-        lab_sddm_poll();
-        if(integrationEntry&&!lab_sddm_busy()){integrationEntry=false;if(IntegrationsEnabled()){integrationTab=!strcmp(argv[1],"--sddm-settings")&&lab_sddm_enabled()?1:lab_option("caelestia_enabled")?0:1;ChangePage(4);}}
+        lab_login_poll();
+        if(integrationEntry){integrationEntry=false;if(IntegrationsEnabled())ChangePage(4);}
+        if(page==5&&!lab_login_enabled())ChangePage(0);
         if(page==4&&!IntegrationsEnabled()){choiceOpen=-1;ChangePage(0);}
         if(argc>1&&!strcmp(argv[1],"--workshop-ui-test")&&GetTime()>6)break;
         if(seenFontRevision!=lab_font_revision())ReloadUiFonts();
@@ -763,7 +768,7 @@ int selector_main(int argc,char**argv){
         bool escape=IsKeyPressed(KEY_ESCAPE);if(UpdateSettingNumber())escape=false;
         if(lab_switcher_preview_active()&&(escape||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){lab_cancel_switcher_preview();escape=false;}
         if(escape&&(transitionPreview||switcherPreview||animationCustomize)){if(choiceOpen>=0)choiceOpen=-1;else{transitionPreview=switcherPreview=false;animationCustomize=0;}escape=false;}
-        if(escape&&page==4&&integrationTab==1&&sddmSearching){sddmSearching=false;escape=false;}
+        if(escape&&page==5&&(loginSearching||loginMessageEditing)){loginSearching=loginMessageEditing=false;escape=false;}
         if(escape){if(choiceOpen>=0)choiceOpen=-1;else if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}
         if(recordingKey)RecordShortcut();
         else if(!inputBlocked&&!ManagementPage()&&(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))&&IsKeyPressed(KEY_L)){FocusSearch(true);creatorEdit=-1;wsAuthorEditing=false;}
@@ -802,7 +807,8 @@ int selector_main(int argc,char**argv){
         UploadImages();int transparency=uiSliderDrag==0?roundf(opacityDraft*100):lab_option("window_transparency");uiCanvasActive=transparency>0;
         if(uiCanvasActive&&(uiCanvas.texture.width!=sw||uiCanvas.texture.height!=sh)){if(uiCanvas.id)UnloadRenderTexture(uiCanvas);uiCanvas=LoadRenderTexture(sw,sh);}
         BeginDrawing();if(uiCanvasActive)BeginTextureMode(uiCanvas);rlSetBlendFactorsSeparate(RL_SRC_ALPHA,RL_ONE_MINUS_SRC_ALPHA,RL_ONE,RL_ONE_MINUS_SRC_ALPHA,RL_FUNC_ADD,RL_FUNC_ADD);BeginBlendMode(BLEND_CUSTOM_SEPARATE);ClearBackground(uiCanvasActive?BLANK:AppTheme.bg);DrawBackdrop(sw,sh);
-        if(page==4)IntegrationsBody((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});
+        if(page==5)LoginWorkspace((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});
+        else if(page==4)IntegrationsBody((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});
         else if(page==2)SettingsBody((Rectangle){4,headerHeight+8,sw-8,sh-headerHeight-statusHeight-16});
         else{
             if(page==3){if(filtersOpen)WorkshopFilters((Rectangle){0,top,filterWidth,sh-top-statusHeight});WorkshopGrid(content);if(detailWidth>1)WorkshopInspector((Rectangle){sw-detailWidth,top,detailWidth,sh-top-statusHeight});}
@@ -818,7 +824,7 @@ int selector_main(int argc,char**argv){
         }
         // Opt-in state evidence for isolated desktop interaction tests.
         stateClock+=dt;const char* stateOutput=getenv("WALLPAPER_LAB_UI_STATE");
-        if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"transition_preview\":%s,\"switcher_preview\":%s,\"customize\":%d,\"transparency\":%d,",transitionPreview?"true":"false",switcherPreview?"true":"false",animationCustomize,lab_option("window_transparency"));fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"sddm_ready\":%s,\"sddm_busy\":%s,\"sddm_ok\":%s,",lab_sddm_ready()?"true":"false",lab_sddm_busy()?"true":"false",lab_sddm_ok()?"true":"false");fprintf(style,"\"integrations_visible\":%s,\"integration_tab\":%d,\"caelestia_enabled\":%s,\"sddm_enabled\":%s,",IntegrationsEnabled()?"true":"false",integrationTab,lab_option("caelestia_enabled")?"true":"false",lab_sddm_enabled()?"true":"false");fprintf(style,"\"theme\":%d,\"design\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("ui_design"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
+        if(stateOutput&&stateClock>0.1f){stateClock=0;char temporary[4096];snprintf(temporary,sizeof(temporary),"%s.tmp.%d",stateOutput,getpid());FILE* f=fopen(temporary,"w");if(f){fprintf(f,"{\"page\":%d,\"detail\":%s,\"selection\":%d,\"results\":%d,\"settings\":%s,\"delete_confirmation\":%s,\"recording\":%s}\n",page,detailOpen?"true":"false",selected_index,count,settingsOpen?"true":"false",deleteIndex>=0?"true":"false",recordingKey?"true":"false");fclose(f);rename(temporary,stateOutput);FILE* style=fopen(TextFormat("%s.style",stateOutput),"w");if(style){fprintf(style,"{\"search_focus\":%s,\"search_count\":%d,\"search_cursor\":%d,\"search_anchor\":%d,\"applying\":%s,",isSearching?"true":"false",searchBufferCount,searchEdit.cursor,searchEdit.anchor,applying?"true":"false");fprintf(style,"\"transition_preview\":%s,\"switcher_preview\":%s,\"customize\":%d,\"transparency\":%d,",transitionPreview?"true":"false",switcherPreview?"true":"false",animationCustomize,lab_option("window_transparency"));fprintf(style,"\"display_popup\":%s,\"light\":%s,\"fps\":%d,\"creator_ms\":%.3f,\"language_menu\":%s,",displayPopup?"true":"false",lab_option("light_theme")?"true":"false",GetFPS(),creatorTimeMs,languageMenu?"true":"false");fprintf(style,"\"login_enabled\":%s,\"login_busy\":%s,\"integrations_visible\":%s,\"caelestia_enabled\":%s,",lab_login_enabled()?"true":"false",lab_login_busy()?"true":"false",IntegrationsEnabled()?"true":"false",lab_option("caelestia_enabled")?"true":"false");fprintf(style,"\"theme\":%d,\"design\":%d,\"language\":%d,\"font\":%d,\"font_revision\":%d,\"settings_tab\":%d,\"scanning\":%s,\"font_menu\":%s,\"shortcut\":\"%s\"}\n",lab_option("ui_theme"),lab_option("ui_design"),lab_option("language"),lab_font_selected(),seenFontRevision,settingsTab,scanning?"true":"false",fontMenu?"true":"false",lab_shortcut());fclose(style);}}FILE* geometry=fopen(TextFormat("%s.geometry",stateOutput),"w");if(geometry){LibraryGridLayout layout=library_grid_layout(content.width,Clamp((lab_option("layout_density")==1?220:lab_option("layout_density")==2?300:246)*masterScale,210,320));fprintf(geometry,"{\"filter_width\":%.1f,\"detail_width\":%.1f,\"tile\":%.1f,\"columns\":%d,\"groups\":{",filterWidth,detailWidth,layout.tile,layout.columns);
             for(int n=0;n<6;n++)fprintf(geometry,"%s\"%d\":[%.1f,%.1f]",n?",":"",n,resolutionHeaders[n].x+resolutionHeaders[n].width/2,resolutionHeaders[n].y+18);
             fprintf(geometry,"},\"resolutions\":{");bool comma=false;
             for(int n=0;n<64;n++)if(resolutionRows[n].width>0){fprintf(geometry,"%s\"%d\":[%.1f,%.1f]",comma?",":"",n,resolutionRows[n].x+resolutionRows[n].width/2,resolutionRows[n].y+25);comma=true;}
@@ -847,5 +853,5 @@ int selector_main(int argc,char**argv){
     WorkshopCleanup();if(uiCanvas.id)UnloadRenderTexture(uiCanvas);if(transitionCanvas.id)UnloadRenderTexture(transitionCanvas);if(transitionShader.id)UnloadShader(transitionShader);for(int n=0;n<1024;n++){if(shapedCache[n].texture.id)UnloadTexture(shapedCache[n].texture);free(shapedCache[n].text);}if(backdropShader.id)UnloadShader(backdropShader);if(liveTexture.id)UnloadTexture(liveTexture);lab_shutdown();atomic_store(&loader_running,false);for(int n=0;n<4;n++)pthread_join(loaders[n],NULL);
     for(int i=0;i<wallpaper_count;i++){if(atomic_load(&wallpapers[i].loaded))UnloadTexture(wallpapers[i].texture);if(atomic_load(&imagePending[i]))UnloadImage(pendingImages[i]);free(wallpapers[i].path);free(wallpapers[i].filename);}
     for(int i=0;i<96;i++)if(fontPreview[i].texture.id&&fontPreview[i].texture.id!=GetFontDefault().texture.id)UnloadFont(fontPreview[i]);
-    if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);if(iconAtlasTarget.id)UnloadRenderTexture(iconAtlasTarget);if(cyberCity.id)UnloadRenderTexture(cyberCity);if(appBackgroundTexture.id)UnloadTexture(appBackgroundTexture);if(backgroundPreview.id)UnloadRenderTexture(backgroundPreview);UnloadTexture(appIconTexture);SddmShutdown();CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;
+    if(uiFont.texture.id!=GetFontDefault().texture.id)UnloadFont(uiFont);if(brandFont.texture.id!=GetFontDefault().texture.id)UnloadFont(brandFont);if(buttonFont.texture.id!=GetFontDefault().texture.id)UnloadFont(buttonFont);if(fallbackFont.texture.id!=GetFontDefault().texture.id)UnloadFont(fallbackFont);if(iconAtlasTarget.id)UnloadRenderTexture(iconAtlasTarget);if(cyberCity.id)UnloadRenderTexture(cyberCity);if(appBackgroundTexture.id)UnloadTexture(appBackgroundTexture);if(backgroundPreview.id)UnloadRenderTexture(backgroundPreview);UnloadTexture(appIconTexture);LoginShutdown();CloseWindow();return smokeApplyStarted&&(!smokeApplySucceeded||smokeFramesAfterApply<30)?1:0;
 }

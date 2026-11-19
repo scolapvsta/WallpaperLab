@@ -2,8 +2,8 @@
 static int integrationTab=0;
 static float integrationScroll=0,integrationScrollDraw=0,integrationExtent=0;
 static Rectangle integrationTabs[2];
-static bool IntegrationsEnabled(void){return lab_option("caelestia_enabled")||lab_sddm_enabled();}
-static bool ManagementPage(void){return page==2||page==4;}
+static bool IntegrationsEnabled(void){return lab_option("caelestia_enabled");}
+static bool ManagementPage(void){return page==2||page==4||page==5;}
 static int CaelestiaBody(int x,int y,int w){
     int start=y;
     UiText("Caelestia",x,y,20,AppTheme.text);y+=34;
@@ -21,26 +21,8 @@ static int CaelestiaBody(int x,int y,int w){
     return y-start;
 }
 static void IntegrationsBody(Rectangle area){
-    bool enabled[]={lab_option("caelestia_enabled"),lab_sddm_enabled()};
-    if(!enabled[integrationTab]){integrationTab=enabled[0]?0:1;choiceOpen=-1;integrationScroll=integrationScrollDraw=0;}
-    ThemePanel((Rectangle){area.x+148,area.y,area.width-156,area.height},.025f,12,surface);
-    int x=area.x+16,y=area.y+12,w=area.width-32,slot=0;
-    const char* names[]={"Caelestia","SDDM"};memset(integrationTabs,0,sizeof(integrationTabs));
-    for(int i=0;i<2;i++)if(enabled[i]){
-        integrationTabs[i]=(Rectangle){x,y+slot++*43,122,36};
-        if(Button(integrationTabs[i],names[i],integrationTab==i,!applying)){integrationTab=i;choiceOpen=-1;integrationScroll=integrationScrollDraw=0;}
-    }
-    if(integrationTab==1&&enabled[1]&&lab_sddm_ready()){SddmLibrary((Rectangle){area.x+148,area.y,area.width-156,area.height});return;}
-    x+=140;w-=140;Rectangle body={x,y-3,w+3,area.height-21},saved=inputClip;inputClip=body;
-    if(!choiceWheel&&Hot(body,true))integrationScroll=Clamp(integrationScroll-ScrollInput(body)*48,0,fmaxf(0,integrationExtent-body.height));choiceWheel=false;
-    integrationScrollDraw=SmoothScroll(integrationScrollDraw,integrationScroll);BeginScissorMode(body.x,body.y,body.width,body.height);y=body.y+6-integrationScrollDraw;
-    if(integrationTab==0&&enabled[0])y+=CaelestiaBody(x,y,w);
-    else if(enabled[1]){
-        y+=TextLines(lab_tr("Da verificare"),x,y,w,16,3,AppTheme.text)+20;
-        if(Button((Rectangle){x,y,w,34},lab_tr("Verifica SDDM"),false,!lab_sddm_busy()&&!applying))lab_sddm_action("check","");y+=46;
-        if(!lab_sddm_ok()&&!lab_sddm_busy())y+=TextLines(lab_tr("Operazione non riuscita. Dettagli nel registro."),x,y,w,13,3,muted)+12;
-    }
-    integrationExtent=fmaxf(0,y+integrationScrollDraw-body.y+20);EndScissorMode();inputClip=saved;
-    integrationScroll=Clamp(integrationScroll,0,fmaxf(0,integrationExtent-body.height));
-    if(integrationExtent>body.height){float height=fmaxf(24,body.height*body.height/integrationExtent);DrawRectangleRounded((Rectangle){body.x+body.width-3,body.y+integrationScrollDraw/(integrationExtent-body.height)*(body.height-height),3,height},1,8,muted);}
+    ThemePanel(area,.025f,12,surface);Rectangle saved=inputClip;inputClip=area;
+    if(!choiceWheel&&Hot(area,true))integrationScroll=fmaxf(0,integrationScroll-ScrollInput(area)*48);choiceWheel=false;
+    integrationScrollDraw=SmoothScroll(integrationScrollDraw,integrationScroll);BeginScissorMode(area.x,area.y,area.width,area.height);
+    int used=CaelestiaBody(area.x+24,area.y+20-integrationScrollDraw,area.width-48);EndScissorMode();inputClip=saved;integrationScroll=Clamp(integrationScroll,0,fmaxf(0,used+40-area.height));
 }

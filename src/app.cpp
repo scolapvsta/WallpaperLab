@@ -12,7 +12,9 @@
 #include "awww_backend.hpp"
 #include "app_background.hpp"
 #include "caelestia_integration.hpp"
-#include "sddm_integration.hpp"
+#include "login_config.hpp"
+#include "login_canvas.hpp"
+#include "login_runtime.hpp"
 #include "theme_catalog.h"
 #include "theme_fonts.hpp"
 #include "render_gpu.hpp"
@@ -70,8 +72,8 @@ std::vector<fs::path> libraryRoots(){
 std::string outputKey(std::string name){for(char& c:name)if(!std::isalnum((unsigned char)c)&&c!='-'&&c!='_')c='_';return name;}
 fs::path feedFrame(const std::string& output){auto file=feedDir()/("frame-"+outputKey(output)+".bin");return fs::exists(file)?file:feedDir()/"frame.bin";}
 std::future<json> fileJob;std::string fileNotice;
-std::future<json> sddmJob;json sddmView=json::object();
-std::future<json> sddmPreviewJob;std::string sddmPreviewPath;std::set<std::string> sddmPreviewFailures;
+json loginDocument;bool loginLoaded=false,loginDirty=false;unsigned loginRevision=1;
+std::chrono::steady_clock::time_point loginChanged;json loginPreviewProcess;fs::path loginPreviewDirectory;std::future<json> loginJob;std::string loginNotice;
 json selectedRunning(const json& selection);
 bool owned(const json& process);
 std::mutex integrationStatusMutex;std::future<void> integrationJob;bool integrationDirty=false;
@@ -372,82 +374,8 @@ const char* lab_app_background(){static std::string path;path=settings.value("ap
 int lab_clear_app_background(){return lab_set_option("app_background_preset",0);}
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
 int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return result.value("background",false)?2:1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
-void lab_sddm_poll(){
- if(sddmPreviewJob.valid()&&sddmPreviewJob.wait_for(std::chrono::seconds(0))==std::future_status::ready){
-  try{auto result=sddmPreviewJob.get();if(!result.value("ok",false)){sddmPreviewFailures.insert(sddmPreviewPath);writeJson(stateDir()/"sddm/last-preview-error.json",result);}}
-  catch(...){sddmPreviewFailures.insert(sddmPreviewPath);}
- }
- if(!sddmJob.valid()||sddmJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return;
- try{sddmView=sddmJob.get();if(!sddmView.value("ok",false)){errorMessage=sddmView.value("error",std::string());writeJson(stateDir()/"sddm/last-error.json",sddmView);}}
- catch(const std::exception& e){errorMessage=e.what();sddmView={{"ok",false},{"ready",false}};}
-}
-int lab_sddm_busy(){return sddmJob.valid();}
-int lab_sddm_ready(){return sddmView.value("ready",false);}
-int lab_sddm_enabled(){return sddmView.value("enabled",false);}
-int lab_sddm_ok(){return sddmView.value("ok",false);}
-int lab_sddm_action(const char* action,const char* value){
- if(sddmJob.valid())return 0;
- if(strcmp(action,"status"))sddmPreviewFailures.clear();
- return guarded([&]{auto roots=libraryRoots();sddmJob=std::async(std::launch::async,[action=std::string(action),value=std::string(value),roots]{return sddmRequest(action,value,roots);});});
-}
-int lab_sddm_count(int presets){auto key=presets?"presets":"backgrounds";return sddmView.contains(key)?sddmView[key].size():0;}
-const char* lab_sddm_label(int presets,int index){return presets?sddmView.at("presets").at(index).get_ref<const std::string&>().c_str():sddmView.at("backgrounds").at(index).at("label").get_ref<const std::string&>().c_str();}
-int lab_sddm_supported(int index){return sddmView.at("backgrounds").at(index).value("supported",false);}
-int lab_sddm_selected(int presets){
- if(!sddmView.contains("config"))return -1;
- auto selected=sddmView["config"][presets?"ui":"wallpaper"].value(presets?"preset":"source",std::string());
- for(int i=0;i<lab_sddm_count(presets);i++)if(selected==(presets?sddmView["presets"][i].get<std::string>():sddmView["backgrounds"][i]["id"].get<std::string>()))return i;
- return -1;
-}
-int lab_sddm_select(int presets,int index){if(index<0||index>=lab_sddm_count(presets))return 0;return lab_sddm_action(presets?"preset":"wallpaper",presets?lab_sddm_label(1,index):sddmView["backgrounds"][index]["id"].get_ref<const std::string&>().c_str());}
-int lab_sddm_option(const char* option){
- if(!sddmView.contains("config"))return 0;
- std::string key=option;auto config=sddmView["config"];
- if(key=="display-mode")return config["wallpaper"].value("display_mode",std::string("mirror"))=="span";
- if(key=="position"){auto position=config["ui"].value("position",std::string("preset"));return position=="left"?1:position=="center"?2:position=="right"?3:0;}
- return key=="crop"?config["wallpaper"].value("crop",true):config["ui"].value("blur",sddmView.value("preset_blur",true));
-}
-const char* lab_sddm_bundle(){static std::string path;path=sddmView.value("bundle",std::string());return path.c_str();}
-float lab_sddm_aspect(){
- if(!lab_sddm_option("display-mode")||!sddmView.contains("screens")||sddmView["screens"].empty())return 16.f/9;
- double left=1e9,top=1e9,right=-1e9,bottom=-1e9;
- for(const auto& s:sddmView["screens"]){double x=s.value("x",0.),y=s.value("y",0.);left=std::min(left,x);top=std::min(top,y);right=std::max(right,x+s.value("width",1280.));bottom=std::max(bottom,y+s.value("height",720.));}
- return std::clamp((right-left)/std::max(1.,bottom-top),.1,16.);
-}
-const char* lab_sddm_text(int kind,int index,const char* key){
- static std::string text;text.clear();
- if(kind==2)text=sddmView.value("final_preview",std::string());
- else if(index>=0&&index<lab_sddm_count(kind))text=sddmView.at(kind?"ui_previews":"backgrounds").at(index).value(key,std::string());
- return text.c_str();
-}
-int lab_sddm_preview_request(int kind,int index){
- auto path=std::string(lab_sddm_text(kind,index,"thumbnail"));if(path.empty())return -1;
- if(fs::is_regular_file(path))return 1;if(sddmPreviewFailures.contains(path))return -1;
- if(!sddmPreviewJob.valid()&&!sddmJob.valid()){
-  auto id=kind==2?std::string():std::string(lab_sddm_text(kind,index,"id"));auto roots=libraryRoots();sddmPreviewPath=path;
-  sddmPreviewJob=std::async(std::launch::async,[kind,id,roots]{return sddmRequest("thumbnail",json({{"kind",kind},{"id",id}}).dump(),roots);});
- }
- return 0;
-}
-float lab_sddm_image(int index,const char* key){
- bool one=!strcmp(key,"contrast")||!strcmp(key,"saturation")||!strcmp(key,"gamma")||!strcmp(key,"zoom");float fallback=one?1.f:0.f;
- if(index<0||index>=lab_sddm_count(0)||!sddmView.contains("config"))return fallback;
- auto wallpaper=sddmView["config"]["wallpaper"];auto source=sddmView["backgrounds"][index]["id"].get<std::string>();auto profile=wallpaper.value("profiles",json::object()).value(source,json::object());
- if(!strcmp(key,"crop"))return profile.value("crop",wallpaper.value("crop",true));
- return profile.value(key,fallback);
-}
-int lab_sddm_edit(int index,const float* values,int count){
- const char* keys[]={"brightness","contrast","saturation","temperature","hue","gamma","vignette","rotation","flip_x","flip_y","zoom","x","y","crop"};
- if(index<0||index>=lab_sddm_count(0)||count!=14)return 0;json image=json::object();
- for(int n=0;n<count;n++){if(!std::isfinite(values[n]))return 0;if(n==13)image[keys[n]]=values[n]>.5f;else image[keys[n]]=values[n];}
- auto argument=json({{"source",std::string(lab_sddm_text(0,index,"id"))},{"values",image}}).dump();return lab_sddm_action("edit",argument.c_str());
-}
-int lab_sddm_favorite(int index,int toggle){
- if(index<0||index>=lab_sddm_count(0))return 0;
- if(toggle){auto id=std::string(lab_sddm_text(0,index,"id"));return lab_sddm_action("favorite",id.c_str());}
- return sddmView["backgrounds"][index].value("favorite",false);
-}
-const char* lab_sddm_shader(){static std::string path=(fs::read_symlink("/proc/self/exe").parent_path()/"sddm-assets/preview.frag").string();return path.c_str();}
+#include "login_api.inc"
+
 int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
 const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):localizedDiagnostic(status.value("error",std::string()));}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
 void lab_cancel_switcher_preview(){stop(switcherDemoProcess);switcherDemoProcess=json::object();}
@@ -621,8 +549,6 @@ int lab_next(int direction){
 }
 void lab_refresh(){
     if(pending.valid())return;
-    static auto lastSddmCheck=std::chrono::steady_clock::now();auto now=std::chrono::steady_clock::now();
-    if(!lab_sddm_busy()&&now-lastSddmCheck>std::chrono::seconds(10)){lastSddmCheck=now;lab_sddm_action("status","");}
     try{settings=loadSettings();setLanguage(languageIndex(settings.value("language",std::string("it"))));if(appliedFamily!=effectiveFont()||appliedWeight!=settings.value("font_weight",1))resolveFonts();placements=loadPlacements();carousel=loadCarousel();shortcut=shortcutSettings();refreshRunning();if(!displayDirty)displayDraft=displayCanvas(displayData,settings);}catch(const std::exception& e){errorMessage=e.what();}
 }
 static json workshopView;
@@ -795,7 +721,7 @@ int lab_popup_poll(int* steps,int* released){
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
 int lab_popup_max_width(){return popupMaxWidth;}
 int lab_popup_max_height(){return popupMaxHeight;}
-void lab_shutdown(){if(sddmPreviewJob.valid())try{sddmPreviewJob.get();}catch(...){}if(sddmJob.valid())try{sddmJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
+void lab_shutdown(){lab_login_save();lab_login_stop_preview();if(loginJob.valid())try{loginJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
 }
 int main(int argc,char**argv) {
     try {
@@ -804,6 +730,7 @@ int main(int argc,char**argv) {
             if(argc!=5||std::string(argv[2])!="--ready-file")throw std::runtime_error("Invalid awww session arguments");
             return awwwMain(json::parse(argv[4]).get<std::vector<std::string>>(),argv[3]);
         }
+        if(argc>2&&(std::string(argv[1])=="--login-preview"||std::string(argv[1])=="--login-greeter"))return loginRun(argv[2],std::string(argv[1])=="--login-preview",argc>3&&std::string(argv[3])=="--window",argc>4?argv[4]:"");
         for(int i=1;i<argc;++i)if(std::string(argv[i]).starts_with("--type="))return engineMain(argc,argv,"");
         if(argc>1&&std::string(argv[1])=="--render") {
             std::string ready;std::vector<char*> av={argv[0]};
@@ -822,7 +749,7 @@ int main(int argc,char**argv) {
             auto result=workshop::snapshot();std::cout<<result.dump(2)<<'\n';workshop::shutdown();return result.value("error",std::string()).empty()?0:1;
         }
         if(argc>1&&std::string(argv[1])=="--help") {
-            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --sddm ACTION [VALUE] | --sddm-settings | --integrations | --restore | --stop | --caelestia-source CONNECTOR | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
+            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --login ACTION [VALUE] | --login-editor | --integrations | --restore | --stop | --caelestia-source CONNECTOR | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
         }
         if(argc>1&&std::string(argv[1])=="--switcher-preview"){
             init(true);switcherDemo=true;demoStarted=std::chrono::steady_clock::now();carousel_popup_main();return 0;
@@ -871,12 +798,18 @@ int main(int argc,char**argv) {
                 if(ftruncate(fd,0)||pwrite(fd,record.data(),record.size(),0)!=(ssize_t)record.size())throw std::runtime_error("Cannot record selector owner");return true;
             }
         } windowLock;
-        const std::set<std::string> windowCommands={"--ui-test","--display-settings","--appearance-settings","--language-settings","--sddm-settings","--integrations","--workshop-ui-test","--workshop"};
+        const std::set<std::string> windowCommands={"--ui-test","--display-settings","--appearance-settings","--language-settings","--login-editor","--integrations","--workshop-ui-test","--workshop"};
         if((argc==1||windowCommands.contains(argv[1]))&&!windowLock.acquire())return 0;
         init(false,argc==1||(argc>1&&(std::string(argv[1])=="--ui-test"||std::string(argv[1])=="--display-settings"||std::string(argv[1])=="--appearance-settings"||std::string(argv[1])=="--language-settings"||std::string(argv[1])=="--resolutions")));
         if(argc>1) {
             std::string cmd=argv[1];
-            if(cmd=="--sddm"){auto result=sddmRequest(argc>2?argv[2]:"status",argc>3?argv[3]:"",libraryRoots());std::cout<<result.dump(2)<<'\n';return result.value("ok",false)?0:1;}
+            if(cmd=="--login"){
+                std::string action=argc>2?argv[2]:"status";ensureLogin();
+                if(action=="enable"||action=="disable"){if(!lab_login_enable(action=="enable"))throw std::runtime_error("Native login configuration failed");while(lab_login_busy()){lab_login_poll();std::this_thread::sleep_for(std::chrono::milliseconds(50));}if(loginDocument.value("enabled",false)!=(action=="enable"))throw std::runtime_error("Native login configuration failed");}
+                else if(action=="set"){if(argc!=4)throw std::invalid_argument("Usage: --login set JSON_PATCH");auto next=loginDocument;next.merge_patch(json::parse(argv[3]));loginDocument=login::validate(next);login::save(loginDocument);}
+                else if(action=="prepare"){int selected=lab_login_selected();if(selected<0)throw std::invalid_argument("Select a login wallpaper first");auto file=login::prepare(loginDocument,items[selected],settings,monitors);std::cout<<json({{"prepared",file.string()}}).dump()<<'\n';return 0;}
+                else if(action!="status")throw std::invalid_argument("Unknown login action");std::cout<<loginDocument.dump(2)<<'\n';return 0;
+            }
             if(cmd=="--import"){if(argc<3)throw std::runtime_error("Uso: --import FILE...");json imported=json::array();for(int n=2;n<argc;n++)imported.push_back(importLocalMedia(argv[n],localLibrary(settings)).string());std::cout<<imported.dump(2)<<'\n';return 0;}
             if(cmd=="--library-path"){if(argc!=4||(std::string(argv[2])!="local"&&std::string(argv[2])!="steam"))throw std::runtime_error("Uso: --library-path local|steam CARTELLA");auto directory=fs::canonical(argv[3]);if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");if(!savePreference(std::string(argv[2])=="local"?"local_path":"workshop_path",directory.string()))throw std::runtime_error(errorMessage);return 0;}
             if(cmd=="--benchmark-properties"){
@@ -951,7 +884,7 @@ int main(int argc,char**argv) {
                 auto error=launch(item,settings,cmd=="--preview");if(!error.empty())throw std::runtime_error(error);
                 if(cmd=="--preview")std::cout<<previewProcess.dump()<<'\n';return 0;
             }
-            if(cmd!="--workshop-ui-test"&&cmd!="--workshop"&&cmd!="--ui-test"&&cmd!="--display-settings"&&cmd!="--appearance-settings"&&cmd!="--language-settings"&&cmd!="--sddm-settings"&&cmd!="--integrations")throw std::runtime_error("Opzione sconosciuta: "+cmd);
+            if(cmd!="--workshop-ui-test"&&cmd!="--workshop"&&cmd!="--ui-test"&&cmd!="--display-settings"&&cmd!="--appearance-settings"&&cmd!="--language-settings"&&cmd!="--login-editor"&&cmd!="--integrations")throw std::runtime_error("Opzione sconosciuta: "+cmd);
         }
         return selector_main(argc,argv);
     }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}

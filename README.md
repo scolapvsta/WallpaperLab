@@ -13,12 +13,12 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
-The source tree is now **1.4.0 (development)**, integrating community contributions for monitor
+The source tree is now **2.0.0 (development)**, integrating community contributions for monitor
 reconnection, rendering GPU selection, output-aware fullscreen pause, optional
 awww image rendering and persistent carousel controls. The downloadable stable
 installer below remains **1.0.0**; build from source to use these additions.
-Development builds also include the opt-in Integrations page and SDDM preview
-described below. The Cyberpunk header now fits its animated 2077 mark above the
+Development builds also include an opt-in native login-screen editor and greetd
+session, described below. The Cyberpunk header now fits its animated 2077 mark above the
 toolbar and omits it when navigation needs the available width.
 
 ## Download and install
@@ -75,23 +75,26 @@ not every Wallpaper Engine scene is supported. Optional Caelestia integration
 requires Caelestia separately. Windows and macOS are not supported by this build.
 Autostart and global shortcuts are configured explicitly inside the app.
 
-## SDDM integration preview
+## Native login screen
 
-Source builds include an optional [SDDM/Astronaut integration](docs/SDDM.md).
-Enable it in **Settings → Integrations → SDDM**. Once an integration is enabled, an **Integrations** tab appears after Workshop.
-It contains the enabled Caelestia and SDDM panels; settings holds their activation
-switches. A successful SDDM greeter check unlocks its wallpaper and login UI choices. Installed
-Astronaut backgrounds, local images/GIFs/videos and compatible native scene projects share
-a searchable card library, with source/type filters, favorites and an image editor.
-Separate login UI cards show real Astronaut preset captures; the final preview
-combines the chosen UI with the saved wallpaper adjustments. Images, GIFs and
-videos share brightness, contrast, saturation, colour, crop and geometry controls.
-Scene previews use a separate hidden native renderer at up to 30 FPS and
-2560×1440. **Final preview → Display** switches between mirror and a panorama
-spanning the connected monitors, including a combined capture. Web projects
-remain unsupported. This phase prepares and previews a local theme; system
-installation and boot activation are not implemented. Native scene previews
-still require the original project and installed Wallpaper Engine assets.
+Enable **Settings → Integrations → Login screen** to reveal its separate launcher
+tab. Caelestia remains independently configurable under **Integrations**.
+
+The native editor includes a shared wallpaper library, five original UI templates,
+movable clock/date/calendar/media/message widgets, fonts and appearance controls.
+It saves independent image adjustments and single/mirror/panoramic output choices,
+with the login UI on the primary, secondary or all monitors. Local images, animated
+GIFs, videos and compatible Steam scenes use Wallpaper Lab's own renderer. Catalog
+posters provide immediate editor feedback; **Live preview** renders the real project
+for up to 60 seconds. It does not accept credentials.
+
+**Apply at next boot** exports a self-contained, administrator-owned bundle and
+configures greetd with a dedicated Hyprland session. greetd handles PAM and starts
+the selected desktop; Wallpaper Lab draws and controls the login screen directly.
+The desktop launcher does not have to run. No SDDM, QML or frame-file bridge is used.
+This is an experimental source feature: read the [setup, recovery and limitations](docs/LOGIN_SCREEN.md)
+before activation. A successful desktop preview is not evidence of a successful
+cold boot. The stable 1.0 installer predates this feature.
 
 ## Report a bug
 
@@ -105,14 +108,14 @@ personal paths/account data and do not upload private wallpapers.
 ```sh
 git clone --recurse-submodules https://github.com/scolapvsta/WallpaperLab.git
 cd WallpaperLab
-sudo pacman -S --needed base-devel cmake ninja git python pkgconf curl freetype2 pango fontconfig sdl2-compat ffmpeg mpv glew glfw lz4 libpulse wayland libx11 libxrandr nss at-spi2-core cups
+sudo pacman -S --needed base-devel cmake ninja git python pkgconf curl freetype2 pango fontconfig sdl2-compat ffmpeg mpv glew glfw libxkbcommon lz4 libpulse wayland libx11 libxrandr nss at-spi2-core cups
 ./scripts/build.sh
 python3 scripts/install.py
 ```
 
-For the optional SDDM editor, install `qt6-shadertools` before building; CMake
-uses `qsb` to compile the shader shipped with the app. The greeter and Astronaut
-remain optional runtime prerequisites described in [SDDM setup](docs/SDDM.md).
+The optional system login feature additionally requires `greetd`, `greetd-agreety`,
+Hyprland with Lua configuration support, D-Bus and polkit. Its editor and preview
+work without greetd. See [native login setup](docs/LOGIN_SCREEN.md).
 
 The upstream engine build downloads its pinned CEF distribution. System GPU
 libraries remain supplied by Arch and your driver. See [release tooling](docs/RELEASING.md)
