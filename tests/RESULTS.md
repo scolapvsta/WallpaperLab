@@ -696,3 +696,12 @@ published beta archives retain their original content.
   seconds apart all differed); the previous build froze (identical captures).
 - Reported trigger: one fullscreen window anywhere paused the wallpapers on all
   monitors, including fullscreen windows in hidden special workspaces.
+
+## Rendering GPU selection (2026-11-08)
+
+- Release build and **14/14 CTest passed**, including the new `render-gpu` test
+  for render-node listing, pci.ids names and fallback for missing devices.
+- Arch with Radeon RX 7900 XTX (0000:03:00.0) and Radeon 610M (0000:12:00.0):
+  a video renderer started with `--lab-gpu pci-0000_12_00_0` used about
+  **138 MiB** of `drm-memory-vram` on the 610M and about **10 MiB** on the
+  7900 XTX, read from `/proc/PID/fdinfo`.

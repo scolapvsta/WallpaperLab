@@ -290,6 +290,7 @@ static void SettingsBody(Rectangle area){
         const char* names[]={"15 FPS","30 FPS","60 FPS","90 FPS","120 FPS"};int values[]={15,30,60,90,120},at=2;for(int i=0;i<5;i++)if(lab_option("fps")==values[i])at=i;
         int next=Choice(10,x,&y,w,lab_tr("Fotogrammi al secondo"),names,5,at);if(next!=at)lab_set_option("fps",values[next]);
         const char* pauseNames[]={lab_tr("Continua a riprodurre"),lab_tr("Pausa a schermo intero"),lab_tr("Pausa solo se attivo")};int pause=lab_option("fullscreen_policy");next=Choice(16,x,&y,w,lab_tr("App a schermo intero"),pauseNames,3,pause);if(next!=pause)lab_set_option("fullscreen_policy",next);
+        if(lab_gpu_count()>1){const char* gpus[9]={lab_tr("Automatica")};int count=1;for(int i=0;i<lab_gpu_count()&&count<9;i++)gpus[count++]=lab_gpu_name(i);int gpu=lab_gpu_selected();next=Choice(17,x,&y,w,lab_tr("GPU di rendering"),gpus,count,gpu);if(next!=gpu)lab_set_gpu(next);}
         const char* keys[]={"muted","disable_audio_processing","disable_mouse","disable_parallax","disable_particles"};
         const char* labels[]={lab_tr("Audio dello sfondo"),lab_tr("Reazione alla musica"),lab_tr("Interazione con il mouse"),lab_tr("Parallasse"),lab_tr("Particelle")};
         for(int i=0;i<5;i++){int current=!lab_option(keys[i]),value=BoolChoice(11+i,x,&y,w,labels[i],current);if(current!=value)lab_set_option(keys[i],!value);}

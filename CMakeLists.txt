@@ -79,6 +79,9 @@ add_test(NAME project-properties COMMAND project-properties-test)
 add_executable(project-source-test tests/project_source_test.cpp src/catalog.cpp)
 target_include_directories(project-source-test PRIVATE src vendor/engine/src/External/json/include)
 add_test(NAME project-source COMMAND project-source-test)
+add_executable(render-gpu-test tests/render_gpu_test.cpp)
+target_include_directories(render-gpu-test PRIVATE src)
+add_test(NAME render-gpu COMMAND render-gpu-test)
 
 # Explicit desktop test only: needs an unlocked compositor, never part of CTest.
 add_executable(text-cache-graphics-test tests/text_cache_graphics_test.c)
