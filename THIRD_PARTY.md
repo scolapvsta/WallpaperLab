@@ -52,6 +52,7 @@ not included in the source repository or application runtime.
 | `engine-live-audio-mute.patch` | Live CEF/MPV audio mute |
 | `engine-output-hotplug.patch` | Wayland output removal and reconnection |
 | `engine-visible-fullscreen.patch` | Fullscreen pause limited to fullscreen windows shown on the renderer's outputs (Hyprland) |
+| `engine-fullscreen-policy.patch` | Preserve focused-window and app-exclusion policies in Hyprland output filtering |
 | `raylib-app-id.patch` | Application desktop identity |
 
 Patches live in `patches/`; application-side compositor rules are in

@@ -1,0 +1,123 @@
+--- a/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.cpp
++++ b/src/WallpaperEngine/Render/Drivers/Detectors/WaylandFullScreenDetector.cpp
+@@ -5,6 +5,7 @@
+ #include "wlr-foreign-toplevel-management-unstable-v1-protocol.h"
+ #include <cstring>
+ #include <nlohmann/json.hpp>
++#include "WallpaperEngine/Render/Helpers/VisibleFullscreen.h"
+ #include <optional>
+ #include <ranges>
+ #include <set>
+@@ -60,46 +61,26 @@
+ 	return json;
+     }
+ 
+-    /**
+-     * Whether every output in `outputs` shows a workspace with a fullscreen window. An empty set
+-     * means any output. Workspaces are matched by name, the only key special workspaces expose.
+-     * Returns nullopt when Hyprland IPC is unavailable.
+-     */
+-    std::optional<bool> hyprlandOutputsCovered (const std::set<std::string>& outputs) {
+-	const auto monitors = hyprlandQuery ("j/monitors");
+-	const auto workspaces = monitors ? hyprlandQuery ("j/workspaces") : std::nullopt;
+-	if (!monitors || !workspaces || !monitors->is_array () || !workspaces->is_array ()) {
+-	    return std::nullopt;
+-	}
+-
+-	std::set<std::string> fullscreen;
+-	for (const auto& workspace : *workspaces) {
+-	    if (workspace.value ("hasfullscreen", false)) {
+-		fullscreen.insert (workspace.value ("name", std::string ()));
+-	    }
+-	}
+-
+-	bool anyCovered = false;
+-	for (const auto& monitor : *monitors) {
+-	    const auto name = monitor.value ("name", std::string ());
+-	    if (!outputs.empty () && !outputs.contains (name)) {
+-		continue;
+-	    }
++    bool isRelevant (const WallpaperEngine::Application::ApplicationContext& ctx,
++                     bool fullscreen, bool activated, const std::string& appId);
+ 
+-	    bool covered = false;
+-	    for (const char* key : { "activeWorkspace", "specialWorkspace" }) {
+-		if (const auto it = monitor.find (key); it != monitor.end () && it->is_object ()) {
+-		    const auto workspace = it->value ("name", std::string ());
+-		    covered = covered || (!workspace.empty () && fullscreen.contains (workspace));
+-		}
+-	    }
+-
+-	    if (!outputs.empty () && !covered) {
+-		return false;
+-	    }
+-	    anyCovered = anyCovered || covered;
+-	}
+-	return anyCovered;
++    // Return nullopt to retain the generic detector when IPC is unavailable.
++    std::optional<bool> hyprlandOutputsCovered (
++        const std::set<std::string>& outputs,
++        const WallpaperEngine::Application::ApplicationContext& ctx
++    ) {
++        const auto monitors = hyprlandQuery ("j/monitors");
++        const auto clients = monitors ? hyprlandQuery ("j/clients") : std::nullopt;
++        if (!monitors || !clients || !monitors->is_array () || !clients->is_array ())
++            return std::nullopt;
++        try {
++            return Helpers::visibleFullscreen (*monitors, *clients, outputs,
++                [&ctx] (bool active, const std::string& appId) {
++                    return isRelevant (ctx, true, active, appId);
++                });
++        } catch (const nlohmann::json::exception&) {
++            return std::nullopt;
++        }
+     }
+ 
+     bool icontains (std::string_view haystack, std::string_view needle) {
+@@ -360,7 +341,7 @@
+     // foreign-toplevel reports fullscreen state but not where it is visible; Hyprland IPC adds it
+     if (const auto now = std::chrono::steady_clock::now (); now - m_visibleCheck >= std::chrono::milliseconds (500)) {
+ 	m_visibleCheck = now;
+-	m_visibleFullscreen = hyprlandOutputsCovered (requestedOutputs ()).value_or (true);
++	m_visibleFullscreen = hyprlandOutputsCovered (requestedOutputs (), getApplicationContext ()).value_or (true);
+     }
+     return m_visibleFullscreen;
+ }
+--- /dev/null
++++ b/src/WallpaperEngine/Render/Helpers/VisibleFullscreen.h
+@@ -0,0 +1,35 @@
++#pragma once
++#include <nlohmann/json.hpp>
++#include <set>
++#include <string>
++
++namespace WallpaperEngine::Render::Helpers {
++// The predicate preserves the detector's focus and application exclusion policy.
++template<class Relevant>
++bool visibleFullscreen(const nlohmann::json& monitors, const nlohmann::json& clients,
++                       const std::set<std::string>& outputs, Relevant relevant) {
++    bool anyCovered = false;
++    for (const auto& monitor : monitors) {
++        const auto name = monitor.value("name", std::string());
++        if (!outputs.empty() && !outputs.contains(name)) continue;
++        bool covered = false;
++        for (const auto& client : clients) {
++            if (!client.value("mapped", false) || client.value("hidden", false)
++                || client.value("fullscreen", 0) != 2
++                || client.value("monitor", -1) != monitor.value("id", -2)
++                || !relevant(client.value("focusHistoryID", -1) == 0,
++                             client.value("class", std::string()))) continue;
++            const auto workspace = client.at("workspace").value("name", std::string());
++            for (const char* key : {"activeWorkspace", "specialWorkspace"}) {
++                const auto it = monitor.find(key);
++                if (it != monitor.end() && it->is_object()
++                    && !workspace.empty() && it->value("name", std::string()) == workspace)
++                    covered = true;
++            }
++        }
++        if (!outputs.empty() && !covered) return false;
++        anyCovered = anyCovered || covered;
++    }
++    return anyCovered;
++}
++}

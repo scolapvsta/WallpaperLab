@@ -1,3 +1,17 @@
+# Version 1.1.0 — source update
+
+- Integrated kylan11's output reconnect fix (#2), rendering GPU selector (#3)
+  and Hyprland fullscreen visibility fix (#4).
+- Integrated Belial02's optional awww backend, Caelestia CLI colour matching,
+  persistent carousel and editable transition timing (#6, superseding #5).
+- Follow-up fullscreen filtering preserves active-window and app-exclusion
+  policies. Overlapping patch upgrades preserve existing local source edits;
+  engine build flags support source directories containing spaces.
+- Default backend, carousel hold behavior, autostart and shortcuts stay opt-in
+  as documented. awww requires an external daemon and does not support panorama.
+- This source update does not publish a replacement for the 1.0.0 installer.
+  See the dated verification record for locally repeated tests and limitations.
+
 # Version 1.0.0
 
 - First stable numbered release for Arch Linux x86_64; Hyprland remains the tested desktop.

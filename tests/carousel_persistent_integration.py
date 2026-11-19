@@ -31,13 +31,13 @@ elif a[0]=='clear':
 f.write_text(json.dumps(s))
 ''');(bin/'awww').chmod(0o755)
 ydotool=shutil.which('ydotool');ydotoold=shutil.which('ydotoold');assert ydotool and ydotoold
-socket=out/'input.sock';socket.unlink(missing_ok=True)
+socket=Path(os.environ['XDG_RUNTIME_DIR'])/f'wallpaper-carousel-{os.getpid()}.sock';socket.unlink(missing_ok=True)
 env=os.environ|{f'XDG_{kind}_HOME':str(out/kind.lower()) for kind in ('CONFIG','STATE','CACHE','DATA')}
 env.update(PATH=str(bin)+':'+os.environ['PATH'],PERSISTENT_TEST_ROOT=str(out),YDOTOOL_SOCKET=str(socket),WALLPAPER_LAB_POPUP_STATE=str(out/'popup.json'))
 log=(out/'test.log').open('w');hosts=[];results={};session=0
 personal_launcher=Path.home()/'.local/bin/wallpaper-lab'
 personal_status=subprocess.check_output([str(personal_launcher),'--status'],text=True)
-personal_image=subprocess.check_output(['awww','query'],text=True)
+personal_image=subprocess.check_output(['awww','query'],text=True) if shutil.which('awww') else None
 def run(*args):return subprocess.check_output(list(map(str,args)),env=env,text=True,stderr=log)
 def wait(fn,timeout=15):
  end=time.monotonic()+timeout
@@ -96,6 +96,6 @@ finally:
    except subprocess.TimeoutExpired:host.terminate();host.wait()
  run(app,'--stop');daemon.terminate();daemon.wait();socket.unlink(missing_ok=True);log.close()
 assert personal_status==subprocess.check_output([str(personal_launcher),'--status'],text=True)
-assert personal_image==subprocess.check_output(['awww','query'],text=True)
+if personal_image is not None:assert personal_image==subprocess.check_output(['awww','query'],text=True)
 results['personal_wallpaper_preserved']=True
 (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))

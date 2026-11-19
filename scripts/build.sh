@@ -28,11 +28,12 @@ python3 scripts/apply-patch-series.py vendor/engine \
     patches/engine-live-audio-mute.patch \
     patches/engine-zoom-out.patch \
     patches/engine-output-hotplug.patch \
-    patches/engine-visible-fullscreen.patch
+    patches/engine-visible-fullscreen.patch \
+    patches/engine-fullscreen-policy.patch
 apply_patch_if_needed vendor/raylib patches/raylib-app-id.patch
 prefix_args=()
 if [[ -d local/sysroot/usr ]]; then prefix_args+=("-DCMAKE_PREFIX_PATH=$PWD/local/sysroot/usr"); fi
-cmake -S vendor/engine -B build-engine -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF "-DCMAKE_C_FLAGS=-ffile-prefix-map=$PWD=." "-DCMAKE_CXX_FLAGS=-ffile-prefix-map=$PWD=." "${prefix_args[@]}"
+cmake -S vendor/engine -B build-engine -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF "-DCMAKE_C_FLAGS=-ffile-prefix-map=\"$PWD\"=." "-DCMAKE_CXX_FLAGS=-ffile-prefix-map=\"$PWD\"=." "${prefix_args[@]}"
 cmake --build build-engine --target linux-wallpaperengine-lib -j "${BUILD_JOBS:-6}"
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release "${prefix_args[@]}"
 cmake --build build -j "${BUILD_JOBS:-6}"

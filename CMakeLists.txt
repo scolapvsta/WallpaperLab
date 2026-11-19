@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 1.0.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 1.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
@@ -114,3 +114,10 @@ add_test(NAME awww-backend COMMAND awww-backend-test)
 add_test(NAME awww-lifecycle COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/awww_lifecycle_integration.py" --app $<TARGET_FILE:wallpaper-lab>)
 add_test(NAME caelestia-cli-parity COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/caelestia_cli_test.py")
 set_tests_properties(caelestia-cli-parity PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(visible-fullscreen-test tests/visible_fullscreen_test.cpp)
+target_include_directories(visible-fullscreen-test PRIVATE vendor/engine/src vendor/engine/src/External/json/include)
+add_test(NAME visible-fullscreen COMMAND visible-fullscreen-test)
+add_test(NAME patch-series COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/patch_series_test.py")
+
+set_tests_properties(awww-lifecycle PROPERTIES ENVIRONMENT "LD_LIBRARY_PATH=${ENGINE_BUILD}/output:${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/lib")

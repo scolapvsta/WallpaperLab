@@ -6,6 +6,49 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Community integration — 2026-11-19 (source 1.1.0)
+
+- Reviewed and combined PRs #2, #3, #4 and #6, preserving contributor commits.
+  #5 was already closed and superseded by #6. Resolved overlapping build patch
+  lists, manifest entries, test records, translations and CLI preference output.
+- Follow-up fix: Hyprland output filtering now checks mapped, visible fullscreen
+  clients and preserves active-window and application-exclusion policies. Tests
+  cover visible/hidden normal and special workspaces, unrelated outputs, span
+  coverage, focused clients, excluded applications, maximized and hidden clients.
+- Complete Release engine and application builds passed from the existing patched
+  dependency tree. Fixed quoted prefix-map flags for source paths containing
+  spaces and upgrade validation for an overlapping, already-applied patch prefix.
+  The 20-patch engine series also validates against clean pinned source files.
+  Dependency pins remain unchanged; pre-existing local dependency edits were
+  backed up and retained. CTest supplies runtime dependency paths to its app test.
+- **19/19 CTest checks passed**, including catalog, process lifecycle with a fake
+  awww daemon, GPU discovery/fallback, fullscreen policy, patch upgrade/preservation,
+  preferences, source containment, translations and real Caelestia CLI parity.
+- Explicit desktop carousel tests passed in Grid, River, Vertical and Wave:
+  persistent release, repeated shortcut taps, arrows/Tab, Enter and Escape;
+  default hold-mode release still applies. Personal wallpaper status was unchanged.
+- Explicit GUI numeric tests passed for inline and customization controls:
+  integer/fractional entry, steppers, limits, invalid/empty input, click-away,
+  field-only Escape, keyboard Up and slider endpoints. Screenshots inspected.
+  Test input sockets use XDG runtime paths so long source paths stay supported.
+- An owned headless output was removed and recreated with the same name. The
+  native video renderer retained its PID, restored its layer and resumed changing
+  frames. Repeated with an explicit AMD integrated GPU request; DRM fdinfo reported
+  `amdgpu` on the requested PCI device. No physical monitor was disconnected.
+- Native lifecycle checks passed over a 106-entry local catalog: scene and video
+  previews, scene replacement, failed-scene preservation and foreign-process
+  preservation. Isolated test renderers were stopped; the personal wallpaper
+  process remained unchanged. Workshop assets and session logs are excluded.
+- Glyph audit passed for **443 messages across 22 locales**, with zero missing
+  glyphs. Installed Caelestia CLI default/hard palette parity tests passed.
+- Limits: awww is absent on this workstation, so its real daemon, multi-output
+  handoff and mixed-DPI cursor origin were not retested. Panorama remains rejected
+  for awww. NVIDIA proprietary offload is not configured/certified by DRI_PRIME.
+  Fullscreen visibility policy is covered deterministically; physical standby and
+  every live fullscreen/focus/exclusion combination were not replayed here.
+- This is a source/local runtime update. The public downloadable installer remains
+  1.0.0; no replacement release installer, shortcut or autostart activation is made.
+
 ## Editable transition timing — 2026-11-11
 
 - awww step is limited to 1–100 throughout preferences, hook import and backend

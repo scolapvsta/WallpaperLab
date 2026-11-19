@@ -18,26 +18,22 @@ def copy_sources(root):
   source=directory/path
   if source.is_symlink():raise SystemExit('Refusing patched symbolic link: '+str(path))
   if source.is_file():dest=root/path;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,dest)
-with tempfile.TemporaryDirectory(prefix='wallpaper-patches-') as temp:
- root=pathlib.Path(temp);copy_sources(root)
- reversed_ok=True
- for patch in reversed(patches):
-  if apply(root,patch,True).returncode:reversed_ok=False;break
- if reversed_ok:print('Patch series already applied and verified');raise SystemExit(0)
-with tempfile.TemporaryDirectory(prefix='wallpaper-patches-') as temp:
- root=pathlib.Path(temp);copy_sources(root);needed=[]
- for patch in patches:
-  if apply(root,patch,check=True).returncode==0:
-   result=apply(root,patch);assert result.returncode==0;needed.append(patch)
-  elif apply(root,patch,reverse=True,check=True).returncode:
-   raise SystemExit('Patch series conflicts with local source; files preserved: '+str(patch))
- for patch in reversed(patches):
-  result=apply(root,patch,reverse=True)
-  if result.returncode:raise SystemExit('Patch series is inconsistent; files preserved: '+str(patch)+'\n'+result.stderr.decode())
- if not a.check:
-  for patch in needed:
-   result=apply(directory,patch,check=True)
-   if result.returncode:raise SystemExit('Source changed during validation; stopped: '+result.stderr.decode())
-   result=apply(directory,patch)
-   if result.returncode:raise SystemExit(result.stderr.decode())
- print(('Validated' if a.check else 'Applied')+' '+str(len(needed))+' patches; local edits preserved')
+# Find the longest already-applied prefix. Reversing individual early patches
+# fails when later patches overlap them, so validate each candidate as a series.
+needed=None
+for count in range(len(patches),-1,-1):
+ with tempfile.TemporaryDirectory(prefix='wallpaper-patches-') as temp:
+  root=pathlib.Path(temp);copy_sources(root)
+  if any(apply(root,patch,reverse=True).returncode for patch in reversed(patches[:count])):continue
+  if any(apply(root,patch).returncode for patch in patches):continue
+  if any(apply(root,patch,reverse=True).returncode for patch in reversed(patches)):continue
+  needed=patches[count:];break
+if needed is None:
+ raise SystemExit('Patch series conflicts with local source; files preserved')
+if not a.check:
+ for patch in needed:
+  result=apply(directory,patch,check=True)
+  if result.returncode:raise SystemExit('Source changed during validation; stopped: '+result.stderr.decode())
+  result=apply(directory,patch)
+  if result.returncode:raise SystemExit(result.stderr.decode())
+print(('Validated' if a.check else 'Applied')+' '+str(len(needed))+' patches; local edits preserved')

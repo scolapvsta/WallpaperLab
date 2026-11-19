@@ -5,7 +5,7 @@ p=argparse.ArgumentParser();p.add_argument('--desktop',action='store_true');p.ad
 if not a.desktop:p.error('--desktop required: opens a test window and injects pointer/keyboard input')
 app=a.app.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);config=out/'config/wallpaper-lab';config.mkdir(parents=True,exist_ok=True);library=out/'library';library.mkdir(exist_ok=True)
 (config/'settings.json').write_text(json.dumps({'wallpaper_backend':1,'language':'en','awww_transition':12,'awww_step':2,'awww_duration':2000,'caelestia_enabled':False}))
-state=out/'ui.json';sock=out/'input.sock';sock.unlink(missing_ok=True);env=os.environ|{'XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'XDG_DATA_HOME':str(out/'data'),'WALLPAPER_LAB_LIBRARY':str(library),'WALLPAPER_LAB_UI_STATE':str(state),'WALLPAPER_LAB_UI_READ_ONLY':'1','YDOTOOL_SOCKET':str(sock)}
+state=out/'ui.json';sock=pathlib.Path(os.environ['XDG_RUNTIME_DIR'])/f'wallpaper-numbers-{os.getpid()}.sock';sock.unlink(missing_ok=True);env=os.environ|{'XDG_CONFIG_HOME':str(out/'config'),'XDG_STATE_HOME':str(out/'state'),'XDG_DATA_HOME':str(out/'data'),'WALLPAPER_LAB_LIBRARY':str(library),'WALLPAPER_LAB_UI_STATE':str(state),'WALLPAPER_LAB_UI_READ_ONLY':'1','YDOTOOL_SOCKET':str(sock)}
 ydotool=shutil.which('ydotool');ydotoold=shutil.which('ydotoold');assert ydotool and ydotoold
 log=(out/'ui.log').open('w');daemon=subprocess.Popen([ydotoold,'--socket-path='+str(sock)],stdout=log,stderr=log);ui=None
 

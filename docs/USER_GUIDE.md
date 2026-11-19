@@ -324,7 +324,9 @@ Choosing a device sets `DRI_PRIME` for the renderer only, so an integrated GPU
 can render while the discrete GPU's memory stays free for other work. The
 compositor still copies frames to the GPU driving the display. The choice
 applies the next time a wallpaper starts; a missing device falls back to
-Automatic.
+Automatic. Selection uses Mesa's `DRI_PRIME`; proprietary NVIDIA offload is
+not configured or certified by this setting. AMD integrated rendering has been
+checked locally; see the verification record for hardware coverage.
 
 Global and local audio controls mute immediately without restarting. Web mute
 covers media elements, Web Audio and iframes, including reloads and page-side
@@ -392,3 +394,16 @@ The log retains the original technical message for troubleshooting. Project
 titles, author names, descriptions, unknown creator tags, font family names and
 named theme/palette artwork remain original content. CLI help and developer logs
 are technical output rather than translated interface content.
+
+## Monitor reconnection and fullscreen pause
+
+The native Wayland renderer can restore its surface after a requested connector
+is removed and reappears, including monitors that report a disconnect in standby.
+The same renderer process resumes; controller process liveness alone does not
+prove that an output is currently displaying frames.
+
+On Hyprland, fullscreen pause considers visible workspaces on the renderer's
+outputs. Hidden workspaces and unrelated monitors do not pause that renderer.
+For a renderer spanning several outputs, all its outputs must be covered.
+The active-window policy and application exclusions still apply. Other
+compositors retain the generic fullscreen detector behavior.

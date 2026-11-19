@@ -13,6 +13,11 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
+The source tree is now **1.1.0**, integrating community contributions for monitor
+reconnection, rendering GPU selection, output-aware fullscreen pause, optional
+awww image rendering and persistent carousel controls. The downloadable stable
+installer below remains **1.0.0**; build from source to use these additions.
+
 ## Download and install
 
 [**Download the Arch Linux 1.0 installer**](https://github.com/scolapvsta/WallpaperLab/releases/latest/download/Wallpaper-Lab-Arch-x86_64.run)
