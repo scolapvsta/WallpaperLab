@@ -111,7 +111,7 @@ try:
     click(g()['login_inspector_tabs'][1]);time.sleep(.3)
     before=draft();click(g()['login_palette'][0]);wait(lambda:draft()['widgets']['login']['button_color']!=before['widgets']['login']['button_color'])
     def without_colors(value):
-        return {k:without_colors(v)for k,v in value.items()if k not in {'color','accent','background','border_color','effect_color','field_color','button_color','button_text_color','button_effect_color'}} if isinstance(value,dict)else value
+        return {k:without_colors(v)for k,v in value.items()if k not in {'color','accent','background','border_color','effect_color','field_color','button_color','button_text_color','button_effect_color','password_color','password_background','placeholder_color','user_icon_color','password_icon_color','header_color','system_color','session_color','keyboard_color','warning_color','dropdown_color','dropdown_background','dropdown_selected','highlight'}} if isinstance(value,dict)else value
     assert without_colors(draft())==without_colors(before)
     shot('color-suggestion');click(g()['login_palette'][1]);wait(lambda:draft()==before);results['color_suggestion_preserves_all_non_colors_and_undoes']=True
     assert 'auto_palette'not in draft()and'light'not in draft()
@@ -149,6 +149,23 @@ try:
     imported=json.loads(next((config/'login-presets/complete').glob('*.json')).read_text());imported['name']='Imported blue';imported['data']['widgets']['login']['welcome_text']='Imported';(config/'login-presets/complete/imported.json').write_text(json.dumps(imported))
     choose(111,2);click(g()['login_presets'][1]);wait(lambda:draft()['widgets']['login']['welcome_text']=='Imported');results['external_json_preset_discovery']=True
     run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1000,y=740,relative=false}}));hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}}))');time.sleep(.5);shot('compact-wallpapers');click(g()['login_tabs'][1]);time.sleep(.5);shot('compact-editor')
+    # Load every shipped design through the actual preset selector. The second
+    # Sakura intentionally has identical UI settings and a separate entry.
+    shipped=sorted((json.loads(p.read_text())for p in (app.parent/'login-assets/astronaut/presets').glob('*.json')),key=lambda p:p['name'])
+    assert len(shipped)==10
+    kept={k:draft()[k]for k in ['source','profiles','mode','fps']}
+    for index,preset in enumerate(shipped):
+        click(g()['choices']['111']['control']);wait(lambda:g()['choice_open']==111)
+        for attempt in range(16):
+            point=g()['choices']['111']['options'][index+1]
+            if point[0]>0 and point[1]>0:break
+            options=g()['choices']['111']['options'];first=next(n for n,p in enumerate(options)if p[0]>0 and p[1]>0);direction='2' if index+1<first else '-2';point=options[first];win=window();run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={round(win["at"][0]+point[0])},y={round(win["at"][1]+point[1])},relative=false}}))');run('ydotool','mousemove','--wheel','--','0',direction);time.sleep(.3)
+        else:raise AssertionError('Shipped preset did not become visible')
+        click(point);wait(lambda:g()['choice_open']!=111);click(g()['login_presets'][1]);wait(lambda:draft()['widgets']['login']['font']==preset['data']['font'] and draft()['widgets']['login']['layout']=='astronaut')
+        assert all(draft()[k]==v for k,v in kept.items())
+        assert draft()['widgets']['login']['astronaut']==preset['data']['widgets']['login']['astronaut']
+        shot('preset-'+str(index+1))
+    results['ten_shipped_presets_load_in_editor_without_wallpaper_changes']=True
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))
 finally:
     stop(ui);stop(daemon);log.close();socket.unlink(missing_ok=True)

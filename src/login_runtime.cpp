@@ -1,5 +1,7 @@
 #include "login_runtime.hpp"
 #include "login_canvas.hpp"
+#include "login_astronaut.hpp"
+#include <sys/wait.h>
 #include "login_auth.hpp"
 #include "displays.hpp"
 #include "theme_fonts.hpp"
@@ -21,6 +23,7 @@ int engineMain(int,char**,const std::string&);
 namespace {
 using namespace lab;using namespace lab::login;
 json document;CanvasState state;bool active=false,quit=false;std::unique_ptr<Auth> auth;
+pid_t powerChild=-1;std::string systemStatus;
 std::string activeOutput;
 std::map<std::string,json> outputProfiles;
 std::map<std::string,std::array<float,13>> outputImages;
@@ -33,16 +36,28 @@ void touch(){lastInput=std::chrono::steady_clock::now();revision++;}
 void focus(int field){state.focus=field;state.cursor=(field==0?state.username:state.input).size();touch();}
 void wipe(){explicit_bzero(state.input.data(),state.input.size());state.input.clear();state.cursor=0;}
 void submit(){
+    systemStatus.clear();
     if(state.preview){state.status=translate("Anteprima");if(state.focus==0)focus(1);revision++;return;}
     if(!auth||auth->busy())return;
     if(auth->phase==Auth::Phase::Idle||auth->phase==Auth::Phase::Error){auth->create(state.username);focus(1);wipe();}
     else if(auth->phase==Auth::Phase::Prompt){auth->respond(state.input);wipe();}
     state.busy=auth->busy();revision++;
 }
+void powerAction(int action){
+    static const char* methods[]={"PowerOff","Reboot","Suspend","Hibernate"};
+    if(action<0||action>3)return;
+    if(state.preview){state.status=std::string("Preview · ")+methods[action];touch();return;}
+    if(powerChild>0)return;if(auth)auth->cancel();wipe();state.reveal=false;
+    const char* argv[]={"busctl","--system","--timeout=20","call","org.freedesktop.login1","/org/freedesktop/login1","org.freedesktop.login1.Manager",methods[action],"b","false",nullptr};
+    GError* error=nullptr;GPid child=0;if(!g_spawn_async(nullptr,const_cast<char**>(argv),nullptr,GSpawnFlags(G_SPAWN_SEARCH_PATH|G_SPAWN_DO_NOT_REAP_CHILD|G_SPAWN_STDOUT_TO_DEV_NULL|G_SPAWN_STDERR_TO_DEV_NULL),nullptr,nullptr,&child,&error)){state.status="System action unavailable";if(error)g_error_free(error);}else{powerChild=child;state.status="Requesting system action…";}systemStatus=state.status;state.busy=powerChild>0;touch();
+}
 void poll(){
+    if(powerChild>0){int status=0;if(waitpid(powerChild,&status,WNOHANG)==powerChild){g_spawn_close_pid(powerChild);powerChild=-1;systemStatus=WIFEXITED(status)&&WEXITSTATUS(status)==0?"":"System action not permitted by the session";state.status=systemStatus;revision++;}}
+
     if(state.preview&&std::chrono::steady_clock::now()-began>std::chrono::seconds(60))quit=true;
     if(!auth)return;auto old=auth->phase;auth->poll();
-    if(old!=auth->phase||state.status!=auth->error){revision++;state.prompt=auth->prompt;state.secret=auth->secret;state.status=auth->error;state.busy=auth->busy();}
+    auto status=auth->error.empty()?systemStatus:auth->error;bool busy=auth->busy()||powerChild>0;
+    if(old!=auth->phase||state.status!=status||state.busy!=busy){revision++;state.prompt=auth->prompt;state.secret=auth->secret;state.status=status;state.busy=busy;}
     if(auth->phase==Auth::Phase::Authenticated){
         if(choices.empty()){state.status="No Wayland session installed";auth->cancel();return;}
         auth->start(choices.at(selectedSession));state.busy=true;revision++;
@@ -59,6 +74,7 @@ void initializeGL(){
     const char* fs="#version 330 core\nin vec2 uv;out vec4 pixel;uniform sampler2D overlay;void main(){pixel=texture(overlay,uv);}";
     auto vertex=compile(GL_VERTEX_SHADER,vs),fragment=compile(GL_FRAGMENT_SHADER,fs);program=glCreateProgram();glAttachShader(program,vertex);glAttachShader(program,fragment);glLinkProgram(program);glDeleteShader(vertex);glDeleteShader(fragment);GLint ok;glGetProgramiv(program,GL_LINK_STATUS,&ok);if(!ok)throw std::runtime_error("Native login shader linking failed");glGenVertexArrays(1,&vao);
 }
+#include "login_blur.inc"
 }
 extern "C" void wallpaper_lab_login_output(const char* output){activeOutput=output;}
 extern "C" int wallpaper_lab_login_image(float* values){
@@ -81,19 +97,21 @@ extern "C" void wallpaper_lab_login_draw(const char* name,int x,int y,int w,int 
         if(image.w!=w||image.h!=h||image.revision!=revision||image.minute!=minute||image.animation!=animation){
             auto pixels=draw(document,w,h,state,std::time(nullptr));if(!image.texture)glGenTextures(1,&image.texture);glBindTexture(GL_TEXTURE_2D,image.texture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.rgba.data());image.w=w;image.h=h;image.revision=revision;image.minute=minute;image.animation=animation;
         }
-        glViewport(x,y,w,h);glDisable(GL_DEPTH_TEST);glDisable(GL_SCISSOR_TEST);glDisable(GL_CULL_FACE);glEnable(GL_BLEND);glBlendEquation(GL_FUNC_ADD);glBlendFuncSeparate(GL_ONE,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glUseProgram(program);glBindVertexArray(vao);glBindTexture(GL_TEXTURE_2D,image.texture);glUniform1i(glGetUniformLocation(program,"overlay"),0);glDrawArrays(GL_TRIANGLES,0,6);
+        glViewport(x,y,w,h);glDisable(GL_DEPTH_TEST);glDisable(GL_SCISSOR_TEST);glDisable(GL_CULL_FACE);blurBackdrop(name,x,y,w,h);glEnable(GL_BLEND);glBlendEquation(GL_FUNC_ADD);glBlendFuncSeparate(GL_ONE,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glUseProgram(program);glBindVertexArray(vao);glBindTexture(GL_TEXTURE_2D,image.texture);glUniform1i(glGetUniformLocation(program,"overlay"),0);glDrawArrays(GL_TRIANGLES,0,6);
         glBindTexture(GL_TEXTURE_2D,oldTexture);glActiveTexture(oldActive);glBindVertexArray(oldVao);glUseProgram(oldProgram);glViewport(oldViewport[0],oldViewport[1],oldViewport[2],oldViewport[3]);glBlendFuncSeparate(srcRGB,dstRGB,srcA,dstA);glBlendEquationSeparate(eqRGB,eqA);if(!blend)glDisable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);if(scissor)glEnable(GL_SCISSOR_TEST);if(cull)glEnable(GL_CULL_FACE);
         static bool ready=false;if(!ready){std::cout<<"WALLPAPER_LAB_LOGIN_READY\n"<<std::flush;ready=true;}
     }catch(const std::exception& e){if(diagnostic!=e.what()){diagnostic=e.what();std::cerr<<"Login drawing failed: "<<diagnostic<<'\n';}quit=true;}
 }
 extern "C" void wallpaper_lab_login_symbol(unsigned symbol){
     if(!active)return;
+    if(state.powerConfirm>=0){if(symbol==XKB_KEY_Escape){state.powerConfirm=-1;touch();}else if(symbol==XKB_KEY_Return){int action=state.powerConfirm;state.powerConfirm=-1;powerAction(action);}return;}
+    if(state.keyboardOpen&&symbol==XKB_KEY_Escape){state.keyboardOpen=false;touch();return;}
     if(state.menuOpen){
         if(symbol==XKB_KEY_Escape||symbol==XKB_KEY_Tab){state.menuOpen=false;touch();return;}
         if(symbol==XKB_KEY_Up||symbol==XKB_KEY_Down||symbol==XKB_KEY_Home||symbol==XKB_KEY_End){state.menuIndex=std::clamp(symbol==XKB_KEY_Home?0:symbol==XKB_KEY_End?int(choices.size())-1:state.menuIndex+(symbol==XKB_KEY_Up?-1:1),0,std::max(0,int(choices.size())-1));state.menuScroll=std::clamp(state.menuIndex-2,0,std::max(0,int(choices.size())-5));touch();return;}
         if(symbol==XKB_KEY_Return||symbol==XKB_KEY_KP_Enter){selectedSession=state.menuIndex;state.session=choices.at(selectedSession).name;state.menuOpen=false;touch();}return;
     }
-    if(state.focus==2&&(symbol==XKB_KEY_Return||symbol==XKB_KEY_space||symbol==XKB_KEY_Down)&&!choices.empty()){state.menuOpen=true;state.menuIndex=selectedSession;state.menuScroll=std::clamp(selectedSession-2,0,std::max(0,int(choices.size())-5));touch();return;}
+    if(state.focus==2&&(symbol==XKB_KEY_Return||symbol==XKB_KEY_space||symbol==XKB_KEY_Down)&&!choices.empty()){state.keyboardOpen=false;state.menuOpen=true;state.menuIndex=selectedSession;state.menuScroll=std::clamp(selectedSession-2,0,std::max(0,int(choices.size())-5));touch();return;}
     if(symbol==XKB_KEY_Escape){if(state.preview)quit=true;else if(auth&&!auth->busy()){auth->cancel();wipe();focus(0);state.status.clear();}revision++;return;}
     if(state.busy)return;
     if(symbol==XKB_KEY_Return||symbol==XKB_KEY_KP_Enter){submit();return;}
@@ -109,15 +127,23 @@ extern "C" void wallpaper_lab_login_symbol(unsigned symbol){
     }
 }
 extern "C" void wallpaper_lab_login_text(unsigned code){
-    if(!active||state.busy||state.menuOpen||code<32||code==127||code>0x10ffff||state.focus==2)return;
+    if(!active||state.busy||state.menuOpen||state.powerConfirm>=0||code<32||code==127||code>0x10ffff||state.focus==2)return;
     auto& value=state.focus==0?state.username:state.input;if(value.size()>512)return;
     if(state.focus==0&&auth&&auth->phase!=Auth::Phase::Idle&&auth->phase!=Auth::Phase::Error)return;
     char bytes[8]{};int n=g_unichar_to_utf8(code,bytes);state.cursor=std::clamp(state.cursor,0,int(value.size()));value.insert(state.cursor,bytes,n);state.cursor+=n;explicit_bzero(bytes,sizeof(bytes));touch();
 }
 extern "C" void wallpaper_lab_login_pointer(const char* output,double x,double y,int pressed){
     if(!active||!showUI(output))return;if(x>=0&&y>=0){pointerX=x;pointerY=y;}if(!pressed||state.busy)return;
-    int action=hit(document,pointerX,pointerY,&state);if(action==0||action==1){focus(action);if(action==1&&auth&&auth->phase==Auth::Phase::Idle)submit();}
-    else if(action==2&&!choices.empty()){focus(2);state.menuOpen=true;state.menuIndex=selectedSession;state.menuScroll=std::clamp(selectedSession-2,0,std::max(0,int(choices.size())-5));}
+    int action=hit(document,pointerX,pointerY,&state);
+    if(action>=10&&action<=13){state.powerConfirm=action-10;state.keyboardOpen=false;state.menuOpen=false;touch();return;}
+    if(action==300){int chosen=state.powerConfirm;state.powerConfirm=-1;powerAction(chosen);return;}
+    if(action==301){state.powerConfirm=-1;touch();return;}
+    if(action==14){state.keyboardOpen=!state.keyboardOpen;if(state.focus==2)focus(1);touch();return;}
+    if(action==15){state.reveal=!state.reveal;touch();return;}
+    if(action>=200&&action<250){std::string letters;for(auto& row:keyRows)letters+=row;int index=action-200;if(index<int(letters.size())){char code=letters[index];if(state.keyboardShift){std::string from="1234567890-=[];',./",to="!@#$%^&*()_+{}\":<>?";auto at=from.find(code);code=at==std::string::npos?std::toupper(code):to[at];}wallpaper_lab_login_text(code);}return;}
+    if(action==250){state.keyboardShift=!state.keyboardShift;touch();return;}if(action==251){wallpaper_lab_login_text(' ');return;}if(action==252){wallpaper_lab_login_symbol(XKB_KEY_BackSpace);return;}if(action==253){wallpaper_lab_login_symbol(XKB_KEY_Return);return;}if(action==254){state.keyboardOpen=false;touch();return;}
+    if(action==0||action==1){focus(action);if(action==1&&auth&&auth->phase==Auth::Phase::Idle)submit();}
+    else if(action==2&&!choices.empty()){focus(2);state.keyboardOpen=false;state.menuOpen=true;state.menuIndex=selectedSession;state.menuScroll=std::clamp(selectedSession-2,0,std::max(0,int(choices.size())-5));}
     else if(action>=100&&action-100<int(choices.size())){selectedSession=action-100;state.session=choices[selectedSession].name;state.menuOpen=false;}else if(action==6)state.menuOpen=false;
     else if(action==3)submit();else if(action==4)wallpaper_lab_login_symbol(XKB_KEY_Escape);revision++;
 }

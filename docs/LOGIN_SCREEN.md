@@ -232,3 +232,9 @@ preview alone does not validate PAM login, VT handoff or a cold boot.
 - This is a login greeter, not a secure desktop lock screen. Do not use preview as
   a lock screen. On-screen keyboards, accessibility integration and X11 sessions
   are not implemented.
+
+## Astronaut presets
+
+Version 2.5 includes ten native, editable [Astronaut UI presets](ASTRONAUT_PRESETS.md).
+Loading a UI preset preserves wallpaper and display settings; publish explicitly
+with **Apply at next boot** after previewing the selected design.

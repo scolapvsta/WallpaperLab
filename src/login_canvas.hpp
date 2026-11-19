@@ -4,6 +4,8 @@
 namespace lab::login {
 struct CanvasState {
     std::string username="User",input,session="Desktop",prompt="Password",status,title;
+    bool keyboardOpen=false,keyboardShift=false,reveal=false;
+    int powerConfirm=-1;
     bool secret=true,busy=false,preview=true,paused=false;
     int focus=0,cursor=0;
     bool caret=false;float inputProgress=1;

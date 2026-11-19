@@ -18,7 +18,8 @@ def pinned(t,repo,prefix,expected):
  if actual!=expected:raise RuntimeError('Submodule pin mismatch: '+str(repo))
  # Archive Git objects rather than the patched worktree: patch-created untracked
  # files are reconstructed by build.sh, keeping the exported source reproducible.
- data=subprocess.check_output(['git','archive','--format=tar',actual],cwd=repo)
+ paths=['Themes','Components','Assets','Main.qml','LICENSE','README.md','metadata.desktop'] if repo.name=='astronaut-design' else []
+ data=subprocess.check_output(['git','archive','--format=tar',actual,*paths],cwd=repo)
  with tarfile.open(fileobj=io.BytesIO(data))as source:
   for info in source:
    stream=source.extractfile(info)if info.isfile()else None

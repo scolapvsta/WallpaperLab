@@ -1,3 +1,17 @@
+# Version 2.5.0 — native Astronaut UI presets
+
+- Add ten editable UI-only presets derived from the pinned Astronaut designs,
+  preserving the chosen wallpaper, image edits and display configuration.
+- Reproduce the source form strips, clock/date typography, fields, colors,
+  icons and lower session controls in the native renderer.
+- Add GPU backdrop blur, optional native on-screen keyboard, password visibility
+  and confirmed system actions through logind; preview remains non-authenticating.
+- Support personal overrides of shipped presets without writing application files.
+- Bundle only the redistributable font subset with notices, report missing optional
+  fonts, and exclude upstream wallpapers/restricted fonts from source packaging.
+- Record comparison captures, 23 passing CTest checks and editor/native/lifecycle
+  verification in [the validation report](ASTRONAUT_PRESETS_TEST_RESULTS.md).
+
 # Version 2.4.0 — login presets and color controls
 
 - Add named UI-only and complete wallpaper/UI presets, persistent JSON collections,

@@ -1,11 +1,12 @@
 {
   "project": "Wallpaper Lab",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "date": "2026-11-19",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
     "hellpaper": "9774fe954bc01957defcb62629d71139231f2b8e",
-    "raylib": "c1ab645ca298a2801097931d1079b10ff7eb9df8"
+    "raylib": "c1ab645ca298a2801097931d1079b10ff7eb9df8",
+    "astronaut-design": "abb3163c724935af888ba5ea9ac0c4f22afd8048"
   },
   "patches": {
     "patches/engine-integration.patch": "f9cfbc7137264b7d187d3dd311312141fe153a6e36918801456872bf32d234b7",

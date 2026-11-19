@@ -13,7 +13,7 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
-The source tree is now **2.4.0 (development)**, integrating community contributions for monitor
+The source tree is now **2.5.0 (development)**, integrating community contributions for monitor
 reconnection, rendering GPU selection, output-aware fullscreen pause, optional
 awww image rendering and persistent carousel controls. The downloadable stable
 installer below remains **1.0.0**; build from source to use these additions.
@@ -80,7 +80,8 @@ Autostart and global shortcuts are configured explicitly inside the app.
 Enable **Settings → Integrations → Login screen** to reveal its separate launcher
 tab. Caelestia remains independently configurable under **Integrations**.
 
-The native editor includes a shared wallpaper library, one editable base UI,
+The native editor includes a shared wallpaper library, an editable base UI and ten
+[Astronaut UI presets](docs/ASTRONAUT_PRESETS.md),
 movable clock/date/login widgets, magnetic alignment and independent fonts,
 colours and text effects. The wallpaper tab also contains display settings.
 It saves independent image adjustments and single/mirror/panoramic output choices,

@@ -1,4 +1,7 @@
 #include "login_canvas.hpp"
+#include "login_astronaut.hpp"
+#include "login_assets.hpp"
+#include <map>
 #include "i18n.hpp"
 #include <pango/pangocairo.h>
 #include <algorithm>
@@ -7,12 +10,18 @@
 namespace lab::login {
 std::array<double,4> widgetRect(const json& d,int i){auto& w=d.at("widgets").at(widgets.at(i));return {w.at("x"),w.at("y"),w.at("width"),w.at("height")};}
 std::array<double,4> sessionMenuRect(const json& d,int count){
+    if(astronaut(d)){auto r=astronautControls(d)[2].rect;double h=std::min(5,std::max(1,count))*.035;r[1]=std::max(.01,r[1]-h);r[3]=h;return r;}
     auto r=widgetRect(d,2);double h=std::min(5,std::max(1,count))*r[3]*.085,y=r[1]+r[3]*.66;
     if(y+h>.98)y=std::max(.01,r[1]+r[3]*.53-h);
     return {r[0]+r[2]*.04,y,r[2]*.92,h};
 }
 int hit(const json& d,double x,double y,const CanvasState* state){
+    auto inside=[&](const Rect& r){return x>=r[0]&&x<r[0]+r[2]&&y>=r[1]&&y<r[1]+r[3];};
+    if(state&&state->powerConfirm>=0){if(inside({.36,.53,.13,.06}))return 300;if(inside({.51,.53,.13,.06}))return 301;return -1;}
+    if(state&&state->keyboardOpen){for(auto& key:keyboardControls(d))if(inside(key.rect))return key.action;}
     if(state&&state->menuOpen){auto r=sessionMenuRect(d,state->sessions.size());if(x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<r[1]+r[3])return 100+state->menuScroll+int((y-r[1])/(r[3]/std::min(5,std::max(1,int(state->sessions.size())))));return 6;}
+    if(astronaut(d)){for(auto& control:astronautControls(d))if(inside(control.rect)){
+        if(control.action==1&&x<control.rect[0]+control.rect[2]*.15)return 15;return control.action;}return -1;}
     auto r=widgetRect(d,2);double a=(x-r[0])/r[2],b=(y-r[1])/r[3];
     if(a>=0&&a<=1&&b>=0&&b<=1){if(b<.28)return 0;if(b<.50)return 1;if(b<.67)return 2;if(b<.85)return 3;return 4;}return -1;
 }
@@ -42,15 +51,25 @@ Pixels draw(const json& d,int width,int height,const CanvasState& state,std::tim
         auto layout=layoutFor(value,size,align?w:-1);int tw,th;pango_layout_get_pixel_size(layout,&tw,&th);cairo_save(cr);cairo_rectangle(cr,x,y,w,h);cairo_clip(cr);paintText(layout,x,y+(h-th)/2);cairo_restore(cr);g_object_unref(layout);
     };
     auto panel=[&](double x,double y,double w,double h){round(x,y,w,h,style->value("radius",20.)*scale);ink(style->value("background",std::string("#101522")),style->value("background_opacity",0.));cairo_fill(cr);double line=style->value("border_width",0.)*scale;if(line>0){round(x+line/2,y+line/2,w-line,h-line,style->value("radius",20.)*scale);ink(style->value("border_color",std::string("#87cfdf")));cairo_set_line_width(cr,line);cairo_stroke(cr);}};
+    auto icon=[&](const char* name,double x,double y,double size){
+        struct Surface{explicit Surface(cairo_surface_t* value):p(value){} cairo_surface_t* p;~Surface(){cairo_surface_destroy(p);}};
+        static std::map<std::string,std::shared_ptr<Surface>> cache;auto& image=cache[name];if(!image)image=std::make_shared<Surface>(cairo_image_surface_create_from_png((astronautAssets()/"icons"/(std::string(name)+".png")).c_str()));
+        if(cairo_surface_status(image->p)!=CAIRO_STATUS_SUCCESS)return;cairo_save(cr);cairo_translate(cr,x,y);cairo_scale(cr,size/128,size/128);cairo_mask_surface(cr,image->p,0,0);cairo_restore(cr);
+    };
+    // A full-height form strip sits behind the independently editable clock/date.
+    if(astronaut(d)){auto r=widgetRect(d,2);cairo_push_group(cr);panel(r[0]*width,r[1]*height,r[2]*width,r[3]*height);cairo_pop_group_to_source(cr);cairo_paint_with_alpha(cr,(*style)["opacity"].get<double>());}
     std::tm now{};localtime_r(&when,&now);
     for(int i=0;i<int(widgets.size());i++){
         auto& v=d.at("widgets").at(widgets[i]);if(!v.at("enabled").get<bool>())continue;style=&v;auto r=widgetRect(d,i);double x=r[0]*width,y=r[1]*height,w=r[2]*width,h=r[3]*height,size=v.at("size").get<double>()*scale;
-        cairo_save(cr);cairo_rectangle(cr,x,y,w,h);cairo_clip(cr);cairo_push_group(cr);panel(x,y,w,h);ink(v["color"]);
+        cairo_save(cr);cairo_rectangle(cr,x,y,w,h);cairo_clip(cr);cairo_push_group(cr);if(i!=2||!astronaut(d))panel(x,y,w,h);ink(v["color"]);
         if(i==0){
             bool seconds=v.value("seconds",false);char buffer[64];std::strftime(buffer,sizeof(buffer),v.value("format",std::string("24"))=="12"?(seconds?"%I:%M:%S %p":"%I:%M %p"):(seconds?"%H:%M:%S":"%H:%M"),&now);text(buffer,x,y,w,h,size);
         }else if(i==1){
-            auto format=v.value("format",std::string("long"));char buffer[160];std::strftime(buffer,sizeof(buffer),format=="iso"?"%Y-%m-%d":format=="short"?"%d/%m/%Y":format=="weekday"?"%A":"%A, %d %B",&now);std::string label=buffer;if(v.value("uppercase",false)){auto upper=g_utf8_strup(label.c_str(),-1);label=upper;g_free(upper);}text(label,x,y,w,h,size);
+            auto format=v.value("format",std::string("long"));char buffer[160];std::strftime(buffer,sizeof(buffer),format=="astronaut_long"?"%A %-d %B":format=="astronaut_day"?"%A %-d":format=="cyberpunk"?"%-m/%d 2077":format=="iso"?"%Y-%m-%d":format=="short"?"%d/%m/%Y":format=="weekday"?"%A":"%A, %d %B",&now);std::string label=buffer;if(v.value("uppercase",false)){auto upper=g_utf8_strup(label.c_str(),-1);label=upper;g_free(upper);}text(label,x,y,w,h,size);
         }else{
+            if(astronaut(d)){
+#include "login_astronaut_draw.inc"
+            }else{
             // Native fields share their style and hit geometry between preview and greeter.
             double pad=v.value("padding",24.)*scale,ww=w-2*pad;auto accent=v.value("button_color",std::string("#87cfdf"));
             auto field=[&](double top,double fh,const std::string& label,int focus){
@@ -76,13 +95,15 @@ Pixels draw(const json& d,int width,int height,const CanvasState& state,std::tim
             field(.34,fh,state.input.empty()?prompt:state.input,1);field(.54,.10,state.session+"  ▾",2);
             round(x+pad,y+h*.70,ww,h*v.value("button_height",.12),v.value("field_radius",10.)*scale);ink(accent,state.busy?.55:.95);cairo_fill(cr);ink(v["button_text_color"]);auto buttonStyle=v;buttonStyle["effect"]=v.value("button_effect",std::string("none"));buttonStyle["effect_color"]=v.value("button_effect_color",std::string("#000000"));buttonStyle["effect_depth"]=v.value("button_effect_depth",2.);buttonStyle["bold"]=v.value("button_bold",false);style=&buttonStyle;text(state.busy?translate("Attendi la fine del caricamento"):label("button_label","Accedi"),x+pad,y+h*.70,ww,h*v.value("button_height",.12),size*v.value("button_text_size",.85));style=&v;
             ink(v["color"],.8);text(state.status.empty()?(std::string("Esc · ")+(state.preview?translate("Chiudi"):translate("Annulla"))):state.status,x+pad,y+h*.88,ww,h*.09,size*.58);
+            }
         }
         cairo_pop_group_to_source(cr);cairo_paint_with_alpha(cr,v.value("opacity",1.));cairo_restore(cr);
     }
     if(state.menuOpen&&!state.sessions.empty()){
-        style=&d["widgets"]["login"];auto r=sessionMenuRect(d,state.sessions.size());double x=r[0]*width,y=r[1]*height,w=r[2]*width,h=r[3]*height,row=h/std::min(5,int(state.sessions.size()));round(x,y,w,h,8*scale);ink((*style)["background"]);cairo_fill(cr);
-        for(int n=0;n<5&&n+state.menuScroll<int(state.sessions.size());n++){int index=n+state.menuScroll;if(index==state.menuIndex){round(x+3*scale,y+n*row+2*scale,w-6*scale,row-4*scale,4*scale);ink((*style)["button_color"],.35);cairo_fill(cr);}ink((*style)["color"]);text(state.sessions[index],x+14*scale,y+n*row,w-28*scale,row,style->at("size").get<double>()*scale*.85,false);}
+        style=&d["widgets"]["login"];auto r=sessionMenuRect(d,state.sessions.size());double x=r[0]*width,y=r[1]*height,w=r[2]*width,h=r[3]*height,row=h/std::min(5,int(state.sessions.size()));round(x,y,w,h,8*scale);ink(astronaut(d)?(*style)["astronaut"]["dropdown_background"].get<std::string>():(*style)["background"].get<std::string>());cairo_fill(cr);
+        for(int n=0;n<5&&n+state.menuScroll<int(state.sessions.size());n++){int index=n+state.menuScroll;if(index==state.menuIndex){round(x+3*scale,y+n*row+2*scale,w-6*scale,row-4*scale,4*scale);ink(astronaut(d)?(*style)["astronaut"]["dropdown_selected"].get<std::string>():(*style)["button_color"].get<std::string>(),astronaut(d)?1:.35);cairo_fill(cr);}ink(astronaut(d)?(*style)["astronaut"]["dropdown_color"].get<std::string>():(*style)["color"].get<std::string>());text(state.sessions[index],x+14*scale,y+n*row,w-28*scale,row,style->at("size").get<double>()*scale*.85,false);}
     }
+    if(state.powerConfirm>=0){style=&d["widgets"]["login"];round(width*.32,height*.4,width*.36,height*.23,16*scale);ink("#101522",.98);cairo_fill(cr);ink("#ffffff");const char* names[]={"Shutdown","Reboot","Suspend","Hibernate"};text(std::string(names[state.powerConfirm])+"?",width*.34,height*.42,width*.32,height*.08,24*scale);for(int n=0;n<2;n++){round(width*(n?.51:.36),height*.53,width*.13,height*.06,8*scale);ink(n?"#404756":"#77545f");cairo_fill(cr);ink("#ffffff");text(n?"Cancel":"Confirm",width*(n?.51:.36),height*.53,width*.13,height*.06,18*scale);}}
     if(state.preview){style=&d["widgets"]["login"];ink("#ffffff",.8);text(translate("Anteprima interattiva · testo di prova · Esc per chiudere"),16*scale,height-34*scale,width-32*scale,28*scale,14*scale,false);}
     cairo_surface_flush(surface);auto data=cairo_image_surface_get_data(surface);int stride=cairo_image_surface_get_stride(surface);Pixels pixels{width,height,std::vector<unsigned char>(size_t(width)*height*4)};
     for(int y=0;y<height;y++)for(int x=0;x<width;x++){auto a=data+y*stride+x*4,b=pixels.rgba.data()+(size_t(y)*width+x)*4;b[0]=a[2];b[1]=a[1];b[2]=a[0];b[3]=a[3];}

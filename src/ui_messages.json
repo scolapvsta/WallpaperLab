@@ -180,5 +180,7 @@
   "Cannot start screen color picker": "Impossibile avviare il contagocce.",
   "Invalid preset name": "Inserisci un nome valido per il preset.",
   "Invalid login preset": "Preset non valido.",
-  "Preset wallpaper is unavailable": "Lo sfondo del preset non è disponibile nella libreria."
+  "Preset wallpaper is unavailable": "Lo sfondo del preset non è disponibile nella libreria.",
+  "Login blur shader linking failed": "Operazione non riuscita. Dettagli nel registro.",
+  "Login blur framebuffer unavailable": "Operazione non riuscita. Dettagli nel registro."
 }

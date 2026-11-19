@@ -19,17 +19,22 @@ json applyPreset(json d,const json& preset,bool full,const std::vector<Item>& li
 }
 fs::path presetDirectory(bool full){return configDir()/"login-presets"/(full?"complete":"ui");}
 std::vector<json> listPresets(bool full){
-    std::vector<json> result;auto directory=presetDirectory(full);if(!fs::is_directory(directory))return result;
+    std::vector<json> result;std::vector<fs::path> directories;
+    if(!full)directories.push_back(astronautAssets()/"presets");directories.push_back(presetDirectory(full));
+    for(auto& directory:directories){if(!fs::is_directory(directory))continue;
     for(auto& entry:fs::directory_iterator(directory))try{
         if(entry.is_symlink()||!entry.is_regular_file()||entry.path().extension()!=".json"||entry.file_size()>1024*1024)continue;
         auto p=readJson(entry.path());auto checked=makePreset(p.at("data"),p.at("name"),full);
         if(p.value("format",std::string())!=checked["format"].get<std::string>()||p.value("version",0)!=1||p.value("kind",std::string())!=checked["kind"].get<std::string>())continue;
-        p["file"]=entry.path().string();result.push_back(p);
-    }catch(...){/* A damaged file must not hide the remaining presets. */}
+        p["file"]=entry.path().string();p["bundled"]=directory!=presetDirectory(full);
+        auto existing=std::find_if(result.begin(),result.end(),[&](auto& item){return item["name"]==p["name"];});
+        if(existing==result.end())result.push_back(p);else *existing=p;
+    }catch(...){/* A damaged file must not hide the remaining presets. */}}
+
     std::sort(result.begin(),result.end(),[](auto& a,auto& b){return a["name"]<b["name"];});return result;
 }
 void savePreset(const json& document,const std::string& name,bool full){
     auto preset=makePreset(document,name,full);ControllerLock lock;auto path=presetDirectory(full)/(std::to_string(std::chrono::system_clock::now().time_since_epoch().count())+".json");
-    for(auto& existing:listPresets(full))if(existing["name"]==name){path=existing["file"].get<std::string>();writeJson(stateDir()/"backups"/("login-preset-"+std::to_string(std::chrono::system_clock::now().time_since_epoch().count()))/path.filename(),readJson(path));break;}
+    for(auto& existing:listPresets(full))if(existing["name"]==name&&!existing.value("bundled",false)){path=existing["file"].get<std::string>();writeJson(stateDir()/"backups"/("login-preset-"+std::to_string(std::chrono::system_clock::now().time_since_epoch().count()))/path.filename(),readJson(path));break;}
     writeJson(path,preset);
 }

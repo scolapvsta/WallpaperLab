@@ -25,12 +25,14 @@ static Texture2D LoginWallpaperTexture(int selected){
  if(loginStillTextures[selected].id)return loginStillTextures[selected];return atomic_load(&wallpapers[selected].loaded)?wallpapers[selected].texture:(Texture2D){0};
 }
 static const char* LoginWidgetPath(int i,const char* key){static char path[96];const char* names[]={"clock","date","login"};snprintf(path,sizeof(path),"/widgets/%s/%s",names[i],key);return path;}
+static float loginBackdropBlur=0;
 static void LoginEditedPreview(Texture2D texture,Rectangle r,const float* values){
  DrawRectangleRec(r,BLACK);if(!texture.id)return;
  if(!loginImageShader.id)loginImageShader=LoadShader(NULL,lab_login_shader());
  Vector2 size={texture.width,texture.height},output={r.width,r.height};Vector3 basic={values[0],values[1],values[2]},geometry={values[7]*DEG2RAD,values[8]>.5?-1:1,values[9]>.5?-1:1},placement={values[11],values[12],values[10]};Vector4 more={values[4]*DEG2RAD,values[3],values[5],values[6]};float crop=values[13];
  SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"imageSize"),&size,SHADER_UNIFORM_VEC2);SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"outputSize"),&output,SHADER_UNIFORM_VEC2);
  SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"basic"),&basic,SHADER_UNIFORM_VEC3);SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"more"),&more,SHADER_UNIFORM_VEC4);SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"geometry"),&geometry,SHADER_UNIFORM_VEC3);SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"placement"),&placement,SHADER_UNIFORM_VEC3);SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"crop"),&crop,SHADER_UNIFORM_FLOAT);
+ SetShaderValue(loginImageShader,GetShaderLocation(loginImageShader,"backdropBlur"),&loginBackdropBlur,SHADER_UNIFORM_FLOAT);
  BeginShaderMode(loginImageShader);DrawTexturePro(texture,(Rectangle){0,0,texture.width,texture.height},r,(Vector2){0},0,WHITE);EndShaderMode();
 }
 
@@ -55,13 +57,19 @@ static Rectangle LoginCanvas(Rectangle area,bool edit){
   Rectangle screen={canvas.x+(x[n]-left)*scale,canvas.y+(y[n]-top)*scale,w[n]*scale,h[n]*scale};
   if(!span){if(single){int target=lab_login_output_selected(n);Texture2D texture=LoginWallpaperTexture(target);float values[14];for(int k=0;k<14;k++)values[k]=lab_login_output_image(n,loginImageKeys[k]);LoginEditedPreview(texture,screen,values);}else LoginEditedPreview(wallpaper,screen,image);}
   if(LoginUiOn(n)){
+   if(!strcmp(lab_login_text("/widgets/login/layout"),"astronaut")&&lab_login_number("/widgets/login/astronaut/blur")>0){
+    Rectangle form={screen.x+screen.width*lab_login_number("/widgets/login/x"),screen.y+screen.height*lab_login_number("/widgets/login/y"),screen.width*lab_login_number("/widgets/login/width"),screen.height*lab_login_number("/widgets/login/height")};
+    BeginScissorMode(form.x,form.y,ceilf(form.width),ceilf(form.height));loginBackdropBlur=lab_login_number("/widgets/login/astronaut/blur")*fminf(screen.width/1920,screen.height/1080);
+    if(span)LoginEditedPreview(wallpaper,canvas,image);else if(single){float values[14];for(int k=0;k<14;k++)values[k]=lab_login_output_image(n,loginImageKeys[k]);LoginEditedPreview(LoginWallpaperTexture(lab_login_output_selected(n)),screen,values);}else LoginEditedPreview(wallpaper,screen,image);
+    loginBackdropBlur=0;EndScissorMode();
+   }
    if(edit&&lab_login_number("/grid/visible")){float step=lab_login_number("/grid/step");for(float v=step;v<.999;v+=step){DrawLineEx((Vector2){screen.x+v*screen.width,screen.y},(Vector2){screen.x+v*screen.width,screen.y+screen.height},1,Fade(AppTheme.border,.22));DrawLineEx((Vector2){screen.x,screen.y+v*screen.height},(Vector2){screen.x+screen.width,screen.y+v*screen.height},1,Fade(AppTheme.border,.22));}}
    LoginOverlayDraw(screen,-1,5+n);
-   if(edit)for(int widget=0;widget<3;widget++)if(lab_login_number(LoginWidgetPath(widget,"enabled"))){
+   if(edit)for(int order=0;order<3;order++){int widget=order==0?2:order-1;if(lab_login_number(LoginWidgetPath(widget,"enabled"))){
     Rectangle box={screen.x+lab_login_number(LoginWidgetPath(widget,"x"))*screen.width,screen.y+lab_login_number(LoginWidgetPath(widget,"y"))*screen.height,lab_login_number(LoginWidgetPath(widget,"width"))*screen.width,lab_login_number(LoginWidgetPath(widget,"height"))*screen.height};
     loginWidgetRects[widget]=box;if(widget==loginWidget)DrawRectangleLinesEx(box,1.5,AppTheme.border);
     if(Hot(box,true)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){loginWidget=widget;loginDragging=widget;loginDragScreen=screen;loginDragOffset=(Vector2){GetMouseX()-box.x,GetMouseY()-box.y};}
-   }
+   }}
   }
   DrawRectangleLinesEx(screen,1,Fade(AppTheme.border,.65));
  }
@@ -148,14 +156,24 @@ static void LoginInspector(Rectangle area){
  else if(!loginCategory){
   if(loginWidget!=2)LoginToggle(93,x,&y,w,lab_tr("Attivo"),LoginWidgetPath(loginWidget,"enabled"));
   if(LoginSection(0,x,&y,w,lab_tr("Posizione e dimensioni"))){LoginPosition(x,&y,w);
-  LoginNumber(153,x,&y,w,lab_tr("Larghezza"),LoginWidgetPath(loginWidget,"width"),.08,.8,100,"%");LoginNumber(154,x,&y,w,lab_tr("Altezza"),LoginWidgetPath(loginWidget,"height"),.03,.9,100,"%");
+  LoginNumber(153,x,&y,w,lab_tr("Larghezza"),LoginWidgetPath(loginWidget,"width"),.08,.8,100,"%");LoginNumber(154,x,&y,w,lab_tr("Altezza"),LoginWidgetPath(loginWidget,"height"),.03,1,100,"%");
   const char* align[]={lab_tr("Sinistra"),lab_tr("Centro"),lab_tr("Destra")};for(int n=0;n<3;n++)if(Button((Rectangle){x+n*(w+6)/3,y,(w-12)/3,30},align[n],false,true)){float width=lab_login_number(LoginWidgetPath(loginWidget,"width"));lab_login_set_number(LoginWidgetPath(loginWidget,"x"),n==0?0:n==1?(1-width)/2:1-width);}y+=40;
-  LoginNumber(155,x,&y,w,lab_tr("Dimensione"),LoginWidgetPath(loginWidget,"size"),10,140,1,"px");
+  LoginNumber(155,x,&y,w,lab_tr("Dimensione"),LoginWidgetPath(loginWidget,"size"),10,240,1,"px");
   }
   if(LoginSection(1,x,&y,w,lab_tr("Contenuto"))){
   if(loginWidget==0){const char* formats[]={"24 h","12 h · AM/PM"},*codes[]={"24","12"};LoginOption(99,x,&y,w,lab_tr("Formato"),LoginWidgetPath(0,"format"),formats,codes,2);LoginToggle(100,x,&y,w,lab_tr("Secondi"),LoginWidgetPath(0,"seconds"));}
-  if(loginWidget==1){const char* labels[]={lab_tr("Data estesa"),lab_tr("Data breve"),"ISO",lab_tr("Giorno della settimana")},*values[]={"long","short","iso","weekday"};LoginOption(98,x,&y,w,lab_tr("Formato"),LoginWidgetPath(1,"format"),labels,values,4);LoginToggle(100,x,&y,w,lab_tr("Maiuscolo"),LoginWidgetPath(1,"uppercase"));}
-  if(loginWidget==2){LoginToggle(100,x,&y,w,lab_tr("Benvenuto"),LoginWidgetPath(2,"welcome_enabled"));LoginToggle(101,x,&y,w,lab_tr("Saluto in base all'ora"),LoginWidgetPath(2,"dynamic_welcome"));if(!lab_login_number(LoginWidgetPath(2,"dynamic_welcome")))LoginText(0,x,&y,w,lab_tr("Testo di benvenuto"),LoginWidgetPath(2,"welcome_text"),false);}
+  if(loginWidget==1){const char* labels[]={lab_tr("Data estesa"),lab_tr("Data breve"),"ISO",lab_tr("Giorno della settimana"),"Astronaut · dddd d MMMM","Astronaut · dddd d","Cyberpunk · 2077"},*values[]={"long","short","iso","weekday","astronaut_long","astronaut_day","cyberpunk"};LoginOption(98,x,&y,w,lab_tr("Formato"),LoginWidgetPath(1,"format"),labels,values,7);LoginToggle(100,x,&y,w,lab_tr("Maiuscolo"),LoginWidgetPath(1,"uppercase"));}
+  if(loginWidget==2){const char* layouts[]={lab_tr("Predefinito"),"Astronaut"},*codes[]={"base","astronaut"};LoginOption(114,x,&y,w,lab_tr("Disposizione"),"/widgets/login/layout",layouts,codes,2);LoginToggle(100,x,&y,w,lab_tr("Benvenuto"),LoginWidgetPath(2,"welcome_enabled"));LoginToggle(101,x,&y,w,lab_tr("Saluto in base all'ora"),LoginWidgetPath(2,"dynamic_welcome"));if(!lab_login_number(LoginWidgetPath(2,"dynamic_welcome")))LoginText(0,x,&y,w,lab_tr("Testo di benvenuto"),LoginWidgetPath(2,"welcome_text"),false);
+   if(!strcmp(lab_login_text("/widgets/login/layout"),"astronaut")){
+    LoginToggle(115,x,&y,w,lab_tr("Pulsante di accesso"),"/widgets/login/astronaut/button_visible");LoginToggle(116,x,&y,w,lab_tr("Azioni di sistema"),"/widgets/login/astronaut/system_buttons");LoginToggle(117,x,&y,w,lab_tr("Tastiera virtuale"),"/widgets/login/astronaut/virtual_keyboard");
+    LoginNumber(178,x,&y,w,TextFormat("%s · %s",lab_tr("Larghezza"),lab_tr("Campi di accesso")),"/widgets/login/astronaut/content_width",.2,1,100,"%");
+    LoginNumber(179,x,&y,w,TextFormat("Y · %s",lab_tr("Campi di accesso")),"/widgets/login/astronaut/field_y",0,.75,loginCoordinateSize.y,"px");
+    LoginNumber(180,x,&y,w,TextFormat("Y · %s",lab_tr("Pulsante di accesso")),"/widgets/login/astronaut/button_y",0,.85,loginCoordinateSize.y,"px");
+    LoginNumber(181,x,&y,w,TextFormat("Y · %s",lab_tr("Sessione")),"/widgets/login/astronaut/session_y",0,.96,loginCoordinateSize.y,"px");
+    LoginNumber(182,x,&y,w,TextFormat("Y · %s",lab_tr("Azioni di sistema")),"/widgets/login/astronaut/actions_y",0,.9,loginCoordinateSize.y,"px");
+    LoginNumber(184,x,&y,w,lab_tr("Distanza tra i campi"),"/widgets/login/astronaut/row_gap",0,.1,loginCoordinateSize.y,"px");
+    LoginNumber(185,x,&y,w,TextFormat("%s · %s",lab_tr("Dimensione"),lab_tr("Benvenuto")),"/widgets/login/astronaut/header_size",10,160,1,"px");
+   }}
   }
   LoginNumber(160,x,&y,w,lab_tr("Passo della griglia"),"/grid/step",.01,.2,100,"%");
  }else{
@@ -176,16 +194,22 @@ static void LoginInspector(Rectangle area){
   }
   if(LoginSection(4,x,&y,w,lab_tr("Sfondo e bordi"))){
    LoginNumber(163,x,&y,w,lab_tr("Opacità del widget"),LoginWidgetPath(loginWidget,"opacity"),0,1,100,"%");LoginText(7,x,&y,w,lab_tr("Colore dello sfondo"),LoginWidgetPath(loginWidget,"background"),true);LoginNumber(164,x,&y,w,lab_tr("Opacità dello sfondo"),LoginWidgetPath(loginWidget,"background_opacity"),0,1,100,"%");LoginNumber(165,x,&y,w,lab_tr("Bordi arrotondati"),LoginWidgetPath(loginWidget,"radius"),0,80,1,"px");LoginNumber(166,x,&y,w,lab_tr("Spessore del bordo"),LoginWidgetPath(loginWidget,"border_width"),0,8,1,"px");LoginText(8,x,&y,w,lab_tr("Colore del bordo"),LoginWidgetPath(loginWidget,"border_color"),true);
-   if(loginWidget==2)LoginNumber(170,x,&y,w,lab_tr("Margine interno"),LoginWidgetPath(2,"padding"),8,64,1,"px");
+   if(loginWidget==2&&!strcmp(lab_login_text("/widgets/login/layout"),"astronaut"))LoginNumber(183,x,&y,w,lab_tr("Sfocatura del login"),"/widgets/login/astronaut/blur",0,64,1,"px");
+   if(loginWidget==2&&strcmp(lab_login_text("/widgets/login/layout"),"astronaut"))LoginNumber(170,x,&y,w,lab_tr("Margine interno"),LoginWidgetPath(2,"padding"),8,64,1,"px");
   }
   if(loginWidget==2){
    if(LoginSection(5,x,&y,w,lab_tr("Campi di accesso"))){
-    LoginToggle(102,x,&y,w,lab_tr("Etichette dei campi"),LoginWidgetPath(2,"labels"));LoginText(1,x,&y,w,lab_tr("Utente"),LoginWidgetPath(2,"user_label"),false);LoginText(2,x,&y,w,lab_tr("Password"),LoginWidgetPath(2,"password_label"),false);LoginText(3,x,&y,w,lab_tr("Sessione"),LoginWidgetPath(2,"session_label"),false);
-    LoginText(11,x,&y,w,lab_tr("Colore dei campi"),LoginWidgetPath(2,"field_color"),true);LoginNumber(167,x,&y,w,lab_tr("Opacità dei campi"),LoginWidgetPath(2,"field_opacity"),0,1,100,"%");LoginNumber(168,x,&y,w,lab_tr("Bordi dei campi"),LoginWidgetPath(2,"field_radius"),0,40,1,"px");LoginNumber(169,x,&y,w,lab_tr("Bordo del campo attivo"),LoginWidgetPath(2,"focus_width"),0,4,1,"px");LoginNumber(171,x,&y,w,lab_tr("Altezza dei campi"),LoginWidgetPath(2,"field_height"),.08,.16,100,"%");LoginNumber(173,x,&y,w,lab_tr("Dimensione etichette"),LoginWidgetPath(2,"label_size"),.45,1,100,"%");LoginNumber(174,x,&y,w,lab_tr("Animazione password"),LoginWidgetPath(2,"animation"),.05,.5,1000,"ms");LoginNumber(175,x,&y,w,lab_tr("Dimensione pallini"),LoginWidgetPath(2,"dot_size"),1,7,1,"px");
+    if(strcmp(lab_login_text("/widgets/login/layout"),"astronaut"))LoginToggle(102,x,&y,w,lab_tr("Etichette dei campi"),LoginWidgetPath(2,"labels"));LoginText(1,x,&y,w,lab_tr("Utente"),LoginWidgetPath(2,"user_label"),false);LoginText(2,x,&y,w,lab_tr("Password"),LoginWidgetPath(2,"password_label"),false);LoginText(3,x,&y,w,lab_tr("Sessione"),LoginWidgetPath(2,"session_label"),false);
+    LoginText(11,x,&y,w,lab_tr("Colore dei campi"),LoginWidgetPath(2,"field_color"),true);LoginNumber(167,x,&y,w,lab_tr("Opacità dei campi"),LoginWidgetPath(2,"field_opacity"),0,1,100,"%");LoginNumber(168,x,&y,w,lab_tr("Bordi dei campi"),LoginWidgetPath(2,"field_radius"),0,40,1,"px");LoginNumber(169,x,&y,w,lab_tr("Bordo del campo attivo"),LoginWidgetPath(2,"focus_width"),0,4,1,"px");LoginNumber(171,x,&y,w,lab_tr("Altezza dei campi"),LoginWidgetPath(2,"field_height"),.01,.16,100,"%");LoginNumber(173,x,&y,w,lab_tr("Dimensione etichette"),LoginWidgetPath(2,"label_size"),.45,1,100,"%");LoginNumber(174,x,&y,w,lab_tr("Animazione password"),LoginWidgetPath(2,"animation"),.05,.5,1000,"ms");LoginNumber(175,x,&y,w,lab_tr("Dimensione pallini"),LoginWidgetPath(2,"dot_size"),1,7,1,"px");
+    if(!strcmp(lab_login_text("/widgets/login/layout"),"astronaut")){
+     const char* labels[]={"Password","Password","Segnaposto","Utente","Password","Benvenuto","Azioni di sistema","Sessione","Tastiera virtuale","Menu","Menu"};const char* details[]={"Colore del testo","Colore dello sfondo","Colore del testo","Icona","Icona","Colore del testo","Colore del testo","Colore del testo","Colore del testo","Colore del testo","Colore dello sfondo"};
+     const char* keys[]={"password_color","password_background","placeholder_color","user_icon_color","password_icon_color","header_color","system_color","session_color","keyboard_color","dropdown_color","dropdown_background"};
+     for(int n=0;n<11;n++){char path[128];snprintf(path,sizeof(path),"/widgets/login/astronaut/%s",keys[n]);char label[256];snprintf(label,sizeof(label),"%s · %s",lab_tr(labels[n]),lab_tr(details[n]));LoginText(13+n,x,&y,w,label,path,true);}
+    }
    }
    if(LoginSection(6,x,&y,w,lab_tr("Pulsante di accesso"))){
     LoginText(4,x,&y,w,lab_tr("Testo del pulsante"),LoginWidgetPath(2,"button_label"),false);LoginText(9,x,&y,w,lab_tr("Colore del pulsante"),LoginWidgetPath(2,"button_color"),true);LoginText(10,x,&y,w,lab_tr("Colore del testo"),LoginWidgetPath(2,"button_text_color"),true);
-    LoginToggle(112,x,&y,w,lab_tr("Grassetto"),LoginWidgetPath(2,"button_bold"));LoginNumber(176,x,&y,w,lab_tr("Dimensione del testo"),LoginWidgetPath(2,"button_text_size"),.5,1.5,100,"%");LoginNumber(172,x,&y,w,lab_tr("Altezza del pulsante"),LoginWidgetPath(2,"button_height"),.08,.15,100,"%");
+    LoginToggle(112,x,&y,w,lab_tr("Grassetto"),LoginWidgetPath(2,"button_bold"));LoginNumber(176,x,&y,w,lab_tr("Dimensione del testo"),LoginWidgetPath(2,"button_text_size"),.5,1.5,100,"%");LoginNumber(172,x,&y,w,lab_tr("Altezza del pulsante"),LoginWidgetPath(2,"button_height"),.01,.15,100,"%");
     LoginOption(113,x,&y,w,lab_tr("Effetto testo"),LoginWidgetPath(2,"button_effect"),effects,values,3);LoginNumber(177,x,&y,w,lab_tr("Profondità"),LoginWidgetPath(2,"button_effect_depth"),0,10,1,"px");LoginText(12,x,&y,w,lab_tr("Colore dell'effetto"),LoginWidgetPath(2,"button_effect_color"),true);
    }
   }

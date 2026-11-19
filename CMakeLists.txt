@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 2.4.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 2.5.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
@@ -128,6 +128,10 @@ set_tests_properties(awww-lifecycle PROPERTIES ENVIRONMENT "LD_LIBRARY_PATH=${EN
 
 # Native login editor and greeter share the same canvas and renderer.
 file(READ assets/login/adjust.glsl LOGIN_ADJUST_GLSL)
+file(GLOB_RECURSE ASTRONAUT_ASSETS CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/assets/login/astronaut" "assets/login/astronaut/*")
+foreach(asset IN LISTS ASTRONAUT_ASSETS)
+  configure_file("assets/login/astronaut/${asset}" "login-assets/astronaut/${asset}" COPYONLY)
+endforeach()
 configure_file(assets/login/preview.frag.in login-assets/preview.frag @ONLY)
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/login-assets" DESTINATION . COMPONENT app)
 configure_file(assets/login_deploy.py login_deploy.py COPYONLY)
@@ -143,3 +147,9 @@ target_include_directories(login-config-test PRIVATE src "${CMAKE_CURRENT_BINARY
 target_link_libraries(login-config-test PRIVATE PkgConfig::PANGO)
 add_test(NAME login-config COMMAND login-config-test)
 add_test(NAME login-deploy COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/login_deploy_test.py")
+
+add_executable(astronaut-presets-test tests/astronaut_presets_test.cpp src/login_config.cpp src/login_canvas.cpp src/preferences.cpp src/catalog.cpp src/i18n.cpp "${TRANSLATIONS_HEADER}")
+target_include_directories(astronaut-presets-test PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated" vendor/engine/src/External/json/include)
+target_compile_definitions(astronaut-presets-test PRIVATE WALLPAPER_LAB_SOURCE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+target_link_libraries(astronaut-presets-test PRIVATE PkgConfig::PANGO PkgConfig::FONTCONFIG)
+add_test(NAME astronaut-presets COMMAND astronaut-presets-test)

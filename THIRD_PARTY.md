@@ -126,7 +126,8 @@ and font files are under `assets/fonts/`, installed in the runtime's `fonts/`.
 | Rajdhani | Indian Type Foundry |
 | Silkscreen | The Silkscreen Project Authors / Jason Kottke |
 
-No game or anime fonts, images or sprites are extracted or redistributed.
+No game or anime images or sprites are extracted or redistributed.
+Additional native login fonts and designs are attributed below.
 
 ## Packaging boundary
 
@@ -142,11 +143,18 @@ The native base UI is Wallpaper Lab Cairo/Pango code. Its icon-led fields and
 focus styling are informed by the GPLv3+ [Astronaut input component](https://github.com/Keyitdev/sddm-astronaut-theme/blob/master/Components/Input.qml),
 copyright Keyitdev, with the sddm-sugar-dark ancestry credited upstream. No QML
 component is embedded or executed.
-[SDDM Astronaut](https://github.com/Keyitdev/sddm-astronaut-theme) informed the earlier
-preview experiment and general layout exploration. Version 2.0 removes its QML,
-preset runtime, submodule and frame bridge; those components remain attributed in
-the historical releases that shipped them. No Astronaut background/font assets
-are included in this runtime.
+Version 2.5 adds ten native presets derived from
+[SDDM Astronaut](https://github.com/Keyitdev/sddm-astronaut-theme), pinned in the
+source-only `vendor/astronaut-design` submodule. The derived layout, preset values
+and icon masks retain Keyitdev's GPL-3.0-or-later notice and sddm-sugar-dark ancestry.
+No QML is executed and no original backgrounds are distributed. See the
+[full notice](assets/login/astronaut/NOTICE.md) and included GPL license.
+
+Open Sans (copyright 2020 The Open Sans Project Authors, SIL OFL 1.1),
+Electroharmonix (Raymond Larabie, CC0 release 2024), and Fragile Bombers Attack
+(Raymond Larabie, CC0 release 2022) are included with embedded font notices and
+license information under `assets/fonts/astronaut`. The other original font
+families are optional user-installed fonts and are excluded from release archives.
 
 [greetd](https://git.sr.ht/~kennylevinsen/greetd), its agreety fallback and Hyprland
 are separately installed system dependencies. Wallpaper Lab implements the public

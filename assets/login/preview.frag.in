@@ -5,6 +5,14 @@ uniform sampler2D texture0;
 uniform vec2 imageSize, outputSize;
 uniform vec3 basic, geometry, placement;
 uniform vec4 more;
-uniform float crop;
+uniform float crop, backdropBlur;
 @LOGIN_ADJUST_GLSL@
-void main() { finalColor = labImage(texture0,fragTexCoord,imageSize,outputSize,basic,more,geometry,placement,crop,false); }
+void main() {
+    if(backdropBlur<=0.) { finalColor = labImage(texture0,fragTexCoord,imageSize,outputSize,basic,more,geometry,placement,crop,false); return; }
+    vec4 sum=vec4(0);float weight=0.;
+    for(int x=-4;x<=4;x++)for(int y=-4;y<=4;y++){
+        float a=exp(-float(x*x+y*y)/8.);
+        sum+=labImage(texture0,fragTexCoord+vec2(x,y)*backdropBlur/(4.*outputSize),imageSize,outputSize,basic,more,geometry,placement,crop,false)*a;weight+=a;
+    }
+    finalColor=sum/weight;
+}

@@ -1,9 +1,11 @@
 // Color suggestions operate on an edited frame of the monitor carrying the UI.
 // They intentionally never change alpha, text effects, geometry or typography.
 static const std::array<const char*,9> colorKeys={"color","accent","background","border_color","effect_color","field_color","button_color","button_text_color","button_effect_color"};
+static const std::array<const char*,14> astronautColorKeys={"password_color","password_background","placeholder_color","user_icon_color","password_icon_color","header_color","system_color","session_color","keyboard_color","warning_color","dropdown_color","dropdown_background","dropdown_selected","highlight"};
 json colors(const json& d){
     json result={{"accent",d.at("accent")}};
     for(auto id:widgets)for(auto key:colorKeys)if(d.at("widgets").at(id).contains(key))result["widgets"][id][key]=d["widgets"][id][key];
+    if(d["widgets"]["login"].contains("astronaut"))for(auto key:astronautColorKeys)result["widgets"]["login"]["astronaut"][key]=d["widgets"]["login"]["astronaut"][key];
     return result;
 }
 json restoreColors(json d,const json& saved){d.merge_patch(saved);return validate(d);}
@@ -42,6 +44,7 @@ json applyPalette(json d,const unsigned char* rgb,int width,int height){
             // Fields share the panel's tonal family, keeping labels legible even at full field alpha.
             w["field_color"]=hex(mix(surface,bright?white:black,.12));w["button_color"]=hex(accent);
             w["button_text_color"]=luminance(accent)>.179?"#000000":"#ffffff";w["button_effect_color"]=luminance(accent)>.179?"#ffffff":"#000000";
+            auto& a=w["astronaut"];for(auto key:astronautColorKeys)a[key]=w["color"];a["password_background"]=w["field_color"];a["dropdown_background"]=hex(surface);a["dropdown_selected"]=hex(mix(surface,accent,.3));a["highlight"]=hex(accent);
         }
     }
     return validate(d);
