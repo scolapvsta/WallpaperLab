@@ -403,10 +403,17 @@ int lab_sddm_select(int presets,int index){if(index<0||index>=lab_sddm_count(pre
 int lab_sddm_option(const char* option){
  if(!sddmView.contains("config"))return 0;
  std::string key=option;auto config=sddmView["config"];
+ if(key=="display-mode")return config["wallpaper"].value("display_mode",std::string("mirror"))=="span";
  if(key=="position"){auto position=config["ui"].value("position",std::string("preset"));return position=="left"?1:position=="center"?2:position=="right"?3:0;}
  return key=="crop"?config["wallpaper"].value("crop",true):config["ui"].value("blur",sddmView.value("preset_blur",true));
 }
 const char* lab_sddm_bundle(){static std::string path;path=sddmView.value("bundle",std::string());return path.c_str();}
+float lab_sddm_aspect(){
+ if(!lab_sddm_option("display-mode")||!sddmView.contains("screens")||sddmView["screens"].empty())return 16.f/9;
+ double left=1e9,top=1e9,right=-1e9,bottom=-1e9;
+ for(const auto& s:sddmView["screens"]){double x=s.value("x",0.),y=s.value("y",0.);left=std::min(left,x);top=std::min(top,y);right=std::max(right,x+s.value("width",1280.));bottom=std::max(bottom,y+s.value("height",720.));}
+ return std::clamp((right-left)/std::max(1.,bottom-top),.1,16.);
+}
 const char* lab_sddm_text(int kind,int index,const char* key){
  static std::string text;text.clear();
  if(kind==2)text=sddmView.value("final_preview",std::string());

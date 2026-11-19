@@ -39,6 +39,7 @@ class SddmIntegrationTest(unittest.TestCase):
         # Unit tests use a fake greeter; real shader rendering is checked separately.
         assets=self.root/'assets';assets.mkdir()
         (assets/'LabBackground.qml').write_text((ROOT/'assets/sddm/LabBackground.qml').read_text())
+        (assets/'LabLayout.js').write_text((ROOT/'assets/sddm/LabLayout.js').read_text())
         (assets/'greeter.frag.qsb').write_bytes(b'fake shader for process boundary tests')
         self.request['assets']=str(assets)
         self.fake = self.root/'greeter'
@@ -163,6 +164,35 @@ class SddmIntegrationTest(unittest.TestCase):
         Path(self.request['assets'],'greeter.frag.qsb').unlink()
         with self.assertRaisesRegex(ValueError,'Shader Tools'):self.instance().run()
         self.assertFalse((self.root/'config/sddm.json').exists())
+
+    def test_scene_catalog_and_unavailable_bridge_preserve_selection(self):
+        self.instance().run()
+        original=(self.root/'config/sddm.json').read_bytes()
+        (self.library/'scene/scene.pkg').write_bytes(b'invalid synthetic scene')
+        integration=self.instance('wallpaper',str(self.library/'scene'))
+        row=next(r for r in integration.entries if r['kind']=='scene')
+        self.assertTrue(row['engine']);self.assertTrue(row['supported'])
+        with self.assertRaisesRegex(ValueError,'renderer and installed'):
+            integration.run()
+        self.assertEqual((self.root/'config/sddm.json').read_bytes(),original)
+        self.assertTrue(self.instance('status').run()['ready'])
+
+    def test_display_modes_and_geometry(self):
+        self.instance().run()
+        original=self.instance('status').run()['config']
+        self.request['screens']=[dict(name='left',x=-1920,y=0,width=1920,height=1080),dict(name='right',x=0,y=-120,width=2560,height=1440)]
+        result=self.instance('display-mode','span').run()
+        self.assertEqual(result['config']['ui'],original['ui'])
+        self.assertEqual(result['config']['wallpaper']['source'],original['wallpaper']['source'])
+        self.assertEqual(m.ini(Path(result['bundle'])/'theme.conf')['General']['LabDisplayMode'],'span')
+        self.assertEqual(m.desktop_rect(result['screens']),dict(x=-1920,y=-120,width=4480,height=1440))
+        self.assertEqual(m.scene_size(self.request,result['config']),(2560,823))
+        original=(self.root/'config/sddm.json').read_bytes()
+        with self.assertRaisesRegex(ValueError,'display mode'):self.instance('display-mode','invalid').run()
+        self.assertEqual((self.root/'config/sddm.json').read_bytes(),original)
+        duplicate=self.request['screens'][0]
+        self.assertEqual(len(m.screens_for(dict(screens=[duplicate,duplicate]))),1)
+        self.assertEqual(m.scene_size(dict(screens=[dict(x=0,y=0,width=1080,height=3840)]),dict(wallpaper={'display_mode':'span'})),(405,1440))
 
     def test_preview_normal_close_and_greeter_signal_handler(self):
         # Exercise actual child exits, including SDDM's handled SIGTERM status.

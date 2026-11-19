@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "date": "2026-11-19",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -29,7 +29,8 @@
     "patches/engine-zoom-out.patch": "3a675d87b065a684bb6189968590c44536a56f8a30a6c4af7b6fb9ac69ba908d",
     "patches/engine-output-hotplug.patch": "dcb1db66ff61aa7fe72f056c0b25130f216a1111d455c483015c8c5bf617c9bf",
     "patches/engine-visible-fullscreen.patch": "12f0fdd0be5259ca857db9d512aa791547e797415ec5fd5cdcf0e3affff29c8a",
-    "patches/engine-fullscreen-policy.patch": "b6f56b2720cf71b931c7a351bbf3c0bd573a4b7661f8436fe75cb9b0b25a7cee"
+    "patches/engine-fullscreen-policy.patch": "b6f56b2720cf71b931c7a351bbf3c0bd573a4b7661f8436fe75cb9b0b25a7cee",
+    "patches/engine-sddm-scene-feed.patch": "fcc7693bc7c9d7f556896e39397514c17c831df6d47fe497d889a3c02058972d"
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",
@@ -38,6 +39,6 @@
   "caelestia": "Optional on-demand Material You helper; selectable monitor connector for the global shell palette; rendered frame preferred, thumbnail fallback; conditional restore",
   "channel": "beta",
   "distribution": "Arch Linux x86_64 self-extracting installer; system dependencies from pacman; separate optional Steamworks download",
-  "sddm": "Experimental Astronaut library: wallpaper and login UI catalogs, cached real greeter previews, per-wallpaper image controls, GIF/video playback and final composition; no system publication or native engine scene bridge",
+  "sddm": "Experimental Astronaut library with native scene feeds and mirror/panorama previews across monitors; separate image profiles; no system greeter publication",
   "integration_ui": "Settings contains Caelestia/SDDM opt-in switches; a conditional Integrations launcher page manages enabled integrations"
 }

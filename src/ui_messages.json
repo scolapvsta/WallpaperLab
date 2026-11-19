@@ -36,6 +36,8 @@
   "Gruppo di filtri rifiutato da Steam": "Ricerca Steam non riuscita.",
   "HOME is not set": "Operazione non riuscita. Dettagli nel registro.",
   "HOME mancante": "Impossibile aggiornare la scorciatoia.",
+  "Missing renderer owner": "Operazione non riuscita. Dettagli nel registro.",
+  "Renderer owner is no longer alive": "Impossibile avviare lo sfondo.",
   "HTTP non disponibile": "Connessione Steam non riuscita.",
   "Hyprland non ha ricaricato la configurazione": "Impossibile aggiornare la scorciatoia.",
   "ID Steam non valido": "Ricerca Steam non riuscita.",

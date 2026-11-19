@@ -412,9 +412,13 @@ compositors retain the generic fullscreen detector behavior.
 
 Enable **Settings → Integrations → SDDM** to validate the installed Qt6 greeter.
 Once verified, open **Integrations → SDDM** in the launcher, select a wallpaper and choose the
-login UI independently. **Preview** opens a bounded test greeter. This prepares
-local files only; boot installation and Wallpaper Engine scenes inside the login
-screen are planned separately. See the [SDDM guide](SDDM.md).
+login UI independently. Compatible native scenes also render in the bounded test
+greeter. **Final preview → Display → Panoramic** spans one background across the
+connected monitors and shows a combined capture with a login form on each screen.
+The scene bridge is experimental, capped at 30 FPS and a 2560×1440 bounding box;
+it requires the original project and installed Wallpaper Engine assets. This
+prepares local previews only; system login installation and boot activation are
+planned separately. See the [SDDM guide](SDDM.md).
 
 ## Integration activation and management
 

@@ -6,6 +6,13 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## SDDM native scenes and panorama — 2026-11-19 (source 1.4.0)
+
+See the [scene and panoramic preview report](../docs/SDDM_SCENE_TEST_RESULTS.md)
+for real animated-scene delivery, multi-monitor pixel/physical-output checks,
+renderer cleanup and failed-selection preservation. Real pre-login deployment
+remains a separate phase.
+
 ## SDDM visual library and image editor — 2026-11-19 (source 1.3.0)
 
 See the [SDDM library/editor report](../docs/SDDM_LIBRARY_TEST_RESULTS.md) for

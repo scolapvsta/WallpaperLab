@@ -11,7 +11,8 @@ layout(std140,binding=0) uniform buf {
     vec3 geometry;
     vec3 placement;
     float crop;
+    vec4 region;
 };
 layout(binding=1) uniform sampler2D source;
 @SDDM_ADJUST_GLSL@
-void main() { fragColor = labImage(source,qt_TexCoord0,imageSize,outputSize,basic,more,geometry,placement,crop,true)*qt_Opacity; }
+void main() { fragColor = labImage(source,region.xy+qt_TexCoord0*region.zw,imageSize,outputSize,basic,more,geometry,placement,crop,true)*qt_Opacity; }

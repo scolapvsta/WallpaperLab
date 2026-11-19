@@ -269,7 +269,13 @@ hidden native UI; framebuffer captures avoid desktop occlusion and focus changes
 The C++ controller invokes the packaged `sddm_integration.py` helper asynchronously
 and exposes a cached view to the C launcher. The Settings integration section contains independent Caelestia/SDDM activation
 switches. Either opt-in exposes a shared Integrations page after Workshop. Only
-enabled panels are listed; SDDM controls additionally require a valid health check. The helper builds a local Astronaut theme from pinned templates and a copied
-native media file, then checks it with SDDM test mode before publishing it locally.
+enabled panels are listed; SDDM controls additionally require a valid health check.
+The helper builds a local Astronaut theme from pinned templates and a copied
+media file or native scene reference, then checks it with SDDM test mode before
+publishing it locally. `sddm_scene.py` owns a separate hidden instance of the same
+application's render mode, sharing atomic RGB frames between QML views at up to
+30 FPS and 2560×1440. A parent-death signal and verified child cleanup bound its
+lifetime. Panoramic backgrounds sample each screen's region of the complete Qt
+desktop; combined captures scale fully laid-out login views into one image.
 Wallpaper/UI preferences are separate from desktop preferences. See [SDDM](SDDM.md)
 for storage, process boundaries and the unimplemented system-login phase.

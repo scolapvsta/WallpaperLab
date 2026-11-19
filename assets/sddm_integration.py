@@ -2,6 +2,7 @@
 import argparse
 import configparser
 import copy
+from contextlib import ExitStack
 import fcntl
 import hashlib
 import json
@@ -11,8 +12,11 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sddm_scene import scene_runtime, scene_size, screens_for, desktop_rect
 
 IMAGE_DEFAULTS = dict(brightness=0, contrast=1, saturation=1, temperature=0, hue=0, gamma=1, vignette=0, rotation=0, flip_x=0, flip_y=0, zoom=1, x=0, y=0, crop=True)
 IMAGE_BOUNDS = dict(brightness=(-1,1), contrast=(0,2), saturation=(0,2), temperature=(-1,1), hue=(-180,180), gamma=(.25,3), vignette=(0,1), rotation=(-180,180), flip_x=(0,1), flip_y=(0,1), zoom=(.25,3), x=(-1,1), y=(-1,1))
@@ -88,6 +92,7 @@ def catalog(roots, theme):
                 name = data.get('lab_media_file') or (data.get('file') if kind == 'video' else '')
                 media = contained(project.parent, name) if name else None
                 supported = bool(media and media.is_file() and media.suffix.lower() in MEDIA)
+                native = kind == 'scene' and any(contained(project.parent, name).is_file() for name in (data.get('file') or 'scene.json','scene.pkg','gifscene.pkg'))
                 origin = 'Local' if data.get('lab_origin') == 'local' else 'Workshop'
                 poster = ''
                 if data.get('preview'):
@@ -96,7 +101,7 @@ def catalog(roots, theme):
                         if preview.is_file(): poster = str(preview)
                     except (ValueError, TypeError): pass
                 entries.append(dict(title=str(data.get('title', project.parent.name)), origin='local' if origin == 'Local' else 'steam', poster=poster, id=str(project.parent.resolve()), label=origin + ' · ' + str(data.get('title', project.parent.name)) + ((' · ' + kind) if not supported else ''),
-                                    media=str(media) if supported else '', supported=supported, kind=media_kind(media) if supported else kind))
+                                    media=str(media) if supported else '', supported=supported or native, engine=native, kind=media_kind(media) if supported else kind))
             except (ValueError, OSError, TypeError, AttributeError):
                 continue
     return entries
@@ -130,6 +135,12 @@ class Integration:
                 if path.is_file() and '.git' not in path.parts:
                     stat = path.stat()
                     h.update(f'{path}:{stat.st_size}:{stat.st_mtime_ns}'.encode())
+        selected = next((r for r in self.entries if r['id']==config.get('wallpaper',{}).get('source') and r.get('engine')), None)
+        if selected:
+            files = list(Path(selected['id']).rglob('*')) + [Path(self.request.get('renderer','')), Path(self.request.get('renderer','')).parent/'liblinux-wallpaperengine-lib.so']
+            for path in files:
+                if path.is_file():
+                    stat=path.stat();h.update(f'{path}:{stat.st_size}:{stat.st_mtime_ns}'.encode())
         if self.greeter:
             stat = Path(self.greeter).stat()
             h.update(f'{self.greeter}:{stat.st_size}:{stat.st_mtime_ns}'.encode())
@@ -143,6 +154,9 @@ class Integration:
 
     def ready(self):
         try:
+            if (self.bundle/'scene.json').is_file():
+                scene=json.loads((self.bundle/'scene.json').read_text())
+                if not Path(scene['project'],'project.json').is_file() or not Path(scene['assets']).is_dir() or not Path(scene['renderer']).is_file():return False
             receipt = json.loads((self.state / 'verified.json').read_text())
             return bool(self.config['enabled'] and self.greeter and self.theme.is_dir() and (self.bundle/'Main.qml').is_file()
                         and receipt['fingerprint'] == self.fingerprint(self.config))
@@ -163,36 +177,54 @@ class Integration:
         if selected == self.config.get('wallpaper', {}).get('source'):
             copied = list((self.bundle/'Backgrounds').glob('wallpaper.*'))
             if copied and copied[0].is_file(): return copied[0]
-        raise ValueError('Choose an image, GIF or video. Engine scenes and web projects need a future greeter renderer bridge')
+        raise ValueError('Selected wallpaper is unavailable or unsupported by the SDDM renderer')
 
     def build_theme(self, candidate, stage):
         if not self.greeter or not self.presets or not self.theme.is_dir():
             raise ValueError('Install SDDM Qt6 and the Astronaut theme first')
         if not (self.assets/'greeter.frag.qsb').is_file():
             raise ValueError('SDDM image controls require a build with Qt6 Shader Tools (qsb)')
-        source = self.resolve_media(candidate)
-        probe = subprocess.run(['ffprobe', '-v', 'error', '-protocol_whitelist', 'file', '-select_streams', 'v:0',
+        native = next((r for r in self.entries if r['id']==candidate.get('wallpaper',{}).get('source') and r.get('engine')), None)
+        if native:
+            renderer, engine_assets = self.request.get('renderer',''), self.request.get('engine_assets','')
+            if not renderer or not Path(renderer).is_file() or not engine_assets or not Path(engine_assets).is_dir():
+                raise ValueError('Scene previews require the Wallpaper Lab renderer and installed Wallpaper Engine assets')
+            width,height=scene_size(self.request,candidate)
+            atomic_json(stage/'scene.json',dict(renderer=renderer,assets=engine_assets,project=native['id'],width=width,height=height))
+        else:
+            if (self.bundle/'scene.json').is_file() and candidate.get('wallpaper',{}).get('source')==json.loads((self.bundle/'scene.json').read_text()).get('project'):
+                raise ValueError('The original scene project is unavailable; the last prepared selection was preserved')
+            source = self.resolve_media(candidate)
+            probe = subprocess.run(['ffprobe', '-v', 'error', '-protocol_whitelist', 'file', '-select_streams', 'v:0',
                                 '-show_entries', 'stream=width,height', '-of', 'json', str(source)], capture_output=True, text=True, timeout=20)
-        streams = json.loads(probe.stdout).get('streams', [])
-        if probe.returncode or not streams or streams[0].get('width', 0) < 1:
-            raise ValueError('Cannot decode selected media')
+            streams = json.loads(probe.stdout).get('streams', [])
+            if probe.returncode or not streams or streams[0].get('width', 0) < 1:
+                raise ValueError('Cannot decode selected media')
+            width,height=streams[0]['width'],streams[0]['height']
         preset = candidate['ui']['preset']
         if preset not in self.presets: raise ValueError('Unknown login UI preset')
         for name in ('Components', 'Assets'):
             shutil.copytree(self.template/name, stage/name)
         if (self.theme/'Fonts').is_dir(): shutil.copytree(self.theme/'Fonts', stage/'Fonts')
         for name in ('LICENSE', 'metadata.desktop'): shutil.copy2(self.template/name, stage/name)
-        for name in ('LabBackground.qml', 'greeter.frag.qsb'): shutil.copy2(self.assets/name, stage/name)
+        for name in ('LabBackground.qml', 'LabLayout.js', 'greeter.frag.qsb'): shutil.copy2(self.assets/name, stage/name)
         text = (self.template/'Main.qml').read_text()
+        text = text.replace('import "Components"','import "Components"\nimport "LabLayout.js" as LabLayout')
+        text = text.replace('    id: root', '''    id: root
+    property rect labScreenRect: Qt.rect(Screen.virtualX, Screen.virtualY, Screen.width, Screen.height)
+    property rect labDesktopRect: LabLayout.desktop(Qt.application.screens)
+''',1)
         begin = text.index('        AnimatedImage {\n            id: backgroundImage')
         end = text.index('        MouseArea {', begin)
         text = text[:begin] + """        LabBackground {
             id: backgroundImage
             source: Qt.resolvedUrl(config.Background)
+            screenRect: root.labScreenRect
+            desktopRect: root.labDesktopRect
             height: parent.height
-            width: config.HaveFormBackground == "true" && config.FormPosition != "center" && config.PartialBlur != "true" ? parent.width - formBackground.width : parent.width
-            anchors.left: leftleft || leftcenter ? formBackground.right : undefined
-            anchors.right: rightright || rightcenter ? formBackground.left : undefined
+            width: panorama ? parent.width : config.HaveFormBackground == "true" && config.FormPosition != "center" && config.PartialBlur != "true" ? parent.width - formBackground.width : parent.width
+            anchors.left: !panorama && (leftleft || leftcenter) ? formBackground.right : undefined
+            anchors.right: !panorama && (rightright || rightcenter) ? formBackground.left : undefined
         }
 
 """ + text[end:]
@@ -201,16 +233,19 @@ class Integration:
         metadata = ini(stage/'metadata.desktop')
         metadata['SddmGreeterTheme']['ConfigFile'] = 'theme.conf'
         with (stage/'metadata.desktop').open('w') as out: metadata.write(out)
-        background = stage/'Backgrounds'/('wallpaper' + source.suffix.lower())
+        background = stage/'Backgrounds'/('wallpaper.ppm' if native else 'wallpaper' + source.suffix.lower())
         background.parent.mkdir()
-        shutil.copyfile(source, background)
+        if not native: shutil.copyfile(source, background)
         config = ini(self.template/'Themes'/(preset+'.conf'))
         general = config['General']
         general.update(Background='Backgrounds/'+background.name, background='Backgrounds/'+background.name,
                        BackgroundPlaceholder='', ScreenWidth='', ScreenHeight='', PauseBackground='false', BackgroundSpeed='1.0')
         image = validated_image(image_settings(candidate))
         general['CropBackground'] = 'true' if image['crop'] else 'false'
-        general['LabWidth'], general['LabHeight'] = str(streams[0]['width']), str(streams[0]['height'])
+        mode=candidate['wallpaper'].get('display_mode','mirror')
+        if mode not in ('mirror','span'):raise ValueError('Invalid SDDM display mode')
+        general.update(LabDisplayMode=mode,LabScene='true' if native else 'false',LabSceneFrame='Backgrounds/wallpaper.ppm',LabVideoEpoch=str(int(time.time()*1000)))
+        general['LabWidth'], general['LabHeight'] = str(width), str(height)
         for key, number in image.items():
             general['Lab'+''.join(part.title() for part in key.split('_'))] = str(number)
         position = candidate['ui'].get('position', 'preset')
@@ -221,6 +256,7 @@ class Integration:
             general['PartialBlur'] = 'true' if candidate['ui']['blur'] else 'false'
             general['FullBlur'] = 'false'
         with (stage/'theme.conf').open('w') as out: config.write(out)
+        atomic_json(stage/'screens.json',screens_for(self.request))
         stage.chmod(0o755)
         for path in stage.rglob('*'): path.chmod(0o755 if path.is_dir() else 0o644)
 
@@ -260,8 +296,15 @@ class Integration:
         else:
             config = self.preview_config(kind, identifier)
             h.update(json.dumps(config, sort_keys=True).encode())
-            try: paths = [self.resolve_media(config)]
-            except ValueError: return ''
+            h.update(Path(__file__).read_bytes())
+            native=next((r for r in self.entries if r['id']==config.get('wallpaper',{}).get('source') and r.get('engine')),None)
+            if native:
+                paths=[p for p in Path(native['id']).rglob('*') if p.is_file()]
+                h.update(str(scene_size(self.request,config)).encode())
+            else:
+                try: paths = [self.resolve_media(config)]
+                except ValueError: return ''
+            if config.get('wallpaper',{}).get('display_mode')=='span':h.update(json.dumps(screens_for(self.request),sort_keys=True).encode())
             for root in (self.template, self.assets): paths += [p for p in root.rglob('*') if p.is_file()]
         for path in paths:
             try:
@@ -277,9 +320,24 @@ class Integration:
         except subprocess.TimeoutExpired: process.kill(); process.wait()
 
     def capture(self, stage, destination):
+        with scene_runtime(stage,destination.with_suffix('.renderer.log')):
+            self.capture_greeter(stage,destination)
+
+    def capture_greeter(self, stage, destination):
         temporary = stage/'capture.png'
         # The greeter sets its root size. Capture a fixed-size child, not that root.
-        (stage/'Main.qml').write_text('import QtQuick\nimport "."\nItem { ThemeMain { id: sample; width:1280; height:720; Component.onCompleted: console.log("WALLPAPER_LAB_GREETER_READY") } Timer { interval:1600; running:true; repeat:false; onTriggered: sample.grabToImage(function(result) { if (result.saveToFile('+json.dumps(str(temporary))+')) console.log("WALLPAPER_LAB_CAPTURE_READY"); }) } }\n')
+        general=ini(stage/'theme.conf')['General']
+        content='ThemeMain { anchors.fill:parent }'
+        if value(general,'LabDisplayMode')=='span':
+            screens=json.loads((stage/'screens.json').read_text());bounds=desktop_rect(screens)
+            scale=min(1280/bounds['width'],720/bounds['height']);ox=(1280-bounds['width']*scale)/2;oy=(720-bounds['height']*scale)/2
+            content=''
+            for s in screens:
+                # Preserve native login layout, then scale the entire view into the capture.
+                content+='ThemeMain { x:%f; y:%f; width:%f; height:%f; scale:%f; transformOrigin:Item.TopLeft; labScreenRect:Qt.rect(%f,%f,%f,%f); labDesktopRect:Qt.rect(%f,%f,%f,%f) }\n'%(
+                    ox+(s['x']-bounds['x'])*scale,oy+(s['y']-bounds['y'])*scale,s['width'],s['height'],scale,
+                    s['x'],s['y'],s['width'],s['height'],bounds['x'],bounds['y'],bounds['width'],bounds['height'])
+        (stage/'Main.qml').write_text('import QtQuick\nimport "."\nItem { Rectangle { id: sample; width:1280; height:720; color:"black"; '+content+' Component.onCompleted: console.log("WALLPAPER_LAB_GREETER_READY") } Timer { interval:1600; running:true; repeat:false; onTriggered: sample.grabToImage(function(result) { if (result.saveToFile('+json.dumps(str(temporary))+')) console.log("WALLPAPER_LAB_CAPTURE_READY"); }) } }\n')
         env = os.environ | dict(QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='rhi', QSG_RHI_BACKEND='opengl', LIBGL_ALWAYS_SOFTWARE='1', QT_FORCE_STDERR_LOGGING='1', QT_ASSUME_STDERR_HAS_CONSOLE='1')
         with destination.with_suffix('.log').open('w+') as log:
             process = subprocess.Popen([self.greeter,'--test-mode','--theme',str(stage)],stdout=log,stderr=log,env=env)
@@ -316,6 +374,10 @@ class Integration:
         return dict(ok=True,thumbnail=target)
 
     def check(self, theme):
+        with scene_runtime(theme,self.state/'scene-check.log'):
+            self.check_greeter(theme)
+
+    def check_greeter(self, theme):
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='rhi', QSG_RHI_BACKEND='opengl', LIBGL_ALWAYS_SOFTWARE='1', QT_FORCE_STDERR_LOGGING='1', QT_ASSUME_STDERR_HAS_CONSOLE='1')
         with (self.state/'greeter-check.log').open('w+') as log:
@@ -335,7 +397,7 @@ class Integration:
             log.seek(0)
             text = log.read()
         failures = ('is not installed', 'is not a type', 'Cannot load library', 'failed to load', 'Error decoding', 'Cannot open', 'Error loading', 'WALLPAPER_LAB_SHADER_ERROR')
-        if not alive or 'WALLPAPER_LAB_GREETER_READY' not in text or any(s.lower() in text.lower() for s in failures):
+        if not alive or 'WALLPAPER_LAB_GREETER_READY' not in text or ((theme/'scene.json').exists() and 'WALLPAPER_LAB_SCENE_READY' not in text) or any(s.lower() in text.lower() for s in failures):
             raise ValueError('Greeter validation failed; see ' + str(self.state/'greeter-check.log'))
 
     def run(self):
@@ -352,12 +414,15 @@ class Integration:
             if argument in favorites: favorites.remove(argument)
             else: favorites.append(argument)
             atomic_json(self.library_file,self.library)
-        elif action in ('enable', 'check', 'wallpaper', 'preset', 'position', 'crop', 'blur', 'edit'):
+        elif action in ('enable', 'check', 'wallpaper', 'preset', 'position', 'crop', 'blur', 'edit', 'display-mode'):
             if action not in ('enable', 'check') and not self.config.get('enabled'):
                 raise ValueError('Enable the integration first')
             candidate['enabled'] = True
             if action == 'wallpaper':
                 candidate['wallpaper']['source'] = argument
+            elif action == 'display-mode':
+                if argument not in ('mirror','span'):raise ValueError('Invalid SDDM display mode')
+                candidate['wallpaper']['display_mode']=argument
             elif action in ('preset', 'position'):
                 candidate['ui'][action] = argument
             elif action == 'blur':
@@ -391,13 +456,20 @@ class Integration:
         elif action in ('preview', 'preview-wallpaper'):
             if not self.ready():
                 raise ValueError('Validate the integration before previewing')
-            preview_theme = self.bundle
-            temporary = None
-            if action == 'preview-wallpaper':
-                temporary = tempfile.TemporaryDirectory(prefix='wallpaper-preview-',dir=self.state)
-                preview_theme = Path(temporary.name)
-                self.build_theme(copy.deepcopy(self.config), preview_theme)
-                (preview_theme/'Main.qml').write_text('import QtQuick\nimport "."\nLabBackground { source: Qt.resolvedUrl(config.Background); Component.onCompleted: console.log("WALLPAPER_LAB_GREETER_READY") }\n')
+            self.live_preview(action=='preview-wallpaper')
+        elif action != 'status':
+            raise ValueError('Unknown SDDM action')
+        return self.snapshot()
+
+    def live_preview(self, wallpaper_only):
+        with ExitStack() as stack:
+            preview_theme=self.bundle
+            if wallpaper_only or (self.bundle/'scene.json').exists():
+                preview_theme=Path(stack.enter_context(tempfile.TemporaryDirectory(prefix='live-preview-',dir=self.state)))
+                shutil.copytree(self.bundle,preview_theme,dirs_exist_ok=True)
+                if wallpaper_only:
+                    (preview_theme/'Main.qml').write_text('import QtQuick\nimport "."\nLabBackground { source: Qt.resolvedUrl(config.Background); Component.onCompleted: console.log("WALLPAPER_LAB_GREETER_READY") }\n')
+            stack.enter_context(scene_runtime(preview_theme,self.state/'scene-preview.log'))
             # Bounded preview is owned and reaped by this helper; no persistent process or service.
             with (self.state/'greeter-preview.log').open('w') as log:
                 process = subprocess.Popen([self.greeter, '--test-mode', '--theme', str(preview_theme)], stdout=log, stderr=log, env=os.environ | {'QT_FORCE_STDERR_LOGGING': '1', 'QT_ASSUME_STDERR_HAS_CONSOLE': '1'})
@@ -418,10 +490,6 @@ class Integration:
                         process.wait()
                 finally:
                     self.stop_child(process)
-                    if temporary: temporary.cleanup()
-        elif action != 'status':
-            raise ValueError('Unknown SDDM action')
-        return self.snapshot()
 
     def snapshot(self):
         preset = self.config.get('ui', {}).get('preset', 'astronaut')
@@ -430,10 +498,12 @@ class Integration:
         backgrounds = [row | {'thumbnail':self.thumbnail_path(0,row['id']), 'favorite':row['id'] in self.library.get('favorites',[])} for row in self.entries]
         previews = [dict(id=p,title=p.replace('_',' ').replace('-',' ').title(),thumbnail=self.thumbnail_path(1,p)) for p in self.presets]
         final = self.thumbnail_path(2,'') if self.config.get('enabled') else ''
-        return dict(ok=True, final_preview=final, ui_previews=previews, image=image_settings(self.config), preset_blur=blur, ready=self.ready(), enabled=self.config.get('enabled', False), config=self.config,
+        return dict(ok=True, screens=screens_for(self.request), final_preview=final, ui_previews=previews, image=image_settings(self.config), preset_blur=blur, ready=self.ready(), enabled=self.config.get('enabled', False), config=self.config,
                     backgrounds=backgrounds, presets=self.presets, bundle=str(self.bundle), log=str(self.state/'greeter-check.log'))
 
 def main():
+    def terminate(signum, frame):raise SystemExit(128+signum)
+    signal.signal(signal.SIGTERM,terminate)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--request', type=Path, required=True)
     args = parser.parse_args()

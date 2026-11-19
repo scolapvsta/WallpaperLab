@@ -1,3 +1,18 @@
+# Version 1.4.0 — source update
+
+- Render compatible native scenes inside SDDM previews through one hidden,
+  bounded Wallpaper Lab renderer and an atomic RGB feed shared by greeter views.
+- Add Mirror/Panoramic controls and combined multi-monitor captures. Apply image
+  controls to the whole virtual canvas before each monitor samples its region.
+- Verify renderer readiness and delivered frames before publishing a selection;
+  preserve the previous theme on failure. Verify child identity before stopping
+  it and terminate the scene renderer if its helper dies.
+- Keep scene rendering experimental: up to 30 FPS/2560×1440, original project and
+  assets required, no scene interaction/audio or desktop property/dependency export.
+  Web projects and real pre-login deployment remain unsupported.
+- See [native scene and panorama checks](SDDM_SCENE_TEST_RESULTS.md). The public
+  downloadable stable installer remains 1.0.0.
+
 # Version 1.3.0 — source update
 
 - Replace SDDM's selection dropdowns with separate wallpaper and login UI card

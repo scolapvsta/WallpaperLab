@@ -63,6 +63,7 @@ float lab_sddm_image(int index,const char* key);
 int lab_sddm_edit(int index,const float* values,int count);
 int lab_sddm_favorite(int index,int toggle);
 const char* lab_sddm_shader(void);
+float lab_sddm_aspect(void);
 int lab_caelestia_available();
 const char* lab_caelestia_status();
 void lab_cancel_switcher_preview();

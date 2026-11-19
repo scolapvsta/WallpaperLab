@@ -69,11 +69,11 @@ static void SddmInspector(Rectangle area){
  int actions=area.y+area.height-122;sddmDetailBody=(Rectangle){area.x+1,area.y+68,area.width-2,fmaxf(60,actions-area.y-74)};Rectangle saved=inputClip;inputClip=sddmDetailBody;
  if(!choiceWheel&&Hot(sddmDetailBody,true))sddmInspectorScroll=fmaxf(0,sddmInspectorScroll-ScrollInput(sddmDetailBody)*55);choiceWheel=false;
  sddmInspectorDraw=SmoothScroll(sddmInspectorDraw,sddmInspectorScroll);BeginScissorMode(sddmDetailBody.x,sddmDetailBody.y,sddmDetailBody.width,sddmDetailBody.height);int y=sddmDetailBody.y+4-sddmInspectorDraw;
- sddmPreviewRect=(Rectangle){x,y,w,w*9.f/16};Texture2D preview=SddmTextureFor(kind,index);
+ sddmPreviewRect=(Rectangle){x,y,w,w/(kind?16.f/9:lab_sddm_aspect())};Texture2D preview=SddmTextureFor(kind,index);
  if(preview.id){if(!kind&&supported)SddmEditedPreview(preview,sddmPreviewRect,sddmDraft);else Cover(preview,sddmPreviewRect,true);}else SddmPlaceholder(sddmPreviewRect,kind,index);y+=sddmPreviewRect.height+18;
  UiText(kind?lab_tr("UI di login"):SddmOriginLabel(index),x,y,13,muted);if(!kind)UiText(SddmTypeLabel(index),x+w-UiMeasure(SddmTypeLabel(index),13),y,13,muted);y+=30;
  bool blocked=inputBlocked;inputBlocked=blocked||busy;choiceEnabled=!busy;
- if(!supported)y+=TextLines(lab_tr("SDDM supporta immagini, GIF e video. Scene e progetti web richiedono un renderer dedicato."),x,y,w,14,8,muted)+20;
+ if(!supported)y+=TextLines(lab_tr("Questo progetto non è supportato da SDDM o contiene file mancanti."),x,y,w,14,8,muted)+20;
  else if(!kind){UiText(lab_tr("Immagine e ritaglio"),x,y,17,AppTheme.text);y+=32;y+=SddmImageControls(x,y,w);}
  else{
   const char* positions[]={lab_tr("Predefinito"),lab_tr("Sinistra"),lab_tr("Al centro"),lab_tr("Destra")};const char* values[]={"preset","left","center","right"};int current=lab_sddm_option("position"),selected=Choice(91,x,&y,w,lab_tr("Posizione"),positions,4,current);if(selected!=current)lab_sddm_action("position",values[selected]);
@@ -92,8 +92,9 @@ static void SddmInspector(Rectangle area){
 }
 static void SddmFinal(Rectangle area){
  int x=area.x+20,y=area.y+16,w=area.width-40;
+ const char* modes[]={lab_tr("Duplicato"),lab_tr("Panoramico")};int mode=lab_sddm_option("display-mode");choiceEnabled=!lab_sddm_busy()&&!sddmDirty;int next=Choice(94,x,&y,w,lab_tr("Display"),modes,2,mode);choiceEnabled=true;if(next!=mode)lab_sddm_action("display-mode",next?"span":"mirror");y+=12;
  int wp=lab_sddm_selected(0),ui=lab_sddm_selected(1);if(wp>=0){UiText(lab_tr("Sfondo selezionato"),x,y,13,muted);ClippedText(lab_sddm_text(0,wp,"title"),(Rectangle){x,y+22,w*.53f,28},18,AppTheme.text);}if(ui>=0){UiText(lab_tr("UI di login"),x+w*.58f,y,13,muted);ClippedText(lab_sddm_text(1,ui,"title"),(Rectangle){x+w*.58f,y+22,w*.42f,28},18,AppTheme.text);}y+=64;
- float height=fminf(w*9.f/16,area.height-166),width=height*16.f/9;Rectangle preview={x+(w-width)/2,y,width,height};sddmPreviewRect=preview;Texture2D texture=SddmTextureFor(2,-1);if(texture.id)Cover(texture,preview,true);else SddmPlaceholder(preview,2,-1);
+ float height=fminf(w*9.f/16,area.y+area.height-y-102),width=height*16.f/9;Rectangle preview={x+(w-width)/2,y,width,height};sddmPreviewRect=preview;Texture2D texture=SddmTextureFor(2,-1);if(texture.id)Cover(texture,preview,true);else SddmPlaceholder(preview,2,-1);
  y+=height+18;sddmPreviewButton=(Rectangle){x,y,w,38};if(Button(sddmPreviewButton,lab_tr("Anteprima SDDM · 60 secondi"),false,!lab_sddm_busy()&&lab_sddm_ready()))lab_sddm_action("preview","");y+=50;
  TextLines(lab_tr("Configurazione di prova. L’installazione nel login di sistema sarà un passaggio separato."),x,y,w,12,3,muted);
 }

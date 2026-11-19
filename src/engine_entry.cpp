@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
+#include <sys/prctl.h>
 #include "audio_policy.hpp"
 #include <chrono>
 #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
@@ -20,9 +21,15 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         sLog.addError(new std::ostream(std::cerr.rdbuf()));
         // The layout is an immutable snapshot passed only to this renderer.
         std::vector<char*> engineArgs={argv[0]};std::string layout,position,profileFile,liveFile,project,feed;
+        unsetenv("WALLPAPER_LAB_HIDDEN_RENDER");
         for(int i=1;i<argc;i++){
             // DRI_PRIME must be set before EGL/Vulkan initialize; child processes inherit it.
-            if(std::string(argv[i])=="--lab-gpu"){if(++i>=argc)throw std::runtime_error("GPU mancante");setenv("DRI_PRIME",argv[i],1);
+            if(std::string(argv[i])=="--lab-parent"){
+                if(++i>=argc)throw std::runtime_error("Missing renderer owner");
+                int parent=std::stoi(argv[i]);
+                if(parent<=1||prctl(PR_SET_PDEATHSIG,SIGTERM)||getppid()!=parent)throw std::runtime_error("Renderer owner is no longer alive");
+            }else if(std::string(argv[i])=="--lab-hidden"){setenv("WALLPAPER_LAB_HIDDEN_RENDER","1",1);
+            }else if(std::string(argv[i])=="--lab-gpu"){if(++i>=argc)throw std::runtime_error("GPU mancante");setenv("DRI_PRIME",argv[i],1);
             }else if(std::string(argv[i])=="--lab-transition"){if(++i>=argc)throw std::runtime_error("Transizione mancante");setenv("WALLPAPER_LAB_TRANSITION",argv[i],1);
             }else if(std::string(argv[i])=="--lab-layout"){
                 if(++i>=argc)throw std::runtime_error("Geometria del panorama mancante");
