@@ -5,7 +5,8 @@ namespace lab::login {
 struct CanvasState {
     std::string username="User",input,session="Desktop",prompt="Password",status,title;
     bool secret=true,busy=false,preview=true,paused=false;
-    int focus=0;
+    int focus=0,cursor=0;
+    bool caret=false;float inputProgress=1;
 };
 struct Pixels { int width=0,height=0;std::vector<unsigned char> rgba; };
 Pixels draw(const json& document,int width,int height,const CanvasState& state,std::time_t time);

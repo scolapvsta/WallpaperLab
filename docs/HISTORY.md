@@ -1,3 +1,16 @@
+# Version 2.1.0 — native login refinement
+
+- Use start-hyprland for the private login compositor and restore optional GNOME
+  Keyring PAM unlock with backups and conditional rollback.
+- Replace the preset gallery with one editable base UI and remove the calendar.
+  Separate Widget/Appearance tabs, tighten monitor controls and add animated
+  password dots, caret navigation, field styling and visibility controls.
+- Keep live previews alive after their launch worker exits. Cache native scene
+  stills with the source aspect ratio and use saved panorama geometry.
+- Store connector IDs and support different wallpapers, creator properties and
+  image adjustments for independent outputs.
+- See [refinement validation](LOGIN_REFINEMENT_TEST_RESULTS.md) for actual outcomes.
+
 # Version 2.0.0 — native login screen (experimental source update)
 
 - Replace the SDDM/Qt integration with a separate optional native editor and

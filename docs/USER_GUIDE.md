@@ -412,13 +412,16 @@ compositors retain the generic fullscreen detector behavior.
 
 Under **Settings → Integrations**, enable **Login screen** to reveal its own tab
 after the library, carousel and Workshop. Open **Wallpapers** for the existing
-local/Steam catalog and separate image adjustments; **Templates and widgets** for
-five native presets, dragging and widget appearance; **Monitors and startup** for
-single/mirror/panorama and login UI placement. The required login form cannot be
+local/Steam catalog and separate image adjustments; **Login UI editor** for a
+customizable base UI with separate Widget/Appearance tabs; **Monitors and startup**
+for single/mirror/panorama and login UI placement. Single mode has output tabs to
+assign a different wallpaper to each monitor. The calendar and preset gallery
+have been removed; existing layout preferences are retained. The required login form cannot be
 hidden. Preferences save automatically without changing the desktop wallpaper.
 
-Cards and the editor composition use library posters. Live preview renders the
-actual animation/scene in a separate bounded process, with native widgets in the
+Cards use library posters. The editor asynchronously captures and caches a native
+scene frame at its source aspect ratio, then applies image edits without reloading
+the scene. Live preview renders the actual animation/scene in a separate bounded process, with native widgets in the
 same graphics context. Esc closes it. Preview never accepts credentials.
 
 **Apply at next boot** copies the selected project, dependencies, engine assets,

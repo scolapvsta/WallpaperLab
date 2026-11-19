@@ -6,6 +6,7 @@
 #include <csignal>
 #include "desktop_surface.hpp"
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <unistd.h>
 #include <sys/prctl.h>
@@ -14,6 +15,10 @@
 #include <chrono>
 #include "WallpaperEngine/Render/Helpers/SpanGeometry.h"
 #include "WallpaperEngine/Render/Helpers/WallpaperPlacement.h"
+static bool ownerAlive(const nlohmann::json& owner){
+    if(owner.empty())return true;
+    try{int pid=owner.at("pid");std::filesystem::path proc="/proc/"+std::to_string(pid);std::ifstream f(proc/"stat");std::string stat,field;std::getline(f,stat);std::istringstream fields(stat.substr(stat.rfind(')')+2));for(int i=0;i<=19;i++)fields>>field;return pid>1&&field==owner.at("start").get<std::string>()&&std::filesystem::read_symlink(proc/"exe").string()==owner.at("exe").get<std::string>();}catch(...){return false;}
+}
 static volatile sig_atomic_t stopRequested=0;
 static void stopHandler(int) {stopRequested=1;}
 int engineMain(int argc,char**argv,const std::string& ready) {
@@ -21,11 +26,12 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         sLog.addOutput(new std::ostream(std::cout.rdbuf()));
         sLog.addError(new std::ostream(std::cerr.rdbuf()));
         // The layout is an immutable snapshot passed only to this renderer.
-        std::vector<char*> engineArgs={argv[0]};std::string layout,position,profileFile,liveFile,project,feed;
+        nlohmann::json owner;std::vector<char*> engineArgs={argv[0]};std::string layout,position,profileFile,liveFile,project,feed;
         unsetenv("WALLPAPER_LAB_HIDDEN_RENDER");
         for(int i=1;i<argc;i++){
             // DRI_PRIME must be set before EGL/Vulkan initialize; child processes inherit it.
-            if(std::string(argv[i])=="--lab-parent"){
+            if(std::string(argv[i])=="--lab-owner"){if(++i>=argc)throw std::runtime_error("Missing renderer owner");owner=nlohmann::json::parse(argv[i]);if(!ownerAlive(owner))throw std::runtime_error("Renderer owner is no longer alive");
+            }else if(std::string(argv[i])=="--lab-parent"){
                 if(++i>=argc)throw std::runtime_error("Missing renderer owner");
                 int parent=std::stoi(argv[i]);
                 if(parent<=1||prctl(PR_SET_PDEATHSIG,SIGTERM)||getppid()!=parent)throw std::runtime_error("Renderer owner is no longer alive");
@@ -55,9 +61,11 @@ int engineMain(int argc,char**argv,const std::string& ready) {
         lab::prepareDesktopSurface();
         app.setup();
         int frames=0;bool reportedReady=false;auto lastAudio=std::chrono::steady_clock::time_point{};
+        auto lastOwner=std::chrono::steady_clock::time_point{};
         auto audioSettings=std::filesystem::path(profileFile).parent_path()/"settings.json";
         while(context.state.general.keepRunning && !stopRequested && !wallpaper_lab_login_quit()) {
             auto now=std::chrono::steady_clock::now();
+            if(now-lastOwner>=std::chrono::milliseconds(200)){lastOwner=now;if(!ownerAlive(owner))break;}
             if(!profileFile.empty()&&!project.empty()&&now-lastAudio>=std::chrono::milliseconds(100)){
                 lastAudio=now;if(auto enabled=lab::savedAudioEnabled(audioSettings,profileFile,project))context.state.audio.volume=context.settings.audio.enabled&&*enabled?100:0;
             }

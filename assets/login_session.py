@@ -82,7 +82,7 @@ def main():
         cache=Path(os.environ['XDG_RUNTIME_DIR'])/'wallpaper-lab-login';cache.mkdir(mode=0o700,exist_ok=True)
         for name in ['session-started','failed','ready']:(cache/name).unlink(missing_ok=True)
         with(cache/'compositor.log').open('w')as log:
-            child=subprocess.Popen(['dbus-run-session','--','Hyprland','--config',str(config)],env=env,stdout=log,stderr=log,start_new_session=True)
+            child=subprocess.Popen(['dbus-run-session','--','start-hyprland','--','--config',str(config)],env=env,stdout=log,stderr=log,start_new_session=True)
             try:identity=process_identity(child.pid)
             except OSError:identity=None
             if identity:

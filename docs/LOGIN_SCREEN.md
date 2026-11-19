@@ -1,6 +1,6 @@
 # Native login screen (experimental)
 
-Source version 2.0 replaces the SDDM preview experiment. Wallpaper Lab supplies
+Source version 2.1 refines the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
 its own editor, native wallpaper rendering, widgets and login controls. greetd
 provides PAM authentication and session startup; Hyprland provides the dedicated
 pre-login Wayland compositor. The normal desktop launcher is not required at boot.
@@ -12,28 +12,38 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
 2. Open the **Login screen** tab and select a compatible local or Steam wallpaper.
    Import images/GIFs/videos with the library import button. Steam projects must
    already be downloaded; compatible Workshop scenes use the native engine.
-3. Choose **Orbit, Horizon, Neon, Paper or Canvas** under **Templates and widgets**.
-   Drag enabled widgets inside a monitor preview or adjust normalized coordinates,
-   dimensions and font size. Appearance includes font family, light/dark styling,
-   accent, panel opacity and corner radius. The login form remains enabled and
-   has a usable minimum size. Calendar, wallpaper playback, date, clock and
-   message widgets can be toggled independently.
+3. Open **Login UI editor**. There is one fully editable base UI; the former
+   preset gallery and calendar widget have been removed. Existing layouts, fonts,
+   colours and other widget preferences are preserved during migration.
+   The right inspector has separate **Widget** and **Appearance** tabs. Drag widgets
+   or edit position, size and font size. Appearance includes field and panel opacity,
+   field corners, focus-border width, labels, fonts and accent colour.
 4. Choose single, mirrored or panoramic wallpaper output under **Monitors and
-   startup**, independently of the primary/secondary/all login UI choice. When starting with only one
-   connected output, a secondary-only UI falls back to that output.
-5. Adjust wallpaper color, crop/fit, position, zoom, rotation and mirroring in the
-   wallpaper inspector. These profiles do not alter the desktop library profiles.
+   startup**, independently of the primary/secondary/all login UI choice. Single
+   mode exposes explicit monitor tabs and a wallpaper library for the selected
+   output. Each output retains its wallpaper and independent image adjustments;
+   mirror/panorama use the shared wallpaper. Output selections store connector IDs,
+   and old display-label selections are migrated. Secondary-only UI falls back to
+   the available output when just one screen is connected.
+5. Adjust wallpaper colour, crop/fit, position, zoom, rotation and mirroring in the
+   wallpaper inspector. These profiles do not alter desktop library profiles.
 6. Run **Live preview · 60 seconds** to inspect actual native rendering. Esc closes
    it early. The existing desktop wallpaper remains running. Preview refuses
    credential input and never opens a greetd connection.
 
-Editor compositions use the cached catalog poster: a Workshop thumbnail is not a
-rendered scene, and may show a different crop or art from the full project. The
-live preview shows actual project compatibility, animation and output geometry.
-Only an explicit live-preview action starts a renderer; changing cards/templates
-updates the native editor without rebuilding an external theme. UI textures are
-cached and recomputed when their content changes, rather than streamed through
-frame files. Scene loading time still depends on project size and engine support.
+The editor renders and caches a neutral still frame of the selected project in
+its original aspect ratio. Image controls are then applied by the editor shader,
+so adjusting a slider does not reload the scene. Cached stills load immediately;
+first-time capture runs asynchronously in a bounded hidden renderer. While it
+loads, the editor labels the fallback as a Workshop thumbnail. Such thumbnails
+may differ from the full project. The live preview shows actual animation and
+output geometry; it uses a process identity guard that survives completion of the
+background launch worker.
+
+The monitor map uses the saved desktop panorama calibration, independently of any
+unsaved desktop-layout draft. UI widget geometry is local to each output. Password
+fields draw animated dots, show a blinking caret and support UTF-8 cursor movement,
+Home/End and deletion; previews still reject credentials.
 
 Draft preferences are stored in `$XDG_CONFIG_HOME/wallpaper-lab/login-screen.json`.
 Saving a draft does not change an already published system login. The media widget
@@ -55,8 +65,11 @@ sudo pacman -S --needed greetd greetd-agreety hyprland polkit dbus
 
 The greeter user, PAM service and greetd systemd unit are supplied by the packages.
 A working graphical polkit authentication agent is needed for the app's Apply
-button. Do not run the desktop application as root. No PAM files are generated
-by Wallpaper Lab. The installed Wayland sessions under `/usr/share/wayland-sessions`
+button. Do not run the desktop application as root. If GNOME Keyring's PAM module is installed, publication adds missing optional
+keyring authentication/session hooks to the distribution's greetd PAM file, after
+backing it up. Passwords remain inside the normal PAM exchange; Wallpaper Lab does
+not read keyring contents or change keyring passwords. Rollback restores the
+original PAM file and refuses to overwrite later external changes. The installed Wayland sessions under `/usr/share/wayland-sessions`
 provide the desktop choices; this version does not launch X11 sessions.
 
 ## Publishing for the next boot
@@ -81,7 +94,8 @@ not restart SDDM/greetd or terminate the current desktop. Subsequent publication
 retain the original pre-Wallpaper-Lab backup for feature deactivation. A failed
 publication preserves the last successfully installed version.
 
-At boot greetd starts Wallpaper Lab's dedicated Hyprland session as the package's
+At boot greetd starts Wallpaper Lab's dedicated Hyprland session through
+`start-hyprland`, the compositor's watchdog launcher, as the package's
 unprivileged greeter user. Widgets and wallpapers share the native renderer's
 OpenGL context. Authentication follows greetd's secret/visible/informational PAM
 messages, including multiple prompts. The selected session starts only after
@@ -126,17 +140,17 @@ preview logs and publication staging remain under the desktop user's
 
 ## Current limitations and verification
 
-The [test report](NATIVE_LOGIN_TEST_RESULTS.md) distinguishes real desktop output
+The [refinement test report](LOGIN_REFINEMENT_TEST_RESULTS.md) and
+[initial report](NATIVE_LOGIN_TEST_RESULTS.md) distinguish real desktop output
 checks, fake greetd IPC tests and actual system-boot validation. A fast, successful
 preview alone does not validate PAM login, VT handoff or a cold boot.
 
 - Workshop compatibility is that of the existing native engine. Web wallpapers
   are excluded from the login catalog; local image/GIF wrappers use native mpv.
-- The editor uses posters, not continuously rendered scene thumbnails. Selecting
-  another template resets widget layout/font/appearance to that preset.
-- Single-output wallpaper mode currently initializes rendering on the connected
-  outputs and clears inactive backgrounds. It preserves output geometry but is
-  not yet optimized to avoid all work on the inactive output.
+- Still frames represent one point in the scene's animation, not an interactive
+  scene preview. The explicit live preview remains the animation check.
+- Independent outputs share the same native engine process and authentication UI;
+  their creator properties, placement and image adjustments are selected per output.
 - No desktop autostart entry is needed for the login screen. Installing a bundle
   does not enable Wallpaper Lab's separate desktop autostart or shortcuts.
 - This is a login greeter, not a secure desktop lock screen. Do not use preview as

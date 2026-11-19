@@ -14,6 +14,7 @@
 #include "caelestia_integration.hpp"
 #include "login_config.hpp"
 #include "login_canvas.hpp"
+#include <cairo/cairo.h>
 #include "login_runtime.hpp"
 #include "theme_catalog.h"
 #include "theme_fonts.hpp"
@@ -721,7 +722,7 @@ int lab_popup_poll(int* steps,int* released){
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
 int lab_popup_max_width(){return popupMaxWidth;}
 int lab_popup_max_height(){return popupMaxHeight;}
-void lab_shutdown(){lab_login_save();lab_login_stop_preview();if(loginJob.valid())try{loginJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
+void lab_shutdown(){if(loginStillJob.valid())try{loginStillJob.get();}catch(...){}lab_login_save();lab_login_stop_preview();if(loginJob.valid())try{loginJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
 }
 int main(int argc,char**argv) {
     try {
@@ -807,7 +808,7 @@ int main(int argc,char**argv) {
                 std::string action=argc>2?argv[2]:"status";ensureLogin();
                 if(action=="enable"||action=="disable"){if(!lab_login_enable(action=="enable"))throw std::runtime_error("Native login configuration failed");while(lab_login_busy()){lab_login_poll();std::this_thread::sleep_for(std::chrono::milliseconds(50));}if(loginDocument.value("enabled",false)!=(action=="enable"))throw std::runtime_error("Native login configuration failed");}
                 else if(action=="set"){if(argc!=4)throw std::invalid_argument("Usage: --login set JSON_PATCH");auto next=loginDocument;next.merge_patch(json::parse(argv[3]));loginDocument=login::validate(next);login::save(loginDocument);}
-                else if(action=="prepare"){int selected=lab_login_selected();if(selected<0)throw std::invalid_argument("Select a login wallpaper first");auto file=login::prepare(loginDocument,items[selected],settings,monitors);std::cout<<json({{"prepared",file.string()}}).dump()<<'\n';return 0;}
+                else if(action=="prepare"){int selected=lab_login_selected();if(selected<0)throw std::invalid_argument("Select a login wallpaper first");auto file=login::prepare(loginDocument,items[selected],settings,monitors,items);std::cout<<json({{"prepared",file.string()}}).dump()<<'\n';return 0;}
                 else if(action!="status")throw std::invalid_argument("Unknown login action");std::cout<<loginDocument.dump(2)<<'\n';return 0;
             }
             if(cmd=="--import"){if(argc<3)throw std::runtime_error("Uso: --import FILE...");json imported=json::array();for(int n=2;n<argc;n++)imported.push_back(importLocalMedia(argv[n],localLibrary(settings)).string());std::cout<<imported.dump(2)<<'\n';return 0;}

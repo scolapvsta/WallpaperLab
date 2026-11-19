@@ -2,15 +2,14 @@
 #include "catalog.hpp"
 #include <array>
 namespace lab::login {
-inline constexpr std::array<const char*,6> widgets={"clock","date","calendar","media","message","login"};
-inline constexpr std::array<const char*,5> templates={"Orbit","Horizon","Neon","Paper","Canvas"};
+inline constexpr std::array<const char*,5> widgets={"clock","date","media","message","login"};
 json defaults();
-json applyTemplate(json document,int preset);
+std::string sourceFor(const json& document,const std::string& output="");
 json validate(json document);
 json load();
 void save(const json& document);
-json imageProfile(const json& document);
+json imageProfile(const json& document,const std::string& output="");
 bool supported(const Item& item);
-fs::path prepare(const json& document,const Item& item,const json& desktop,const std::vector<std::string>& outputs);
+fs::path prepare(const json& document,const Item& item,const json& desktop,const std::vector<std::string>& outputs,const std::vector<Item>& library={});
 std::vector<std::string> renderArguments(const json& prepared,bool windowed=false);
 }

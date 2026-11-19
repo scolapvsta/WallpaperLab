@@ -9,9 +9,9 @@
 namespace lab::login {
 std::array<double,4> widgetRect(const json& d,int i){auto& w=d.at("widgets").at(widgets.at(i));return {w.at("x"),w.at("y"),w.at("width"),w.at("height")};}
 int hit(const json& d,double x,double y){
-    auto r=widgetRect(d,5);double a=(x-r[0])/r[2],b=(y-r[1])/r[3];
+    auto r=widgetRect(d,4);double a=(x-r[0])/r[2],b=(y-r[1])/r[3];
     if(a>=0&&a<=1&&b>=0&&b<=1){if(b<.28)return 0;if(b<.50)return 1;if(b<.67)return 2;if(b<.85)return 3;return 4;}
-    r=widgetRect(d,3);if(d["widgets"]["media"]["enabled"].get<bool>()&&x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3])return 5;
+    r=widgetRect(d,2);if(d["widgets"]["media"]["enabled"].get<bool>()&&x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3])return 5;
     return -1;
 }
 Pixels draw(const json& d,int width,int height,const CanvasState& state,std::time_t when){
@@ -30,29 +30,44 @@ Pixels draw(const json& d,int width,int height,const CanvasState& state,std::tim
     std::tm now{};localtime_r(&when,&now);char clock[32],date[128];std::strftime(clock,sizeof(clock),"%H:%M",&now);std::strftime(date,sizeof(date),"%A, %d %B",&now);
     for(int i=0;i<int(widgets.size());i++){
         auto& v=d.at("widgets").at(widgets[i]);if(!v.at("enabled").get<bool>())continue;auto r=widgetRect(d,i);double x=r[0]*width,y=r[1]*height,w=r[2]*width,h=r[3]*height,size=v.at("size").get<double>()*scale;
-        shadow=i==0||i==1||i==4;cairo_save(cr);cairo_rectangle(cr,x,y,w,h);cairo_clip(cr);color(true);
+        shadow=i==0||i==1||i==3;cairo_save(cr);cairo_rectangle(cr,x,y,w,h);cairo_clip(cr);color(true);
         if(i==0)text(clock,x,y,w,h,size,true,true);
         if(i==1)text(date,x,y,w,h,size,true);
-        if(i==4)text(d.value("message",std::string()),x,y,w,h,size);
-        if(i==2){
-            panel(x,y,w,h,d.value("panel_opacity",.65));color(true);char month[80];std::strftime(month,sizeof(month),"%B %Y",&now);text(month,x+8*scale,y,w-16*scale,h*.18,size,true,true);
-            for(int c=0;c<7;c++){char dayName[32];std::tm day{};day.tm_wday=(c+1)%7;std::strftime(dayName,sizeof(dayName),"%a",&day);text(dayName,x+c*w/7,y+h*.2,w/7,h*.1,size*.65,true);}
-            auto first=now;first.tm_mday=1;first.tm_hour=12;mktime(&first);int offset=(first.tm_wday+6)%7;auto last=first;last.tm_mon++;last.tm_mday=0;mktime(&last);
-            for(int day=1;day<=last.tm_mday;day++){int n=offset+day-1,c=n%7,row=n/7;double yy=y+h*.32+row*h*.105;if(day==now.tm_mday){cairo_set_source_rgba(cr,((accent>>16)&255)/255.,((accent>>8)&255)/255.,(accent&255)/255.,.4);round(x+c*w/7+2*scale,yy,w/7-4*scale,h*.1,4*scale);cairo_fill(cr);}color(true);text(std::to_string(day),x+c*w/7,yy,w/7,h*.1,size*.75,true);}
-        }
-        if(i==3){panel(x,y,w,h,d.value("panel_opacity",.65));color(true);text(state.title.empty()?translate("Sfondo selezionato"):state.title,x+16*scale,y,w-32*scale,h*.55,size,false,true);text(state.paused?translate("Riproduci"):translate("Pausa"),x+16*scale,y+h*.5,w-32*scale,h*.45,size*.8);}
-        if(i==5){
-            panel(x,y,w,h,d.value("panel_opacity",.65));double pad=20*scale,ww=w-2*pad;auto field=[&](double top,double height,const std::string& label,int focus){
-                round(x+pad,y+h*top,ww,h*height,8*scale);color(true,state.focus==focus?.17:.08);cairo_fill(cr);color(true);text(label,x+pad+12*scale,y+h*top,ww-24*scale,h*height,size*.85);
+        if(i==3)text(d.value("message",std::string()),x,y,w,h,size);
+        if(i==2){panel(x,y,w,h,d.value("panel_opacity",.65));color(true);text(state.title.empty()?translate("Sfondo selezionato"):state.title,x+16*scale,y,w-32*scale,h*.55,size,false,true);text(state.paused?translate("Riproduci"):translate("Pausa"),x+16*scale,y+h*.5,w-32*scale,h*.45,size*.8);}
+        if(i==4){
+            // Native interpretation of Astronaut's icon-led fields and focus treatment.
+            panel(x,y,w,h,d.value("panel_opacity",.65));
+            round(x+.5*scale,y+.5*scale,w-scale,h-scale,d.value("radius",20.)*scale);color(true,.12);cairo_set_line_width(cr,scale);cairo_stroke(cr);
+            double pad=24*scale,ww=w-2*pad;auto accentColor=[&](double alpha){cairo_set_source_rgba(cr,((accent>>16)&255)/255.,((accent>>8)&255)/255.,(accent&255)/255.,alpha);};
+            auto field=[&](double top,double height,const std::string& label,int focus){
+                double yy=y+h*top,hh=h*height,xx=x+pad;bool focused=state.focus==focus&&!state.preview;
+                round(xx,yy,ww,hh,d.value("field_radius",10.)*scale);color(true,d.value("field_opacity",.10)+(focused?.05:0));cairo_fill(cr);
+                if(focused){round(xx,yy,ww,hh,d.value("field_radius",10.)*scale);accentColor(.85);cairo_set_line_width(cr,std::max(1.,d.value("border_width",1.))*scale);cairo_stroke(cr);}
+                double ix=xx+22*scale,iy=yy+hh/2;cairo_set_line_width(cr,1.7*scale);color(true,focused?1:.65);
+                if(focus==0){cairo_arc(cr,ix,iy-4*scale,4*scale,0,2*M_PI);cairo_stroke(cr);cairo_arc(cr,ix,iy+9*scale,8*scale,M_PI,2*M_PI);cairo_stroke(cr);}
+                else if(focus==1){round(ix-6*scale,iy-2*scale,12*scale,10*scale,2*scale);cairo_stroke(cr);cairo_arc(cr,ix,iy-2*scale,4*scale,M_PI,2*M_PI);cairo_stroke(cr);}
+                else {round(ix-7*scale,iy-5*scale,14*scale,10*scale,2*scale);cairo_stroke(cr);cairo_move_to(cr,ix,iy+5*scale);cairo_line_to(cr,ix,iy+9*scale);cairo_stroke(cr);}
+                double tx=xx+44*scale,available=ww-58*scale,caretX=tx;bool secret=focus==1&&state.secret&&!state.input.empty();
+                cairo_save(cr);cairo_rectangle(cr,tx,yy,available,hh);cairo_clip(cr);color(true,focused?1:.85);
+                if(secret){
+                    int count=g_utf8_strlen(state.input.c_str(),-1),cursor=g_utf8_strlen(state.input.c_str(),std::clamp(state.cursor,0,int(state.input.size())));double step=12*scale;int visible=std::max(1,int((available-4*scale)/step)),start=std::max(0,cursor-visible);
+                    for(int n=start;n<count&&n<start+visible;n++){double progress=n==count-1?std::clamp(double(state.inputProgress),0.,1.):1.;double radius=(2.+1.1*(1-std::pow(1-progress,3)))*scale;cairo_arc(cr,tx+4*scale+(n-start)*step,yy+hh/2,radius,0,2*M_PI);cairo_fill(cr);}caretX=tx+(cursor-start)*step+2*scale;
+                }else{
+                    auto layout=pango_cairo_create_layout(cr);auto desc=pango_font_description_new();pango_font_description_set_family(desc,family.c_str());pango_font_description_set_absolute_size(desc,size*.85*PANGO_SCALE);pango_layout_set_font_description(layout,desc);pango_layout_set_text(layout,label.c_str(),label.size());
+                    PangoRectangle cursor{};int offset=std::clamp(state.cursor,0,int(label.size()));pango_layout_get_cursor_pos(layout,offset,&cursor,nullptr);int tw,th;pango_layout_get_pixel_size(layout,&tw,&th);double scroll=focused?std::max(0.,cursor.x/double(PANGO_SCALE)-available+3*scale):0;
+                    cairo_move_to(cr,tx-scroll,yy+(hh-th)/2);pango_cairo_show_layout(cr,layout);caretX=tx+cursor.x/double(PANGO_SCALE)-scroll;pango_font_description_free(desc);g_object_unref(layout);
+                }
+                if(focused&&focus<2&&state.caret&&!state.busy){accentColor(1);cairo_set_line_width(cr,1.5*scale);cairo_move_to(cr,caretX,yy+hh*.29);cairo_line_to(cr,caretX,yy+hh*.71);cairo_stroke(cr);}cairo_restore(cr);
             };
-            color(true);text(translate("Benvenuto"),x+pad,y+h*.02,ww,h*.09,size*.72);
+            if(d.value("show_welcome",true)){color(true,.85);text(translate("Benvenuto"),x+pad,y+h*.02,ww,h*.09,size*.82,false,true);}
             field(.13,.13,state.username.empty()?translate("Utente"):state.username,0);
-            std::string displayed=state.input;if(state.secret&&!displayed.empty()){size_t count=0;for(unsigned char c:displayed)if((c&0xc0)!=0x80)count++;displayed=std::string(count,'*');}
-            field(.34,.13,displayed.empty()?(state.prompt=="Password"?translate("Password"):state.prompt):displayed,1);
-            color(true,.65);text(state.prompt=="Password"?translate("Password"):state.prompt,x+pad,y+h*.27,ww,h*.06,size*.55);
-            field(.54,.10,state.session+"  ▾",2);
-            round(x+pad,y+h*.70,ww,h*.12,8*scale);cairo_set_source_rgba(cr,((accent>>16)&255)/255.,((accent>>8)&255)/255.,(accent&255)/255.,.95);cairo_fill(cr);cairo_set_source_rgba(cr,.045,.06,.075,1);text(state.busy?translate("Attendi la fine del caricamento"):state.preview?translate("Anteprima"):translate("Accedi"),x+pad,y+h*.70,ww,h*.12,size*.85,true,true);
+            std::string prompt=state.prompt=="Password"?translate("Password"):state.prompt;
+            if(d.value("show_labels",true)){color(true,.65);text(prompt,x+pad,y+h*.27,ww,h*.06,size*.55);}
+            field(.34,.13,state.input.empty()?prompt:state.input,1);field(.54,.10,state.session+"  ▾",2);
+            round(x+pad,y+h*.70,ww,h*.12,d.value("field_radius",10.)*scale);accentColor(state.busy?.55:.95);cairo_fill(cr);cairo_set_source_rgba(cr,.045,.06,.075,1);text(state.busy?translate("Attendi la fine del caricamento"):state.preview?translate("Anteprima"):translate("Accedi"),x+pad,y+h*.70,ww,h*.12,size*.85,true,true);
             color(true,.8);text(state.status.empty()?(std::string("Esc · ")+(state.preview?translate("Chiudi"):translate("Annulla"))):state.status,x+pad,y+h*.86,ww,h*.10,size*.58,true);
+
         }
         cairo_restore(cr);
     }

@@ -28,7 +28,7 @@ static int ToggleChoice(int id,int x,int* y,int w,const char* label,const char**
  return next!=value?(selected<0?0:1-selected):selected;
 }
 static int Choice(int id,int x,int* py,int w,const char* label,const char** options,int count,int selected){
- if(count==2&&id!=38&&id!=4&&id!=80&&id!=81&&id!=82&&id!=89&&id!=90)return ToggleChoice(id,x,py,w,label,options,selected);
+ if(count==2&&id!=38&&id!=4&&id!=80&&id!=81&&id!=82&&id!=89&&id!=90&&id!=91)return ToggleChoice(id,x,py,w,label,options,selected);
  choiceToggle[id]=false;
  int result=selected;if(choicePending==id){result=choiceValue;choicePending=-1;}
  int y=*py;int cw=*label?fminf(292,w*.60f):w;TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;

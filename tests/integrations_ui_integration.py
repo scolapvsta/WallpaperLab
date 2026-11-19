@@ -86,18 +86,18 @@ try:
     close_settings();wait(lambda:g()['login_header'][0]>0);click(g()['login_header']);wait(lambda:state()['page']==5)
     assert g()['header']['integrations'][0]>0 and g()['login_header'][0]>g()['header']['workshop'][0]
     click(g()['login_tabs'][1]);wait(lambda:g()['login_tab']==1)
-    click(g()['login_templates'][2]);wait(lambda:json.loads((config/'login-screen.json').read_text())['template']==2)
+    click(g()['login_inspector_tabs'][1]);click(g()['login_inspector_tabs'][0]);choose(92,3);toggle(93);wait(lambda:not json.loads((config/'login-screen.json').read_text())['widgets']['message']['enabled'])
     shot('native-login');assert json.loads((config/'settings.json').read_text())['caelestia_palette']==2
-    results['native_login_separate_and_saved_template']=True
+    results['native_login_separate_and_saved_widgets']=True
     settings();toggle(73);wait(lambda:not s()['caelestia_enabled']);close_settings()
     assert state()['page']==5 and g()['header']['integrations']==[0,0]
-    assert json.loads((config/'login-screen.json').read_text())['template']==2
+    assert not json.loads((config/'login-screen.json').read_text())['widgets']['message']['enabled']
     results['caelestia_toggle_preserves_native_editor']=True
     settings();toggle(88);wait(lambda:not s()['login_enabled'] and state()['page']==0)
     assert state()['settings'];assert g()['login_header']==[0,0]
     results['disable_login_hides_tab_preserves_settings_modal']=True
     toggle(88);wait(lambda:s()['login_enabled']);close_settings();wait(lambda:g()['login_header'][0]>0);click(g()['login_header']);wait(lambda:state()['page']==5)
-    assert json.loads((config/'login-screen.json').read_text())['template']==2
+    assert not json.loads((config/'login-screen.json').read_text())['widgets']['message']['enabled']
     results['reenable_preserves_preferences']=True
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))
 finally:

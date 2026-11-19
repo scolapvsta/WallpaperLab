@@ -65,10 +65,10 @@ try:
     thread=threading.Thread(target=ipc);thread.start();ready=out/'greeter-ready';ready.unlink(missing_ok=True)
     doc=json.loads(prepared.read_text());doc['username']='';prepared.write_text(json.dumps(doc));(out/'identity/last-session.json').unlink(missing_ok=True)
     with(out/'greeter.log').open('w')as log:child=subprocess.Popen([str(app),'--login-greeter',str(prepared),'--window',str(ready)],env=env|{'GREETD_SOCK':str(auth_socket)},stdout=log,stderr=log)
-    identity=session.process_identity(child.pid);wait(ready.exists);wait(lambda:window(child));text(child,'demo');key(child,'28:1','28:0');wait(lambda:requests==['create_session']);time.sleep(.3);text(child,'test-only');shot(child,out/'secret-masked.png');key(child,'28:1','28:0');child.wait(timeout=10);thread.join(timeout=5);assert not thread.is_alive()and not errors,errors
+    identity=session.process_identity(child.pid);wait(ready.exists);wait(lambda:window(child));text(child,'demo');key(child,'28:1','28:0');wait(lambda:requests==['create_session']);time.sleep(.3);text(child,'testonly');key(child,'102:1','102:0');key(child,*(['106:1','106:0']*4));text(child,'-');key(child,'107:1','107:0');text(child,'X');key(child,'14:1','14:0');shot(child,out/'secret-masked.png');key(child,'28:1','28:0');child.wait(timeout=10);thread.join(timeout=5);assert not thread.is_alive()and not errors,errors
     assert child.returncode==0 and requests[-1]=='start_session';saved=json.loads((out/'identity/last-session.json').read_text());assert set(saved)=={'username','session'}and saved['username']=='demo'
     log=(out/'greeter.log').read_text();assert 'test-only'not in log and 'WALLPAPER_LAB_LOGIN_STARTED'in log
-    results['native_greeter_keyboard_and_greetd_flow']=True;results['only_identity_persisted']=True
+    results['native_greeter_keyboard_and_greetd_flow']=True;results['only_identity_persisted']=True;results['password_cursor_home_end_insert_backspace']=True
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results))
 finally:
     if child and identity:session.stop_child(child,identity)

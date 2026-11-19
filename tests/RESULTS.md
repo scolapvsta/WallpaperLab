@@ -6,6 +6,14 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Native login refinement — 2026-11-19 (source 2.1.0)
+
+See [refinement validation](../docs/LOGIN_REFINEMENT_TEST_RESULTS.md) for the base
+UI editor, preview lifetime repair, native scene stills, independent output
+wallpapers, keyring/launcher corrections and local installation. The new system
+changes still require a subsequent real login; the user confirmed boot/login on
+the previous 2.0.0 implementation.
+
 ## Native login screen — 2026-11-19 (source 2.0.0)
 
 See [native login validation](../docs/NATIVE_LOGIN_TEST_RESULTS.md) for the native

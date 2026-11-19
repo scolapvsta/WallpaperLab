@@ -268,15 +268,22 @@ hidden native UI; framebuffer captures avoid desktop occlusion and focus changes
 
 `login_config` owns a validated, versioned document separate from desktop profiles.
 `login_canvas` rasterizes widgets using Cairo/Pango. The launcher caches these
-textures and shares catalog thumbnails instead of rescanning files, invoking Qt
-or starting a renderer when a card changes. Draft writes are debounced. Real
+textures and shares the catalog thumbnails. A bounded hidden native renderer
+captures a neutral still for the selected source; the cache key includes saved
+creator properties. Once cached, image/placement edits use the preview shader
+without reloading the scene. No Qt renderer is involved. Draft writes are
+debounced. Real
 previews are asynchronous, bounded and owned by verified PID/start-time/executable
 identity; failed replacements leave the previous preview and desktop intact.
+An explicit owner identity is polled by the engine, avoiding Linux parent-death
+signals tied to the lifetime of a temporary launch thread.
 
 The ordered native-login engine patch exposes weak application hooks for drawing
 and input. Normal desktop rendering has no login behavior. Login mode composites
 one cached premultiplied widget texture per output directly onto the engine's
-framebuffer, refreshing on input, resize or minute changes. Scenes and mpv media
+framebuffer, refreshing on input, resize, caret blink, short input animation or
+minute changes. Independent outputs use separate materialized projects, creator
+properties and cached image/placement values within the same renderer process. Scenes and mpv media
 retain their normal native render path; there is no continuous CPU frame-file
 transport. Output geometry reuses the desktop canvas/layout implementation.
 
@@ -288,8 +295,10 @@ passwords are never written to settings or logs. Live preview rejects credential
 
 `login_deploy.py` exports an independent bundle and publishes an immutable root-owned
 release. Privileged copying uses no-follow directory descriptors and hashes the
-bytes actually copied. Config/service aliases have rollback snapshots. Activation
+bytes actually copied. Config/service aliases have rollback snapshots. Missing optional GNOME Keyring
+PAM hooks are added when its module is installed; rollback snapshots include the
+original PAM file and detect external modifications. Activation
 uses `systemctl enable --force`, never `--now`. `login_session.py` supervises a
-private Hyprland compositor, native background fallback and terminal agreety
+private Hyprland compositor through `start-hyprland`, native background fallback and terminal agreety
 fallback. Startup has a deadline. See [Login screen](LOGIN_SCREEN.md) and the
-[verification report](NATIVE_LOGIN_TEST_RESULTS.md) for current boundaries.
+[refinement report](LOGIN_REFINEMENT_TEST_RESULTS.md) for current boundaries.

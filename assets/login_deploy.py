@@ -5,6 +5,8 @@ import argparse,fcntl,hashlib,json,os,pwd,shutil,stat,subprocess,sys,tempfile,ti
 BASE=Path('/usr/local/lib/wallpaper-lab-login')
 STATE=Path('/var/lib/wallpaper-lab-login')
 CONFIG=Path('/etc/greetd/config.toml')
+PAM=Path('/etc/pam.d/greetd')
+KEYRING_MODULE=Path('/usr/lib/security/pam_gnome_keyring.so')
 ALIAS=Path('/etc/systemd/system/display-manager.service')
 RUNTIME_FILES=['wallpaper-lab','liblinux-wallpaperengine-lib.so','libcef.so','libEGL.so','libGLESv2.so','libvk_swiftshader.so','v8_context_snapshot.bin','vk_swiftshader_icd.json','chrome_100_percent.pak','chrome_200_percent.pak','resources.pak','icudtl.dat','login_session.py','login_deploy.py']
 RUNTIME_DIRS=['lib','deps','locales','fonts','licenses','login-assets']
@@ -106,9 +108,28 @@ def prepare(file):
     for value in profile.get('properties',{}).values():
         if isinstance(value,str)and value.startswith('/')and not value.startswith(str(system)+'/'):
             raise ValueError('Import external scene property files into the project before publishing')
+    # Each independent output gets its own project and profile; repeated source
+    # projects may still have different placement or colour settings.
+    independent={}
+    for index,(output,record) in enumerate(document.get('prepared_wallpapers',{}).items()):
+        folder='project-'+str(index);chosen=Path(record['project']).resolve();checked_copy(chosen,staged/folder)
+        specific=[(chosen,system/folder),(Path(record['source']).resolve(),system/folder),(assets,system/'assets'),(runtime,system/'runtime')]
+        for path in (staged/folder).rglob('*.json'):
+            try:value=json.loads(path.read_text())
+            except(UnicodeError,ValueError):continue
+            path.write_text(json.dumps(rewrite(value,specific),indent=2)+'\n')
+        selected=json.loads(Path(record['profile_file']).read_text()).get(record['source'],{})
+        selected=rewrite(selected,specific)
+        for value in selected.get('properties',{}).values():
+            if isinstance(value,str)and value.startswith('/')and not value.startswith(str(system)+'/'):raise ValueError('Import external scene property files into the project before publishing')
+        profile_name='profile-'+str(index)+'.json';(staged/profile_name).write_text(json.dumps({str(system/folder):selected},indent=2)+'\n')
+        independent[output]=record|dict(project=str(system/folder),source=str(system/folder),assets=str(system/'assets'),profile_file=str(system/profile_name))
     original=document['source'];document=rewrite(document,mappings);document.pop('owner',None)
     document.update(renderer=str(system/'runtime/wallpaper-lab'),project=str(system/'project'),assets=str(system/'assets'),profile_file=str(system/'wallpaper_profiles.json'),source=str(system/'project'))
     document['profiles']={str(system/'project'):document.get('profiles',{}).get(original,{})}
+    document['prepared_wallpapers']=independent
+    document['wallpapers']={output:record['source']for output,record in independent.items()}
+    document['output_profiles']={}
     bundled={'Oxanium':'oxanium/Oxanium[wght].ttf','Orbitron':'orbitron/Orbitron[wght].ttf','Rajdhani':'rajdhani/Rajdhani-SemiBold.ttf','Silkscreen':'silkscreen/Silkscreen-Regular.ttf'}
     candidate=runtime/'fonts'/bundled.get(document['font'],'missing')
     font=str(candidate)if candidate.is_file()else subprocess.check_output(['fc-match','-f','%{file}',document['font']],text=True).strip()
@@ -120,7 +141,7 @@ def prepare(file):
     # A solid native image remains usable if the chosen project fails at boot.
     fallback=staged/'fallback';fallback.mkdir();(fallback/'background.ppm').write_bytes(b'P6\n2 2\n255\n'+bytes([13,20,31])*4)
     (fallback/'project.json').write_text(json.dumps({'type':'video','file':'background.ppm','title':'Wallpaper Lab'}))
-    safe=document|dict(project=str(system/'fallback'),assets=str(system/'assets'),title='Wallpaper Lab',mode='mirror')
+    safe=document|dict(project=str(system/'fallback'),assets=str(system/'assets'),title='Wallpaper Lab',mode='mirror',prepared_wallpapers={})
     (staged/'fallback.json').write_text(json.dumps(safe,indent=2)+'\n')
     hashes={str(p.relative_to(staged)):digest(p)for p in sorted(staged.rglob('*'))if p.is_file()}
     manifest={'schema':1,'release':release,'files':hashes,'required_packages':['greetd','hyprland']}
@@ -134,7 +155,7 @@ def install(package):
     if not release.isdigit()or len(release)>24:raise ValueError('Invalid release identifier')
     source=package/'bundle';wanted=manifest['files']
     if not {'runtime/wallpaper-lab','runtime/login_session.py','runtime/login_deploy.py','login.json','fallback.json'}.issubset(wanted):raise ValueError('Incomplete login package')
-    missing=[name for name in ['greetd','agreety','Hyprland','hyprctl','dbus-run-session']if not shutil.which(name)]
+    missing=[name for name in ['greetd','agreety','Hyprland','start-hyprland','hyprctl','dbus-run-session']if not shutil.which(name)]
     if missing:raise ValueError('Install the greetd and hyprland system packages first: '+', '.join(missing))
     greeter=pwd.getpwnam('greeter')
     BASE.mkdir(parents=True,exist_ok=True)
@@ -154,7 +175,21 @@ def install(package):
         state=STATE;state.mkdir(parents=True,exist_ok=True);os.chown(state,greeter.pw_uid,greeter.pw_gid);state.chmod(0o700)
         command='/usr/bin/python3 '+str(target/'runtime/login_session.py')+' '+str(target)
         config='[terminal]\nvt = 1\n\n[default_session]\ncommand = '+json.dumps(command)+'\nuser = "greeter"\n'
+        # Keep keyring unlock in PAM. The application never handles keyring secrets.
+        pam_original=PAM.read_bytes()if PAM.is_file()else None
+        pam_updated=pam_original
+        if pam_original is not None and KEYRING_MODULE.is_file():
+            lines=pam_original.decode().splitlines();active=[line for line in lines if line.strip()and not line.lstrip().startswith('#')]
+            additions=[]
+            if not any(line.lstrip('-').split()[0]=='auth'and 'pam_gnome_keyring.so'in line for line in active):additions.append('auth optional pam_gnome_keyring.so')
+            if not any(line.lstrip('-').split()[0]=='session'and 'pam_gnome_keyring.so'in line for line in active):additions.append('session optional pam_gnome_keyring.so auto_start')
+            if additions:pam_updated=pam_original.rstrip()+b'\n\n# Wallpaper Lab: unlock the login keyring through PAM.\n'+('\n'.join(additions)+'\n').encode()
+        if pam_updated!=pam_original:
+            for snapshot in [backup,Path(original_backup)]:
+                if not(snapshot/'greetd-pam.original').exists():(snapshot/'greetd-pam.original').write_bytes(pam_original)
+                (snapshot/'greetd-pam.applied.sha256').write_text(hashlib.sha256(pam_updated).hexdigest())
         try:
+            if pam_updated!=pam_original:atomic(PAM,pam_updated)
             atomic(CONFIG,config)
             new=BASE/'current.new';new.unlink(missing_ok=True);new.symlink_to(target);new.replace(BASE/'current')
             # Enable for the next boot only; never stop the user's active display manager.
@@ -166,6 +201,10 @@ def install(package):
 
 def restore(backup):
     previous=json.loads((backup/'state.json').read_text())
+    pam_backup=backup/'greetd-pam.original';pam_hash=backup/'greetd-pam.applied.sha256'
+    if pam_backup.exists():
+        if pam_hash.exists()and PAM.read_bytes()!=pam_backup.read_bytes()and digest(PAM)!=pam_hash.read_text():raise ValueError('PAM configuration changed outside Wallpaper Lab; restore it manually')
+        atomic(PAM,pam_backup.read_bytes())
     if previous['had_config']:atomic(CONFIG,(backup/'greetd-config.toml').read_bytes())
     else:CONFIG.unlink(missing_ok=True)
     current=BASE/'current';current.unlink(missing_ok=True)

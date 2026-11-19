@@ -1,0 +1,86 @@
+--- a/src/WallpaperEngine/Application/WallpaperApplication.cpp
++++ b/src/WallpaperEngine/Application/WallpaperApplication.cpp
+@@ -516,7 +516,8 @@
+ 	// update the value of the property
+ 	auto override = this->m_context.settings.general.properties.find (key);
+ 
+-	if (override != this->m_context.settings.general.properties.end ()) {
++	if(labLoginActive()){if(auto value=wallpaper_lab_login_property(key.c_str()))cur->update(value,DynamicValue::UpdateSource::User);}
++	else if (override != this->m_context.settings.general.properties.end ()) {
+ 	    sLog.out ("Applying override value for ", key);
+ 
+ 	    cur->update (override->second, DynamicValue::UpdateSource::User);
+@@ -530,6 +531,7 @@
+ 
+ void WallpaperApplication::setupProperties () {
+     for (const auto& [background, info] : this->m_backgrounds) {
++	if(labLoginActive())wallpaper_lab_login_output(background.c_str());
+ 	this->setupPropertiesForProject (*info);
+     }
+ }
+--- a/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
++++ b/src/WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.cpp
+@@ -60,7 +60,7 @@
+     if (context.settings.render.mode != ApplicationContext::DESKTOP_BACKGROUND) {
+         glfwSetKeyCallback(this->m_window, [](GLFWwindow* window, int key, int, int action, int) {
+             if(labLoginActive()){
+-                if(action==GLFW_PRESS||action==GLFW_REPEAT){unsigned symbol=key==GLFW_KEY_ESCAPE?0xff1b:key==GLFW_KEY_ENTER||key==GLFW_KEY_KP_ENTER?0xff0d:key==GLFW_KEY_BACKSPACE?0xff08:key==GLFW_KEY_TAB?0xff09:key==GLFW_KEY_LEFT?0xff51:key==GLFW_KEY_RIGHT?0xff53:0;if(symbol)wallpaper_lab_login_symbol(symbol);}return;
++                if(action==GLFW_PRESS||action==GLFW_REPEAT){unsigned symbol=key==GLFW_KEY_ESCAPE?0xff1b:key==GLFW_KEY_ENTER||key==GLFW_KEY_KP_ENTER?0xff0d:key==GLFW_KEY_BACKSPACE?0xff08:key==GLFW_KEY_TAB?0xff09:key==GLFW_KEY_HOME?0xff50:key==GLFW_KEY_END?0xff57:key==GLFW_KEY_DELETE?0xffff:key==GLFW_KEY_LEFT?0xff51:key==GLFW_KEY_RIGHT?0xff53:0;if(symbol)wallpaper_lab_login_symbol(symbol);}return;
+             }
+             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
+         });
+--- a/src/WallpaperEngine/Render/Helpers/ImageAdjustments.h
++++ b/src/WallpaperEngine/Render/Helpers/ImageAdjustments.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include "LoginOverlay.h"
+ #include <algorithm>
+ #include <cmath>
+ #include <glm/vec3.hpp>
+@@ -11,6 +12,7 @@
+ namespace WallpaperEngine::Render::Helpers {
+ struct ImageTuning {glm::vec3 basic{0,1,1};glm::vec4 more{0,0,1,0};glm::vec3 geometry{0,1,1};bool neutral()const{return basic==glm::vec3(0,1,1)&&more==glm::vec4(0,0,1,0)&&geometry==glm::vec3(0,1,1);}};
+ inline ImageTuning imageAdjustments(){
++ float p[13];if(labLoginActive()&&wallpaper_lab_login_image(p)){ImageTuning value;value.basic={p[3],p[4],p[5]};value.more={p[6]*.01745329252f,p[7],p[8],p[9]};value.geometry={p[10]*.01745329252f,p[11]>.5f?-1:1,p[12]>.5f?-1:1};return value;}
+  static ImageTuning result;static auto last=std::chrono::steady_clock::time_point{};auto now=std::chrono::steady_clock::now();if(now-last<std::chrono::milliseconds(40))return result;last=now;
+  auto file=std::getenv("WALLPAPER_LAB_PROFILE_FILE"),project=std::getenv("WALLPAPER_LAB_PROJECT"),live=std::getenv("WALLPAPER_LAB_LIVE_FILE");if(!project)return result;
+  auto read=[&](const nlohmann::json& j){auto bounded=[&](const char* key,float def,float lo,float hi){float value=j.value(key,def);return std::isfinite(value)?std::clamp(value,lo,hi):def;};result.basic={bounded("brightness",0,-1,1),bounded("contrast",1,0,2),bounded("saturation",1,0,2)};result.more={bounded("hue",0,-180,180)*.01745329252f,bounded("temperature",0,-1,1),bounded("gamma",1,.25,3),bounded("vignette",0,0,1)};result.geometry={bounded("rotation",0,-180,180)*.01745329252f,bounded("flip_x",0,0,1)>.5f?-1:1,bounded("flip_y",0,0,1)>.5f?-1:1};};
+--- a/src/WallpaperEngine/Render/Helpers/LoginOverlay.h
++++ b/src/WallpaperEngine/Render/Helpers/LoginOverlay.h
+@@ -1,6 +1,9 @@
+ #pragma once
+ // Optional application-owned native login overlay. No dependency in upstream tools.
+ extern "C" {
++void wallpaper_lab_login_output(const char*) __attribute__((weak));
++int wallpaper_lab_login_image(float*) __attribute__((weak));
++const char* wallpaper_lab_login_property(const char*) __attribute__((weak));
+ int wallpaper_lab_login_active() __attribute__((weak));
+ void wallpaper_lab_login_draw(const char*,int,int,int,int) __attribute__((weak));
+ void wallpaper_lab_login_pointer(const char*,double,double,int) __attribute__((weak));
+--- a/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
++++ b/src/WallpaperEngine/Render/Helpers/WallpaperPlacement.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include "LoginOverlay.h"
+ #include <chrono>
+ #include <algorithm>
+ #include <cmath>
+@@ -25,6 +26,7 @@
+     return { static_cast<float> (x), static_cast<float> (y), static_cast<float>(zoom) };
+ }
+ inline const Position& configured () {
++    static Position login;float image[13];if(labLoginActive()&&wallpaper_lab_login_image(image)){login={image[0],image[1],image[2]};return login;}
+     static Position value = [] () {
+ 	auto raw = std::getenv ("WALLPAPER_LAB_POSITION");
+ 	return raw && *raw ? parse (raw) : Position {};
+--- a/src/WallpaperEngine/Render/RenderContext.cpp
++++ b/src/WallpaperEngine/Render/RenderContext.cpp
+@@ -30,7 +30,7 @@
+     glPushDebugGroup (GL_DEBUG_SOURCE_APPLICATION, 0, -1, str.c_str ());
+ #endif /* DEBUG */
+ 
+-    if (labLoginActive()) setPause(wallpaper_lab_login_paused());
++    if (labLoginActive()) {wallpaper_lab_login_output(viewport->name.c_str());setPause(wallpaper_lab_login_paused());}
+ 
+     // search the background in the viewport selection
+ 

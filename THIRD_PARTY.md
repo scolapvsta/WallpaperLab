@@ -138,7 +138,10 @@ download. See [Releasing](docs/RELEASING.md) for source and binary packaging che
 
 ## Native login UI and greetd
 
-The native templates in version 2.0 are original Wallpaper Lab Cairo/Pango code.
+The native base UI is Wallpaper Lab Cairo/Pango code. Its icon-led fields and
+focus styling are informed by the GPLv3+ [Astronaut input component](https://github.com/Keyitdev/sddm-astronaut-theme/blob/master/Components/Input.qml),
+copyright Keyitdev, with the sddm-sugar-dark ancestry credited upstream. No QML
+component is embedded or executed.
 [SDDM Astronaut](https://github.com/Keyitdev/sddm-astronaut-theme) informed the earlier
 preview experiment and general layout exploration. Version 2.0 removes its QML,
 preset runtime, submodule and frame bridge; those components remain attributed in
