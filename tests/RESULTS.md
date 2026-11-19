@@ -46,6 +46,12 @@ outside Git under `local/` or isolated XDG directories.
   for awww. NVIDIA proprietary offload is not configured/certified by DRI_PRIME.
   Fullscreen visibility policy is covered deterministically; physical standby and
   every live fullscreen/focus/exclusion combination were not replayed here.
+- Post-merge local installation passed staging and runtime checks. The installed
+  executable reports 1.1.0; the same wallpaper was restored under a new verified
+  renderer identity. Its live frame feed returned fresh, changing frames on both
+  physical outputs. All existing preference values were preserved; native backend
+  and hold-mode carousel remain the defaults. Configuration backup and the prior
+  runtime remain local for rollback.
 - This is a source/local runtime update. The public downloadable installer remains
   1.0.0; no replacement release installer, shortcut or autostart activation is made.
 
