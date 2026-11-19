@@ -50,6 +50,7 @@ not included in the source repository or application runtime.
 | `engine-transition-handoff.patch` | Per-output captures and synchronized controller/renderer handoff |
 | `engine-compositor-transitions.patch` | RGBA composition and antialiased iris |
 | `engine-live-audio-mute.patch` | Live CEF/MPV audio mute |
+| `engine-output-hotplug.patch` | Wayland output removal and reconnection |
 | `raylib-app-id.patch` | Application desktop identity |
 
 Patches live in `patches/`; application-side compositor rules are in

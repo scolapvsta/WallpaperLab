@@ -32,6 +32,11 @@ only that output. A global change replaces the whole group. The controller start
 a replacement and waits for readiness before retiring the previous renderer.
 Startup failure preserves the old wallpaper. Concurrent operations are locked.
 
+A renderer keeps running when its output disappears, for example when a monitor
+reports a disconnect in standby. It releases the layer surface when the output
+global is removed and recreates it when an output with the same connector name
+returns, so `running.json` stays valid without a controller restart.
+
 The controller refreshes current-process information after output discovery.
 Selecting an already active project is a no-op; property changes requiring reload
 explicitly request a forced start. Before signaling any process, its identity
