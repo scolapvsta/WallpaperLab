@@ -135,6 +135,13 @@ def prepare(file):
     font=str(candidate)if candidate.is_file()else subprocess.check_output(['fc-match','-f','%{file}',document['font']],text=True).strip()
     if font and Path(font).is_file():
         shutil.copy2(font,staged/'font.ttf');document['font_file']=str(system/'font.ttf')
+    document['font_files']=[]
+    families={w.get('font','')for w in document.get('widgets',{}).values()}-{''}
+    for index,family in enumerate(sorted(families)):
+        selected=runtime/'fonts'/bundled.get(family,'missing')
+        path=str(selected)if selected.is_file()else subprocess.check_output(['fc-match','-f','%{file}',family],text=True).strip()
+        if path and Path(path).is_file():
+            name='widget-font-'+str(index)+'.ttf';shutil.copy2(path,staged/name);document['font_files'].append(str(system/name))
     (staged/'login.json').write_text(json.dumps(document,indent=2)+'\n')
     (staged/'wallpaper_profiles.json').write_text(json.dumps({str(system/'project'):profile},indent=2)+'\n')
     (staged/'settings.json').write_text(json.dumps({'muted':document.get('muted',True)})+'\n')

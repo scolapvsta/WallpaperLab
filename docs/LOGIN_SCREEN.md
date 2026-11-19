@@ -1,6 +1,6 @@
 # Native login screen (experimental)
 
-Source version 2.1 refines the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
+Source version 2.2 extends the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
 its own editor, native wallpaper rendering, widgets and login controls. greetd
 provides PAM authentication and session startup; Hyprland provides the dedicated
 pre-login Wayland compositor. The normal desktop launcher is not required at boot.
@@ -12,24 +12,44 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
 2. Open the **Login screen** tab and select a compatible local or Steam wallpaper.
    Import images/GIFs/videos with the library import button. Steam projects must
    already be downloaded; compatible Workshop scenes use the native engine.
-3. Open **Login UI editor**. There is one fully editable base UI; the former
-   preset gallery and calendar widget have been removed. Existing layouts, fonts,
-   colours and other widget preferences are preserved during migration.
-   The right inspector has separate **Widget** and **Appearance** tabs. Drag widgets
-   or edit position, size and font size. Appearance includes field and panel opacity,
-   field corners, focus-border width, labels, fonts and accent colour.
-4. Choose single, mirrored or panoramic wallpaper output under **Monitors and
-   startup**, independently of the primary/secondary/all login UI choice. Single
-   mode exposes explicit monitor tabs and a wallpaper library for the selected
-   output. Each output retains its wallpaper and independent image adjustments;
-   mirror/panorama use the shared wallpaper. Output selections store connector IDs,
-   and old display-label selections are migrated. Secondary-only UI falls back to
-   the available output when just one screen is connected.
-5. Adjust wallpaper colour, crop/fit, position, zoom, rotation and mirroring in the
-   wallpaper inspector. These profiles do not alter desktop library profiles.
-6. Run **Live preview · 60 seconds** to inspect actual native rendering. Esc closes
-   it early. The existing desktop wallpaper remains running. Preview refuses
-   credential input and never opens a greetd connection.
+3. The **Wallpapers** tab combines the library, monitor preview and **Display /
+   Image** inspector. Display controls include single/mirror/panorama, primary
+   output, login UI placement and FPS. Single mode exposes output tabs; each
+   output retains its own wallpaper and image edits. Mirror/panorama use the
+   shared source. Image controls reuse colour, crop/fit, position, zoom, rotation
+   and mirroring without modifying desktop profiles.
+4. Available wallpapers appear first. **Unsupported wallpapers** follow at the
+   end of the filtered/paginated library, with each project's actual reason.
+   Web projects require HTML/JavaScript, which the native greeter does not run.
+   An audio-visualizer title or capability alone does not reject a scene. Audio
+   processing is disabled at login, so reactive elements do not use desktop audio.
+5. Open **Login UI editor**. Only **Clock, Date and Login UI** remain. Select a
+   widget using the persistent selector above its **Widget / Appearance** tabs.
+   Drag widgets with the optional grid and magnetic snapping; configure the grid
+   spacing or use left/center/right placement buttons. Grid/snap are editor aids
+   and do not appear in the real login screen.
+6. Each widget has its own font (Automatic inherits the base font), text colour,
+   bold/italic/underline, alignment, letter spacing, shadow/3D relief, opacity,
+   background, rounded corners and border. Clock styles include digital,
+   minimal/classic analog and rings, 12/24-hour digital format and optional seconds.
+   Dates support long, short, ISO and weekday formats plus uppercase.
+7. Login UI's Widget controls contain the welcome toggle and optional time-based
+   greeting with the current username. Custom labels cover welcome, username,
+   password, session and sign-in. Empty labels use localized defaults. Appearance
+   adds button/text/field colours, focus border, field opacity/radius/height,
+   internal padding, label/button size and password-dot size/animation duration.
+   Real PAM challenge text remains authoritative for additional authentication
+   prompts; custom password labels only replace the normal password placeholder.
+8. Run **Live preview · 60 seconds** to inspect real native rendering and type
+   disposable test text into the fields. Password dots/caret animate normally;
+   Sign in only simulates the preview interaction. Preview never connects to
+   greetd, authenticates, launches a session or saves the entered text. Esc closes
+   it (first closing an open session menu). The desktop wallpaper keeps running.
+
+The native session selector opens an actual dropdown. Click an entry or use
+Up/Down, Home/End and Enter; Escape dismisses the menu without changing the choice.
+The real greeter starts only installed, trusted Wayland session entries after
+successful authentication.
 
 The editor renders and caches a neutral still frame of the selected project in
 its original aspect ratio. Image controls are then applied by the editor shader,
@@ -43,12 +63,13 @@ background launch worker.
 The monitor map uses the saved desktop panorama calibration, independently of any
 unsaved desktop-layout draft. UI widget geometry is local to each output. Password
 fields draw animated dots, show a blinking caret and support UTF-8 cursor movement,
-Home/End and deletion; previews still reject credentials.
+Home/End and deletion; the interactive preview keeps its test input only in memory.
 
 Draft preferences are stored in `$XDG_CONFIG_HOME/wallpaper-lab/login-screen.json`.
-Saving a draft does not change an already published system login. The media widget
-controls the login wallpaper's playback; it does not expose a logged-in user's
-music session before authentication. The login session starts muted by default.
+Saving a draft does not change an already published system login. Migration
+removes the retired calendar/media/message widgets and preserves the remaining
+layout, translating the old global form styling to Login UI settings. The login
+session starts muted by default.
 
 ## System prerequisites
 
@@ -79,7 +100,7 @@ administrator authentication. It copies:
 
 - the allowlisted app, engine/runtime dependencies, fonts and licenses;
 - the materialized selected project and installed Workshop dependencies;
-- the native engine asset tree, chosen font and validated rendering/UI profiles;
+- the native engine asset tree, chosen widget fonts and validated rendering/UI profiles;
 - a static native fallback background and the dedicated compositor supervisor.
 
 Projects containing symlinks or special files are rejected. External scene file
@@ -140,7 +161,8 @@ preview logs and publication staging remain under the desktop user's
 
 ## Current limitations and verification
 
-The [refinement test report](LOGIN_REFINEMENT_TEST_RESULTS.md) and
+The [customization test report](LOGIN_CUSTOMIZATION_TEST_RESULTS.md),
+[refinement test report](LOGIN_REFINEMENT_TEST_RESULTS.md) and
 [initial report](NATIVE_LOGIN_TEST_RESULTS.md) distinguish real desktop output
 checks, fake greetd IPC tests and actual system-boot validation. A fast, successful
 preview alone does not validate PAM login, VT handoff or a cold boot.

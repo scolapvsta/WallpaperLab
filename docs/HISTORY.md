@@ -1,3 +1,16 @@
+# Version 2.2.0 — native login customization
+
+- Combine wallpapers, output configuration and monitor preview in one tab.
+  Group unsupported wallpapers at the end and explain actual project limitations.
+- Keep Clock, Date and Login UI widgets; add grid snapping, independent fonts,
+  colours, text effects, backgrounds, borders and alignment controls.
+- Add analog clock variants, 12/24-hour digital formats, seconds and date formats.
+  Move welcome controls into Login UI with dynamic greetings and editable labels.
+- Make preview fields interactive without authentication or input persistence.
+  Replace session cycling with a native dropdown and keyboard navigation.
+- Export per-widget fonts for pre-login use. See
+  [customization validation](LOGIN_CUSTOMIZATION_TEST_RESULTS.md).
+
 # Version 2.1.0 — native login refinement
 
 - Use start-hyprland for the private login compositor and restore optional GNOME

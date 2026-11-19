@@ -291,7 +291,12 @@ transport. Output geometry reuses the desktop canvas/layout implementation.
 socket, asynchronously handling arbitrary secret/visible/informational PAM prompts.
 Only authenticated sessions can start. Desktop commands come from installed
 Wayland session descriptors. Remembered state contains username and session ID;
-passwords are never written to settings or logs. Live preview rejects credentials.
+passwords are never written to settings or logs. Live preview accepts transient test input through the same field renderer but
+never constructs an Auth object or persists input. Session dropdown geometry is
+shared by drawing and hit-testing. Version 3 documents retain three widgets,
+per-widget style/font records and editor-only grid/snap settings. Native clocks
+refresh once per second only when seconds are requested; other canvases keep the
+minute/input cache. Publication includes each selected widget font.
 
 `login_deploy.py` exports an independent bundle and publishes an immutable root-owned
 release. Privileged copying uses no-follow directory descriptors and hashes the
@@ -301,4 +306,4 @@ original PAM file and detect external modifications. Activation
 uses `systemctl enable --force`, never `--now`. `login_session.py` supervises a
 private Hyprland compositor through `start-hyprland`, native background fallback and terminal agreety
 fallback. Startup has a deadline. See [Login screen](LOGIN_SCREEN.md) and the
-[refinement report](LOGIN_REFINEMENT_TEST_RESULTS.md) for current boundaries.
+[customization report](LOGIN_CUSTOMIZATION_TEST_RESULTS.md) for current boundaries.

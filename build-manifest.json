@@ -1,6 +1,6 @@
 {
   "project": "Wallpaper Lab",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "date": "2026-11-19",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
@@ -30,7 +30,8 @@
     "patches/engine-visible-fullscreen.patch": "12f0fdd0be5259ca857db9d512aa791547e797415ec5fd5cdcf0e3affff29c8a",
     "patches/engine-fullscreen-policy.patch": "b6f56b2720cf71b931c7a351bbf3c0bd573a4b7661f8436fe75cb9b0b25a7cee",
     "patches/engine-native-login.patch": "7c91733decd53661107d09ba346566cefa79f84c4c1da8d94ab1a278fd7d08dd",
-    "patches/engine-native-login-refinements.patch": "0065cff5ac571c7c0098ddf9b856dc038905af733c0ce6912ecd523ccfc21510"
+    "patches/engine-native-login-refinements.patch": "0065cff5ac571c7c0098ddf9b856dc038905af733c0ce6912ecd523ccfc21510",
+    "patches/engine-login-session-menu.patch": "02f572369f4059f24bd44907eec01eae0d5b50f14f09506e54c39c495d85d4a5"
   },
   "runtime": "single application executable plus separately built engine shared library",
   "portable_dependencies": "local development prefix, not committed",

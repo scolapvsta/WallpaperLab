@@ -49,6 +49,8 @@ int lab_login_enabled(void);
 int lab_login_enable(int enabled);
 int lab_login_selected(void);
 int lab_login_supported(int index);
+const char* lab_login_reason(int index);
+int lab_login_move(int widget,float x,float y);
 int lab_login_select(int index);
 int lab_login_output_selected(int output);
 int lab_login_display_rect(int index,float* x,float* y,float* width,float* height);

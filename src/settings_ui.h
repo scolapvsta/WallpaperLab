@@ -1,11 +1,11 @@
 // Deferred overlay menus: opening a choice never changes document geometry.
 static int choiceReserve=0;static bool choiceEnabled=true;
 static int choiceScroll=0,choicePending=-1,choiceValue=-1;
-static Rectangle choiceControls[96],choiceRows[96][128];static int choiceCounts[96];
+static Rectangle choiceControls[128],choiceRows[128][128];static int choiceCounts[128];
 static bool choiceWheel=false,choiceMulti=false;static bool* choiceChecks=NULL;
 static char choiceLabels[128][256];static int choiceSelected=0;static Rectangle choiceList,choiceThumb;
 // Shared toggles: boolean switches and arbitrary pairs retain their real values.
-static bool choiceToggle[96];static int choiceToggleValue[96];
+static bool choiceToggle[128];static int choiceToggleValue[128];
 static bool ToggleRow(Rectangle row,const char* label,const char* state,bool value,bool enabled){
  bool hot=Hot(row,enabled);Color ink=enabled?AppTheme.text:Fade(AppTheme.text,.4f);
  int labelLines=UiMeasure(label,13)>row.width-76?2:1;int h=TextLines(label,row.x,row.y+(state?0:(row.height-labelLines*20)/2),row.width-76,13,2,ink);
@@ -28,7 +28,7 @@ static int ToggleChoice(int id,int x,int* y,int w,const char* label,const char**
  return next!=value?(selected<0?0:1-selected):selected;
 }
 static int Choice(int id,int x,int* py,int w,const char* label,const char** options,int count,int selected){
- if(count==2&&id!=38&&id!=4&&id!=80&&id!=81&&id!=82&&id!=89&&id!=90&&id!=91)return ToggleChoice(id,x,py,w,label,options,selected);
+ if(count==2&&id<96&&id!=38&&id!=4&&id!=80&&id!=81&&id!=82&&id!=89&&id!=90&&id!=91)return ToggleChoice(id,x,py,w,label,options,selected);
  choiceToggle[id]=false;
  int result=selected;if(choicePending==id){result=choiceValue;choicePending=-1;}
  int y=*py;int cw=*label?fminf(292,w*.60f):w;TextLines(label,x,y+5,w-cw-8,13,2,AppTheme.text);Rectangle box={x+w-cw,y,cw-choiceReserve,34};choiceControls[id]=box;choiceCounts[id]=count;*py+=43;
@@ -68,8 +68,8 @@ static int BoolChoice(int id,int x,int* y,int w,const char* label,bool value){re
 
 // A shared compact slider. Drafts belong to the caller until mouse release.
 #include "setting_number.h"
-static Rectangle numberTracks[160];
-static Rectangle numberFields[160],numberUp[160],numberDown[160];
+static Rectangle numberTracks[256];
+static Rectangle numberFields[256],numberUp[256],numberDown[256];
 static int settingEdit=-1;static TextEdit settingEditor;static char settingText[64],settingKey[48];
 static Rectangle settingEditBox;static double settingLo,settingHi,settingScale;
 static void SettingNumberText(char* text,int capacity,double value){

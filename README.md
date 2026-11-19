@@ -13,7 +13,7 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
-The source tree is now **2.1.0 (development)**, integrating community contributions for monitor
+The source tree is now **2.2.0 (development)**, integrating community contributions for monitor
 reconnection, rendering GPU selection, output-aware fullscreen pause, optional
 awww image rendering and persistent carousel controls. The downloadable stable
 installer below remains **1.0.0**; build from source to use these additions.
@@ -81,13 +81,15 @@ Enable **Settings → Integrations → Login screen** to reveal its separate lau
 tab. Caelestia remains independently configurable under **Integrations**.
 
 The native editor includes a shared wallpaper library, one editable base UI,
-movable clock/date/media/message widgets, fonts and appearance controls.
+movable clock/date/login widgets, magnetic alignment and independent fonts,
+colours and text effects. The wallpaper tab also contains display settings.
 It saves independent image adjustments and single/mirror/panoramic output choices,
 with independent wallpapers in single mode and the login UI on the primary,
 secondary or all monitors. Local images, animated GIFs, videos and compatible
 Steam scenes use Wallpaper Lab's own renderer. Cached native stills preserve the
 scene aspect ratio; **Live preview** renders the real project
-for up to 60 seconds. It does not accept credentials.
+for up to 60 seconds. Its interactive fields accept test text without authenticating
+or saving the input.
 
 **Apply at next boot** exports a self-contained, administrator-owned bundle and
 configures greetd with a dedicated Hyprland session. greetd handles PAM and starts

@@ -31,7 +31,8 @@ python3 scripts/apply-patch-series.py vendor/engine \
     patches/engine-visible-fullscreen.patch \
     patches/engine-fullscreen-policy.patch \
     patches/engine-native-login.patch \
-    patches/engine-native-login-refinements.patch
+    patches/engine-native-login-refinements.patch \
+    patches/engine-login-session-menu.patch
 apply_patch_if_needed vendor/raylib patches/raylib-app-id.patch
 prefix_args=()
 if [[ -d local/sysroot/usr ]]; then prefix_args+=("-DCMAKE_PREFIX_PATH=$PWD/local/sysroot/usr"); fi

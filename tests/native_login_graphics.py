@@ -42,8 +42,8 @@ try:
     for n in range(9):
         path=out/f'gif-{n}.png';shot(child,path);im=Image.open(path);colors.append(im.getpixel((im.width//10,im.height//2))[:3]);time.sleep(.12)
     assert any(b>r+50 for r,g,b in colors)and any(r>b+50 for r,g,b in colors),colors
-    text(child,'not-a-credential');key(child,'28:1','28:0');key(child,'1:1','1:0');child.wait(timeout=5);assert child.returncode==0
-    results['native_gif_changes_frames']=True;results['preview_rejects_credentials_and_escape_closes']=True
+    text(child,'preview-test');shot(child,out/'preview-password.png');key(child,'15:1','15:0');key(child,'28:1','28:0');shot(child,out/'session-dropdown.png');key(child,'108:1','108:0');key(child,'28:1','28:0');key(child,'15:1','15:0');key(child,'15:1','15:0');key(child,'28:1','28:0');key(child,'1:1','1:0');child.wait(timeout=5);assert child.returncode==0
+    results['native_gif_changes_frames']=True;assert 'preview-test'not in (out/'gif.log').read_text();assert not(out/'identity/last-session.json').exists();results['interactive_preview_without_authentication_or_persistence']=True;results['session_dropdown_keyboard_and_escape']=True
     # The actual greeter entry point is exercised against a test-only server.
     server=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);server.bind(str(auth_socket));server.listen(1);server.settimeout(20);requests=[]
     def ipc():

@@ -11,6 +11,8 @@ int lab_login_restore(){
 }
 int lab_login_enable(int enabled){if(!enabled&&lab_login_system_active())return lab_login_restore();return guarded([&]{ensureLogin();loginDocument["enabled"]=bool(enabled);loginChangedNow();login::save(loginDocument);loginDirty=false;});}
 int lab_login_selected(){ensureLogin();auto source=login::sourceFor(loginDocument);for(size_t i=0;i<items.size();i++)if(items[i].path==source)return i;return -1;}
+const char* lab_login_reason(int i){static std::string reason;if(i<0||i>=int(items.size()))return "";reason=items[i].reason.empty()?lab_tr(login::unsupportedReason(items[i]).c_str()):localizedDiagnostic(items[i].reason);return reason.c_str();}
+int lab_login_move(int widget,float x,float y){return guarded([&]{ensureLogin();auto position=login::snapPosition(loginDocument,widget,x,y);auto& w=loginDocument["widgets"][login::widgets.at(widget)];if(w["x"]==position[0]&&w["y"]==position[1])return;w["x"]=position[0];w["y"]=position[1];loginChangedNow();});}
 int lab_login_supported(int i){return i>=0&&i<int(items.size())&&login::supported(items[i]);}
 int lab_login_select(int i){return guarded([&]{ensureLogin();if(!lab_login_supported(i))throw std::invalid_argument("Wallpaper is unsupported for native login");if(loginDocument.value("mode",std::string())=="single")loginDocument["wallpapers"][loginDocument["output"].get<std::string>()]=items[i].path;else loginDocument["source"]=items[i].path;loginChangedNow();});}
 int lab_login_output_selected(int output){ensureLogin();if(output<0||output>=int(monitors.size()))return -1;auto source=login::sourceFor(loginDocument,monitors[output]);for(size_t i=0;i<items.size();i++)if(items[i].path==source)return i;return -1;}

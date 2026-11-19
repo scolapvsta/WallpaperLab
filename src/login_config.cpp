@@ -8,25 +8,45 @@
 #include <pwd.h>
 namespace lab::login {
 json defaults(){
-    json d={{"schema",2},{"enabled",false},{"source",""},{"mode","span"},{"output",""},{"ui_outputs","primary"},{"ui_primary",""},{"fps",60},{"muted",true},{"profiles",json::object()},{"wallpapers",json::object()},{"output_profiles",json::object()},{"message","Wallpaper Lab"},{"font","Oxanium"},{"accent","#87cfdf"},{"light",false},{"panel_opacity",.65},{"radius",20},{"field_opacity",.10},{"border_width",1.0},{"field_radius",10},{"show_welcome",true},{"show_labels",true}};
+    json d={{"schema",3},{"enabled",false},{"source",""},{"mode","span"},{"output",""},{"ui_outputs","primary"},{"ui_primary",""},{"fps",60},{"muted",true},{"profiles",json::object()},{"wallpapers",json::object()},{"output_profiles",json::object()},{"message","Wallpaper Lab"},{"font","Oxanium"},{"accent","#87cfdf"},{"light",false},{"panel_opacity",.65},{"radius",20},{"field_opacity",.10},{"border_width",1.0},{"field_radius",10},{"show_welcome",true},{"show_labels",true}};
     auto widget=[&](const char* id,bool enabled,double x,double y,double w,double h,int size){d["widgets"][id]={{"enabled",enabled},{"x",x},{"y",y},{"width",w},{"height",h},{"size",size}};};
-    widget("clock",true,.36,.12,.28,.12,86);widget("date",true,.32,.25,.36,.05,22);widget("media",false,.72,.8,.24,.13,18);widget("message",true,.04,.05,.4,.05,16);widget("login",true,.36,.39,.28,.43,20);return d;
+    widget("clock",true,.36,.12,.28,.12,86);widget("date",true,.32,.25,.36,.05,22);widget("login",true,.36,.39,.28,.43,20);
+    d["grid"]={{"visible",true},{"snap",true},{"step",.025}};
+    for(auto id:widgets){auto& w=d["widgets"][id];w.update(json{{"font",""},{"color","#f5f5f5"},{"accent","#87cfdf"},{"background","#101522"},{"background_opacity",std::string(id)=="login"?.65:0.},{"opacity",1.},{"radius",20.},{"bold",std::string(id)=="clock"},{"italic",false},{"underline",false},{"effect","shadow"},{"effect_depth",2.},{"effect_color","#000000"},{"align","center"},{"tracking",0.},{"border_width",0.},{"border_color","#87cfdf"}});}
+    d["widgets"]["clock"].update(json{{"style","digital"},{"format","24"},{"seconds",false}});
+    d["widgets"]["date"].update(json{{"format","long"},{"uppercase",false}});
+    d["widgets"]["login"].update(json{{"welcome_enabled",true},{"dynamic_welcome",false},{"welcome_text",""},{"user_label",""},{"password_label",""},{"session_label",""},{"button_label",""},{"labels",true},{"field_color","#ffffff"},{"field_opacity",.1},{"field_radius",10.},{"focus_width",1.},{"button_color","#87cfdf"},{"button_text_color","#101522"},{"padding",24.},{"field_height",.13},{"button_height",.12},{"animation",.18},{"dot_size",3.1},{"label_size",.65}});
+    return d;
 }
 std::string sourceFor(const json& d,const std::string& output){
     auto connector=output.empty()?d.value("output",std::string()):output;
     return d.value("mode",std::string())=="single"?d.value("wallpapers",json::object()).value(connector,d.value("source",std::string())):d.value("source",std::string());
 }
 json validate(json d){
-    if(!d.is_object()||(d.value("schema",1)!=1&&d.value("schema",1)!=2))throw std::invalid_argument("Unsupported login document");
-    auto base=defaults();base.merge_patch(d);d=base;d["schema"]=2;d.erase("template");d["widgets"].erase("calendar");
+    if(!d.is_object()||(d.value("schema",1)<1||d.value("schema",1)>3))throw std::invalid_argument("Unsupported login document");
+    if(d.value("schema",1)<3){
+        auto& form=d["widgets"]["login"];
+        for(auto [old,key]:std::vector<std::pair<const char*,const char*>>{{"show_welcome","welcome_enabled"},{"show_labels","labels"},{"panel_opacity","background_opacity"},{"radius","radius"},{"field_opacity","field_opacity"},{"field_radius","field_radius"},{"border_width","focus_width"},{"accent","button_color"}})if(d.contains(old))form[key]=d[old];
+        if(d.value("light",false)){form["background"]="#f5f5f5";for(auto id:widgets)d["widgets"][id]["color"]="#191919";}
+    }
+    auto base=defaults();base.merge_patch(d);d=base;d["schema"]=3;d.erase("template");for(auto key:{"calendar","media","message"})d["widgets"].erase(key);
+    for(auto key:{"message","show_welcome","show_labels","panel_opacity","radius","field_opacity","field_radius","border_width"})d.erase(key);
     auto choice=[&](const char* key,std::initializer_list<const char*> values){auto v=d.at(key).get<std::string>();for(auto item:values)if(v==item)return;throw std::invalid_argument(std::string("Invalid login option: ")+key);};
     choice("mode",{"span","mirror","single"});choice("ui_outputs",{"primary","secondary","all"});
-    for(auto key:{"enabled","muted","light","show_welcome","show_labels"})if(!d[key].is_boolean())throw std::invalid_argument("Invalid login boolean");
-    for(auto key:{"source","output","ui_primary","font","message","accent"})if(!d[key].is_string()||d[key].get_ref<const std::string&>().size()>4096)throw std::invalid_argument("Invalid login text");
-    if(d["font"].get<std::string>().size()>96||d["message"].get<std::string>().size()>256)throw std::invalid_argument("Login text is too long");
+    for(auto key:{"enabled","muted","light"})if(!d[key].is_boolean())throw std::invalid_argument("Invalid login boolean");
+    for(auto key:{"source","output","ui_primary","font","accent"})if(!d[key].is_string()||d[key].get_ref<const std::string&>().size()>4096)throw std::invalid_argument("Invalid login text");
+    if(d["font"].get<std::string>().size()>96)throw std::invalid_argument("Login text is too long");
     auto color=d["accent"].get<std::string>();if(color.size()!=7||color[0]!='#'||color.find_first_not_of("0123456789abcdefABCDEF",1)!=std::string::npos)throw std::invalid_argument("Invalid login colour");
     auto number=[](const json& value,double low,double high){if(!value.is_number()||!std::isfinite(value.get<double>())||value.get<double>()<low||value.get<double>()>high)throw std::invalid_argument("Invalid login number");};
-    number(d["field_opacity"],0,1);number(d["field_radius"],0,40);number(d["border_width"],0,4);number(d["fps"],15,120);number(d["panel_opacity"],0,1);number(d["radius"],0,60);
+    number(d["fps"],15,120);number(d["grid"]["step"],.01,.2);
+    for(auto key:{"visible","snap"})if(!d["grid"][key].is_boolean())throw std::invalid_argument("Invalid grid option");
+    auto colour=[](const json& value){auto c=value.get<std::string>();if(c.size()!=7||c[0]!='#'||c.find_first_not_of("0123456789abcdefABCDEF",1)!=std::string::npos)throw std::invalid_argument("Invalid login colour");};
+    auto option=[](const json& value,std::initializer_list<const char*> choices){auto v=value.get<std::string>();for(auto c:choices)if(v==c)return;throw std::invalid_argument("Invalid widget style");};
+    for(auto id:widgets){auto& w=d["widgets"][id];for(auto key:{"color","accent","background","border_color","effect_color"})colour(w[key]);for(auto key:{"bold","italic","underline"})if(!w[key].is_boolean())throw std::invalid_argument("Invalid widget style");if(!w["font"].is_string()||w["font"].get_ref<const std::string&>().size()>96)throw std::invalid_argument("Invalid widget font");number(w["opacity"],0,1);number(w["background_opacity"],0,1);number(w["radius"],0,80);number(w["border_width"],0,8);number(w["effect_depth"],0,10);number(w["tracking"],-2,12);option(w["effect"],{"none","shadow","extrude"});option(w["align"],{"left","center","right"});}
+    auto& clock=d["widgets"]["clock"];option(clock["style"],{"digital","minimal","classic","rings"});option(clock["format"],{"24","12"});if(!clock["seconds"].is_boolean())throw std::invalid_argument("Invalid clock format");
+    auto& date=d["widgets"]["date"];option(date["format"],{"long","short","iso","weekday"});if(!date["uppercase"].is_boolean())throw std::invalid_argument("Invalid date format");
+    auto& login=d["widgets"]["login"];for(auto key:{"welcome_enabled","dynamic_welcome","labels"})if(!login[key].is_boolean())throw std::invalid_argument("Invalid login boolean");for(auto key:{"welcome_text","user_label","password_label","session_label","button_label"})if(!login[key].is_string()||login[key].get_ref<const std::string&>().size()>256)throw std::invalid_argument("Login text is too long");
+    for(auto key:{"field_color","button_color","button_text_color"})colour(login[key]);number(login["field_opacity"],0,1);number(login["field_radius"],0,40);number(login["focus_width"],0,4);number(login["padding"],8,64);number(login["field_height"],.08,.16);number(login["button_height"],.08,.15);number(login["animation"],.05,.5);number(login["dot_size"],1,7);number(login["label_size"],.45,1);
     if(!d["widgets"].is_object()||!d["profiles"].is_object()||!d["wallpapers"].is_object()||!d["output_profiles"].is_object())throw std::invalid_argument("Invalid login collections");
     for(auto id:widgets){auto& w=d["widgets"].at(id);if(!w.at("enabled").is_boolean())throw std::invalid_argument("Invalid widget visibility");for(auto key:{"x","y"})number(w.at(key),0,1);for(auto key:{"width","height"})number(w.at(key),.02,1);number(w.at("size"),10,140);w["x"]=std::min(w["x"].get<double>(),1-w["width"].get<double>());w["y"]=std::min(w["y"].get<double>(),1-w["height"].get<double>());}
     d["widgets"]["login"]["enabled"]=true;
@@ -44,10 +64,14 @@ json imageProfile(const json& d,const std::string& output){
     auto source=sourceFor(d,output);p.merge_patch(d.value("profiles",json::object()).value(source,json::object()));
     if(d.value("mode",std::string())=="single")p.merge_patch(d.value("output_profiles",json::object()).value(output.empty()?d.value("output",std::string()):output,json::object()).value(source,json::object()));return p;
 }
-bool supported(const Item& item){
-    if(!item.reason.empty())return false;
-    if(item.type=="scene"||item.type=="video")return true;
-    try{return item.origin=="local"&&readJson(fs::path(item.path)/"project.json").contains("lab_media_file");}catch(...){return false;}
+std::array<double,2> snapPosition(const json& d,int widget,double x,double y){
+    auto& w=d.at("widgets").at(widgets.at(widget));if(d["grid"]["snap"]){double step=d["grid"]["step"];x=std::round(x/step)*step;y=std::round(y/step)*step;}return {std::clamp(x,0.,1-w["width"].get<double>()),std::clamp(y,0.,1-w["height"].get<double>())};
+}
+bool supported(const Item& item){return item.reason.empty()&&(item.type=="scene"||item.type=="video"||(item.origin=="local"&&item.type=="image"));}
+std::string unsupportedReason(const Item& item){
+    if(!item.reason.empty())return item.reason;
+    if(item.type=="web")return "Wallpaper Web: HTML e JavaScript non sono disponibili nel login nativo.";
+    return supported(item)?std::string():"Tipo di progetto non supportato";
 }
 fs::path prepare(const json& document,const Item& item,const json& desktop,const std::vector<std::string>& outputs,const std::vector<Item>& library){
     auto d=validate(document);if(!supported(item))throw std::invalid_argument("Wallpaper is unsupported for native login");

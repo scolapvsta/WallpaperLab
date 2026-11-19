@@ -33,7 +33,7 @@ void touch(){lastInput=std::chrono::steady_clock::now();revision++;}
 void focus(int field){state.focus=field;state.cursor=(field==0?state.username:state.input).size();touch();}
 void wipe(){explicit_bzero(state.input.data(),state.input.size());state.input.clear();state.cursor=0;}
 void submit(){
-    if(state.preview){state.status=translate("Anteprima");revision++;return;}
+    if(state.preview){state.status=translate("Anteprima");if(state.focus==0)focus(1);revision++;return;}
     if(!auth||auth->busy())return;
     if(auth->phase==Auth::Phase::Idle||auth->phase==Auth::Phase::Error){auth->create(state.username);focus(1);wipe();}
     else if(auth->phase==Auth::Phase::Prompt){auth->respond(state.input);wipe();}
@@ -77,7 +77,7 @@ extern "C" void wallpaper_lab_login_draw(const char* name,int x,int y,int w,int 
         poll();
         if(!showUI(name))return;
         GLint oldProgram,oldVao,oldActive,oldTexture,oldViewport[4],srcRGB,dstRGB,srcA,dstA,eqRGB,eqA;GLboolean blend=glIsEnabled(GL_BLEND),depth=glIsEnabled(GL_DEPTH_TEST),scissor=glIsEnabled(GL_SCISSOR_TEST),cull=glIsEnabled(GL_CULL_FACE);glGetIntegerv(GL_CURRENT_PROGRAM,&oldProgram);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&oldVao);glGetIntegerv(GL_ACTIVE_TEXTURE,&oldActive);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&oldTexture);glGetIntegerv(GL_VIEWPORT,oldViewport);glGetIntegerv(GL_BLEND_SRC_RGB,&srcRGB);glGetIntegerv(GL_BLEND_DST_RGB,&dstRGB);glGetIntegerv(GL_BLEND_SRC_ALPHA,&srcA);glGetIntegerv(GL_BLEND_DST_ALPHA,&dstA);glGetIntegerv(GL_BLEND_EQUATION_RGB,&eqRGB);glGetIntegerv(GL_BLEND_EQUATION_ALPHA,&eqA);
-        if(!program)initializeGL();auto& image=overlays[name];auto minute=std::time(nullptr)/60;double age=std::chrono::duration<double>(std::chrono::steady_clock::now()-lastInput).count();state.caret=std::fmod(age,1.)<.55;state.inputProgress=std::min(1.,age/.18);int animation=age<.2?int(age*45):state.caret?100:101;
+        if(!program)initializeGL();auto& image=overlays[name];auto minute=std::time(nullptr)/(document["widgets"]["clock"].value("seconds",false)?1:60);double age=std::chrono::duration<double>(std::chrono::steady_clock::now()-lastInput).count();state.caret=std::fmod(age,1.)<.55;double duration=document["widgets"]["login"].value("animation",.18);state.inputProgress=std::min(1.,age/duration);int animation=age<duration?int(age*45):state.caret?100:101;
         if(image.w!=w||image.h!=h||image.revision!=revision||image.minute!=minute||image.animation!=animation){
             auto pixels=draw(document,w,h,state,std::time(nullptr));if(!image.texture)glGenTextures(1,&image.texture);glBindTexture(GL_TEXTURE_2D,image.texture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.rgba.data());image.w=w;image.h=h;image.revision=revision;image.minute=minute;image.animation=animation;
         }
@@ -88,11 +88,16 @@ extern "C" void wallpaper_lab_login_draw(const char* name,int x,int y,int w,int 
 }
 extern "C" void wallpaper_lab_login_symbol(unsigned symbol){
     if(!active)return;
+    if(state.menuOpen){
+        if(symbol==XKB_KEY_Escape||symbol==XKB_KEY_Tab){state.menuOpen=false;touch();return;}
+        if(symbol==XKB_KEY_Up||symbol==XKB_KEY_Down||symbol==XKB_KEY_Home||symbol==XKB_KEY_End){state.menuIndex=std::clamp(symbol==XKB_KEY_Home?0:symbol==XKB_KEY_End?int(choices.size())-1:state.menuIndex+(symbol==XKB_KEY_Up?-1:1),0,std::max(0,int(choices.size())-1));state.menuScroll=std::clamp(state.menuIndex-2,0,std::max(0,int(choices.size())-5));touch();return;}
+        if(symbol==XKB_KEY_Return||symbol==XKB_KEY_KP_Enter){selectedSession=state.menuIndex;state.session=choices.at(selectedSession).name;state.menuOpen=false;touch();}return;
+    }
+    if(state.focus==2&&(symbol==XKB_KEY_Return||symbol==XKB_KEY_space||symbol==XKB_KEY_Down)&&!choices.empty()){state.menuOpen=true;state.menuIndex=selectedSession;state.menuScroll=std::clamp(selectedSession-2,0,std::max(0,int(choices.size())-5));touch();return;}
     if(symbol==XKB_KEY_Escape){if(state.preview)quit=true;else if(auth&&!auth->busy()){auth->cancel();wipe();focus(0);state.status.clear();}revision++;return;}
     if(state.busy)return;
     if(symbol==XKB_KEY_Return||symbol==XKB_KEY_KP_Enter){submit();return;}
     if(symbol==XKB_KEY_Tab){if(state.focus==0&&auth&&auth->phase==Auth::Phase::Idle)submit();else focus((state.focus+1)%3);revision++;return;}
-    if(state.focus==2&&(symbol==XKB_KEY_Left||symbol==XKB_KEY_Right)&&!choices.empty()){selectedSession=(selectedSession+1)%choices.size();state.session=choices[selectedSession].name;revision++;return;}
     if(state.focus<2){
         if(state.focus==0&&auth&&auth->phase!=Auth::Phase::Idle&&auth->phase!=Auth::Phase::Error)return;
         auto& value=state.focus==0?state.username:state.input;state.cursor=std::clamp(state.cursor,0,int(value.size()));int before=state.cursor,after=state.cursor;
@@ -104,17 +109,17 @@ extern "C" void wallpaper_lab_login_symbol(unsigned symbol){
     }
 }
 extern "C" void wallpaper_lab_login_text(unsigned code){
-    if(!active||state.busy||code<32||code==127||code>0x10ffff||state.focus==2)return;
-    if(state.preview){state.status=translate("Anteprima");revision++;return;}
+    if(!active||state.busy||state.menuOpen||code<32||code==127||code>0x10ffff||state.focus==2)return;
     auto& value=state.focus==0?state.username:state.input;if(value.size()>512)return;
     if(state.focus==0&&auth&&auth->phase!=Auth::Phase::Idle&&auth->phase!=Auth::Phase::Error)return;
     char bytes[8]{};int n=g_unichar_to_utf8(code,bytes);state.cursor=std::clamp(state.cursor,0,int(value.size()));value.insert(state.cursor,bytes,n);state.cursor+=n;explicit_bzero(bytes,sizeof(bytes));touch();
 }
 extern "C" void wallpaper_lab_login_pointer(const char* output,double x,double y,int pressed){
     if(!active||!showUI(output))return;if(x>=0&&y>=0){pointerX=x;pointerY=y;}if(!pressed||state.busy)return;
-    int action=hit(document,pointerX,pointerY);if(action==0||action==1){focus(action);if(action==1&&auth&&auth->phase==Auth::Phase::Idle)submit();}
-    else if(action==2&&!choices.empty()){selectedSession=(selectedSession+1)%choices.size();state.session=choices[selectedSession].name;}
-    else if(action==3)submit();else if(action==4)wallpaper_lab_login_symbol(XKB_KEY_Escape);else if(action==5)state.paused=!state.paused;revision++;
+    int action=hit(document,pointerX,pointerY,&state);if(action==0||action==1){focus(action);if(action==1&&auth&&auth->phase==Auth::Phase::Idle)submit();}
+    else if(action==2&&!choices.empty()){focus(2);state.menuOpen=true;state.menuIndex=selectedSession;state.menuScroll=std::clamp(selectedSession-2,0,std::max(0,int(choices.size())-5));}
+    else if(action>=100&&action-100<int(choices.size())){selectedSession=action-100;state.session=choices[selectedSession].name;state.menuOpen=false;}else if(action==6)state.menuOpen=false;
+    else if(action==3)submit();else if(action==4)wallpaper_lab_login_symbol(XKB_KEY_Escape);revision++;
 }
 extern "C" void wallpaper_lab_login_keymap(int fd,unsigned size){
     if(!active||size<1||size>1024*1024){close(fd);return;}auto memory=mmap(nullptr,size,PROT_READ,MAP_PRIVATE,fd,0);close(fd);if(memory==MAP_FAILED)return;
@@ -130,6 +135,7 @@ extern "C" void wallpaper_lab_login_key(unsigned key,unsigned pressed){
 }
 int loginRun(const std::string& file,bool preview,bool windowed,const std::string& ready){
     document=validate(readJson(file));setLanguage(languageIndex(document.value("language",std::string("en"))));state=CanvasState{};state.preview=preview;state.title=document.value("title",std::string());began=lastInput=std::chrono::steady_clock::now();quit=false;registerThemeFonts();
+    for(auto& file:document.value("font_files",json::array()))FcConfigAppFontAddFile(FcConfigGetCurrent(),reinterpret_cast<const FcChar8*>(file.get_ref<const std::string&>().c_str()));
     if(document.contains("font_file"))FcConfigAppFontAddFile(FcConfigGetCurrent(),reinterpret_cast<const FcChar8*>(document["font_file"].get_ref<const std::string&>().c_str()));
     choices=sessions();for(size_t n=0;n<choices.size();n++)if(choices[n].id==document.value("session",std::string()))selectedSession=n;if(!choices.empty())state.session=choices[selectedSession].name;
     if(preview){if(auto user=getpwuid(getuid()))state.username=user->pw_name;}
@@ -138,7 +144,7 @@ int loginRun(const std::string& file,bool preview,bool windowed,const std::strin
         if(const char* storage=getenv("WALLPAPER_LAB_LOGIN_STATE"))try{auto last=readJson(fs::path(storage)/"last-session.json");state.username=last.value("username",state.username);for(size_t n=0;n<choices.size();n++)if(choices[n].id==last.value("session",std::string()))selectedSession=n;}catch(...){}
         if(!choices.empty())state.session=choices[selectedSession].name;
     }
-    focus(0);
+    for(auto& choice:choices)state.sessions.push_back(choice.name);focus(preview?1:0);
     setlocale(LC_TIME,"");keyContext=xkb_context_new(XKB_CONTEXT_NO_FLAGS);auto locale=setlocale(LC_CTYPE,"");auto table=xkb_compose_table_new_from_locale(keyContext,locale?locale:"C",XKB_COMPOSE_COMPILE_NO_FLAGS);if(table){compose=xkb_compose_state_new(table,XKB_COMPOSE_STATE_NO_FLAGS);xkb_compose_table_unref(table);}
     try{
         auto rows=capture({"hyprctl","monitors","-j"});if(!windowed&&!rows.empty()){auto displays=parseDisplays(json::parse(rows.front()));std::vector<std::string> outputs;for(auto& d:displays)outputs.push_back(d.name);document["outputs"]=outputs;if(document.value("mode",std::string())=="span"&&document.contains("display_layout"))document["render_layout"]=renderLayout(displayCanvas(displays,document),displays);}

@@ -6,6 +6,12 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Native login customization — 2026-11-19 (source 2.2.0)
+
+See [customization validation](../docs/LOGIN_CUSTOMIZATION_TEST_RESULTS.md) for the
+unified wallpaper/display page, three styled widgets, magnetic grid, clocks,
+interactive preview, native session dropdown and independent font publication.
+
 ## Native login refinement — 2026-11-19 (source 2.1.0)
 
 See [refinement validation](../docs/LOGIN_REFINEMENT_TEST_RESULTS.md) for the base

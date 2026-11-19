@@ -410,19 +410,23 @@ compositors retain the generic fullscreen detector behavior.
 
 ## Optional native login screen
 
-Under **Settings → Integrations**, enable **Login screen** to reveal its own tab
-after the library, carousel and Workshop. Open **Wallpapers** for the existing
-local/Steam catalog and separate image adjustments; **Login UI editor** for a
-customizable base UI with separate Widget/Appearance tabs; **Monitors and startup**
-for single/mirror/panorama and login UI placement. Single mode has output tabs to
-assign a different wallpaper to each monitor. The calendar and preset gallery
-have been removed; existing layout preferences are retained. The required login form cannot be
-hidden. Preferences save automatically without changing the desktop wallpaper.
+Under **Settings → Integrations**, enable **Login screen** to reveal its own tab.
+The workspace has two tabs: **Wallpapers**, combining the supported-first library,
+monitor preview, Display and Image controls; and **Login UI editor**, with Clock,
+Date and Login UI widgets. Single mode exposes monitor tabs to assign different
+wallpapers. Unsupported entries are grouped at the end with individual reasons.
 
-Cards use library posters. The editor asynchronously captures and caches a native
-scene frame at its source aspect ratio, then applies image edits without reloading
-the scene. Live preview renders the actual animation/scene in a separate bounded process, with native widgets in the
-same graphics context. Esc closes it. Preview never accepts credentials.
+The editor supports an optional magnetic grid, independent widget fonts, colours,
+text effects and backgrounds. Clock variants include digital 12/24-hour, minimal
+analog, classic analog and rings. Welcome and time-based greetings belong to the
+Login UI widget, alongside editable labels and field/button/password styling.
+Preferences save automatically without changing the desktop wallpaper.
+
+Cards use library posters. The editor asynchronously caches a native scene frame
+at its source aspect ratio. Live preview renders the actual scene and accepts
+throwaway test text to try password animations. It never authenticates, starts a
+session or persists input. The session selector opens a dropdown; Esc dismisses
+an open menu before closing the preview.
 
 **Apply at next boot** copies the selected project, dependencies, engine assets,
 font, profile and runtime into a standalone system bundle. Administrator

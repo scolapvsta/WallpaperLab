@@ -86,18 +86,29 @@ try:
     close_settings();wait(lambda:g()['login_header'][0]>0);click(g()['login_header']);wait(lambda:state()['page']==5)
     assert g()['header']['integrations'][0]>0 and g()['login_header'][0]>g()['header']['workshop'][0]
     click(g()['login_tabs'][1]);wait(lambda:g()['login_tab']==1)
-    click(g()['login_inspector_tabs'][1]);click(g()['login_inspector_tabs'][0]);choose(92,3);toggle(93);wait(lambda:not json.loads((config/'login-screen.json').read_text())['widgets']['message']['enabled'])
+    click(g()['login_inspector_tabs'][1]);click(g()['login_inspector_tabs'][0]);choose(92,1);toggle(93);wait(lambda:not json.loads((config/'login-screen.json').read_text())['widgets']['date']['enabled'])
+    assert len(g()['login_tabs'])==2
+    choose(92,0);click(g()['login_inspector_tabs'][1]);choose(96,3);toggle(104);toggle(105)
+    wait(lambda:json.loads((config/'login-screen.json').read_text())['widgets']['clock']['underline'])
+    custom=json.loads((config/'login-screen.json').read_text());assert custom['widgets']['clock']['font'] and not custom['widgets']['date']['font'];assert custom['widgets']['clock']['underline'];assert set(custom['widgets'])=={'clock','date','login'}
+    results['per_widget_font_and_text_style']=True
+    # Drag the clock to a non-grid position and verify normalized snapping.
+    point=g()['login_widgets'][0];click(point);run('ydotool','click','0x40');time.sleep(.2)
+    for _ in range(8):run('ydotool','mousemove','-x','5','-y','3');time.sleep(.04)
+    run('ydotool','click','0x80')
+    wait(lambda:json.loads((config/'login-screen.json').read_text())['widgets']['clock']['x']>custom['widgets']['clock']['x']+.04)
+    snapped=json.loads((config/'login-screen.json').read_text());step=snapped['grid']['step'];assert all(abs(snapped['widgets']['clock'][k]/step-round(snapped['widgets']['clock'][k]/step))<.001 for k in ['x','y']);results['magnetic_widget_drag']=True
     shot('native-login');assert json.loads((config/'settings.json').read_text())['caelestia_palette']==2
     results['native_login_separate_and_saved_widgets']=True
     settings();toggle(73);wait(lambda:not s()['caelestia_enabled']);close_settings()
     assert state()['page']==5 and g()['header']['integrations']==[0,0]
-    assert not json.loads((config/'login-screen.json').read_text())['widgets']['message']['enabled']
+    assert not json.loads((config/'login-screen.json').read_text())['widgets']['date']['enabled']
     results['caelestia_toggle_preserves_native_editor']=True
     settings();toggle(88);wait(lambda:not s()['login_enabled'] and state()['page']==0)
     assert state()['settings'];assert g()['login_header']==[0,0]
     results['disable_login_hides_tab_preserves_settings_modal']=True
     toggle(88);wait(lambda:s()['login_enabled']);close_settings();wait(lambda:g()['login_header'][0]>0);click(g()['login_header']);wait(lambda:state()['page']==5)
-    assert not json.loads((config/'login-screen.json').read_text())['widgets']['message']['enabled']
+    assert not json.loads((config/'login-screen.json').read_text())['widgets']['date']['enabled']
     results['reenable_preserves_preferences']=True
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))
 finally:
