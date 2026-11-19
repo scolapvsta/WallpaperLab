@@ -140,5 +140,7 @@
   "Zoom non valido": "Valore non valido.",
   "awww failed; check that awww-daemon is running. Previous wallpaper retained.": "Operazione non riuscita. Dettagli nel registro.",
   "awww supports single or mirror mode; select one in Display settings": "Operazione non riuscita. Dettagli nel registro.",
-  "pipe failed": "Operazione non riuscita. Dettagli nel registro."
+  "pipe failed": "Operazione non riuscita. Dettagli nel registro.",
+  "SDDM integration helper unavailable": "Operazione non riuscita. Dettagli nel registro.",
+  "SDDM integration helper failed": "Operazione non riuscita. Dettagli nel registro."
 }

@@ -263,3 +263,12 @@ formatted notices, dynamic label tables and owned diagnostic prefixes. Tests als
 verify all 22 catalog columns, stable string lifetimes, live language changes and
 font coverage. A fake Steamworks component reproduces initialization errors in a
 hidden native UI; framebuffer captures avoid desktop occlusion and focus changes.
+
+## Optional SDDM preview
+
+The C++ controller invokes the packaged `sddm_integration.py` helper asynchronously
+and exposes a cached view to the C launcher. A verified opt-in exposes the SDDM
+tab. The helper builds a local Astronaut theme from pinned templates and a copied
+native media file, then checks it with SDDM test mode before publishing it locally.
+Wallpaper/UI preferences are separate from desktop preferences. See [SDDM](SDDM.md)
+for storage, process boundaries and the unimplemented system-login phase.

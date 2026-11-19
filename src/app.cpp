@@ -12,6 +12,7 @@
 #include "awww_backend.hpp"
 #include "app_background.hpp"
 #include "caelestia_integration.hpp"
+#include "sddm_integration.hpp"
 #include "theme_catalog.h"
 #include "theme_fonts.hpp"
 #include "render_gpu.hpp"
@@ -69,6 +70,7 @@ std::vector<fs::path> libraryRoots(){
 std::string outputKey(std::string name){for(char& c:name)if(!std::isalnum((unsigned char)c)&&c!='-'&&c!='_')c='_';return name;}
 fs::path feedFrame(const std::string& output){auto file=feedDir()/("frame-"+outputKey(output)+".bin");return fs::exists(file)?file:feedDir()/"frame.bin";}
 std::future<json> fileJob;std::string fileNotice;
+std::future<json> sddmJob;json sddmView=json::object();
 json selectedRunning(const json& selection);
 bool owned(const json& process);
 std::mutex integrationStatusMutex;std::future<void> integrationJob;bool integrationDirty=false;
@@ -369,6 +371,36 @@ const char* lab_app_background(){static std::string path;path=settings.value("ap
 int lab_clear_app_background(){return lab_set_option("app_background_preset",0);}
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
 int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return result.value("background",false)?2:1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
+void lab_sddm_poll(){
+ if(!sddmJob.valid()||sddmJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return;
+ try{sddmView=sddmJob.get();if(!sddmView.value("ok",false)){errorMessage=sddmView.value("error",std::string());writeJson(stateDir()/"sddm/last-error.json",sddmView);}}
+ catch(const std::exception& e){errorMessage=e.what();sddmView={{"ok",false},{"ready",false}};}
+}
+int lab_sddm_busy(){return sddmJob.valid();}
+int lab_sddm_ready(){return sddmView.value("ready",false);}
+int lab_sddm_enabled(){return sddmView.value("enabled",false);}
+int lab_sddm_ok(){return sddmView.value("ok",false);}
+int lab_sddm_action(const char* action,const char* value){
+ if(sddmJob.valid())return 0;
+ return guarded([&]{auto roots=libraryRoots();sddmJob=std::async(std::launch::async,[action=std::string(action),value=std::string(value),roots]{return sddmRequest(action,value,roots);});});
+}
+int lab_sddm_count(int presets){auto key=presets?"presets":"backgrounds";return sddmView.contains(key)?sddmView[key].size():0;}
+const char* lab_sddm_label(int presets,int index){return presets?sddmView.at("presets").at(index).get_ref<const std::string&>().c_str():sddmView.at("backgrounds").at(index).at("label").get_ref<const std::string&>().c_str();}
+int lab_sddm_supported(int index){return sddmView.at("backgrounds").at(index).value("supported",false);}
+int lab_sddm_selected(int presets){
+ if(!sddmView.contains("config"))return -1;
+ auto selected=sddmView["config"][presets?"ui":"wallpaper"].value(presets?"preset":"source",std::string());
+ for(int i=0;i<lab_sddm_count(presets);i++)if(selected==(presets?sddmView["presets"][i].get<std::string>():sddmView["backgrounds"][i]["id"].get<std::string>()))return i;
+ return -1;
+}
+int lab_sddm_select(int presets,int index){if(index<0||index>=lab_sddm_count(presets))return 0;return lab_sddm_action(presets?"preset":"wallpaper",presets?lab_sddm_label(1,index):sddmView["backgrounds"][index]["id"].get_ref<const std::string&>().c_str());}
+int lab_sddm_option(const char* option){
+ if(!sddmView.contains("config"))return 0;
+ std::string key=option;auto config=sddmView["config"];
+ if(key=="position"){auto position=config["ui"].value("position",std::string("preset"));return position=="left"?1:position=="center"?2:position=="right"?3:0;}
+ return key=="crop"?config["wallpaper"].value("crop",true):config["ui"].value("blur",sddmView.value("preset_blur",true));
+}
+const char* lab_sddm_bundle(){static std::string path;path=sddmView.value("bundle",std::string());return path.c_str();}
 int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
 const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):localizedDiagnostic(status.value("error",std::string()));}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
 void lab_cancel_switcher_preview(){stop(switcherDemoProcess);switcherDemoProcess=json::object();}
@@ -542,6 +574,8 @@ int lab_next(int direction){
 }
 void lab_refresh(){
     if(pending.valid())return;
+    static auto lastSddmCheck=std::chrono::steady_clock::now();auto now=std::chrono::steady_clock::now();
+    if(!lab_sddm_busy()&&now-lastSddmCheck>std::chrono::seconds(10)){lastSddmCheck=now;lab_sddm_action("status","");}
     try{settings=loadSettings();setLanguage(languageIndex(settings.value("language",std::string("it"))));if(appliedFamily!=effectiveFont()||appliedWeight!=settings.value("font_weight",1))resolveFonts();placements=loadPlacements();carousel=loadCarousel();shortcut=shortcutSettings();refreshRunning();if(!displayDirty)displayDraft=displayCanvas(displayData,settings);}catch(const std::exception& e){errorMessage=e.what();}
 }
 static json workshopView;
@@ -714,7 +748,7 @@ int lab_popup_poll(int* steps,int* released){
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
 int lab_popup_max_width(){return popupMaxWidth;}
 int lab_popup_max_height(){return popupMaxHeight;}
-void lab_shutdown(){if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
+void lab_shutdown(){if(sddmJob.valid())try{sddmJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
 }
 int main(int argc,char**argv) {
     try {
@@ -741,7 +775,7 @@ int main(int argc,char**argv) {
             auto result=workshop::snapshot();std::cout<<result.dump(2)<<'\n';workshop::shutdown();return result.value("error",std::string()).empty()?0:1;
         }
         if(argc>1&&std::string(argv[1])=="--help") {
-            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --restore | --stop | --caelestia-source CONNECTOR | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
+            std::cout<<"Wallpaper Lab - prototype\nUsage: wallpaper-lab [--list | --status | --sddm ACTION [VALUE] | --sddm-settings | --restore | --stop | --caelestia-source CONNECTOR | --plan ID | --apply ID | --preview ID | --next | --previous | --carousel | --import FILE... | --library-path local|steam DIRECTORY | --favorite ID | --shortcut SUPER+Tab | --shortcut-off | --display-layout | --display-layout-save physical|pixels top|center|bottom|detected]\nLauncher: click a card to apply it and open the live inspector; drag its divider to resize it. Carousel layout is configured in its own section.\n";return 0;
         }
         if(argc>1&&std::string(argv[1])=="--switcher-preview"){
             init(true);switcherDemo=true;demoStarted=std::chrono::steady_clock::now();carousel_popup_main();return 0;
@@ -790,11 +824,12 @@ int main(int argc,char**argv) {
                 if(ftruncate(fd,0)||pwrite(fd,record.data(),record.size(),0)!=(ssize_t)record.size())throw std::runtime_error("Cannot record selector owner");return true;
             }
         } windowLock;
-        const std::set<std::string> windowCommands={"--ui-test","--display-settings","--appearance-settings","--language-settings","--workshop-ui-test","--workshop"};
+        const std::set<std::string> windowCommands={"--ui-test","--display-settings","--appearance-settings","--language-settings","--sddm-settings","--workshop-ui-test","--workshop"};
         if((argc==1||windowCommands.contains(argv[1]))&&!windowLock.acquire())return 0;
         init(false,argc==1||(argc>1&&(std::string(argv[1])=="--ui-test"||std::string(argv[1])=="--display-settings"||std::string(argv[1])=="--appearance-settings"||std::string(argv[1])=="--language-settings"||std::string(argv[1])=="--resolutions")));
         if(argc>1) {
             std::string cmd=argv[1];
+            if(cmd=="--sddm"){auto result=sddmRequest(argc>2?argv[2]:"status",argc>3?argv[3]:"",libraryRoots());std::cout<<result.dump(2)<<'\n';return result.value("ok",false)?0:1;}
             if(cmd=="--import"){if(argc<3)throw std::runtime_error("Uso: --import FILE...");json imported=json::array();for(int n=2;n<argc;n++)imported.push_back(importLocalMedia(argv[n],localLibrary(settings)).string());std::cout<<imported.dump(2)<<'\n';return 0;}
             if(cmd=="--library-path"){if(argc!=4||(std::string(argv[2])!="local"&&std::string(argv[2])!="steam"))throw std::runtime_error("Uso: --library-path local|steam CARTELLA");auto directory=fs::canonical(argv[3]);if(!fs::is_directory(directory))throw std::runtime_error("Seleziona una cartella valida");if(!savePreference(std::string(argv[2])=="local"?"local_path":"workshop_path",directory.string()))throw std::runtime_error(errorMessage);return 0;}
             if(cmd=="--benchmark-properties"){
@@ -869,7 +904,7 @@ int main(int argc,char**argv) {
                 auto error=launch(item,settings,cmd=="--preview");if(!error.empty())throw std::runtime_error(error);
                 if(cmd=="--preview")std::cout<<previewProcess.dump()<<'\n';return 0;
             }
-            if(cmd!="--workshop-ui-test"&&cmd!="--workshop"&&cmd!="--ui-test"&&cmd!="--display-settings"&&cmd!="--appearance-settings"&&cmd!="--language-settings")throw std::runtime_error("Opzione sconosciuta: "+cmd);
+            if(cmd!="--workshop-ui-test"&&cmd!="--workshop"&&cmd!="--ui-test"&&cmd!="--display-settings"&&cmd!="--appearance-settings"&&cmd!="--language-settings"&&cmd!="--sddm-settings")throw std::runtime_error("Opzione sconosciuta: "+cmd);
         }
         return selector_main(argc,argv);
     }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}

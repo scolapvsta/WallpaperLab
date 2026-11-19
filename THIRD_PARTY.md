@@ -135,3 +135,14 @@ kissfft, helpers, fonts and licenses. Other runtime dependencies are Arch system
 packages. Development prefixes, user settings, Workshop assets, Steam account
 data and credentials are excluded. Steamworks remains a separate optional
 download. See [Releasing](docs/RELEASING.md) for source and binary packaging checks.
+
+## SDDM Astronaut integration
+
+[Keyitdev/sddm-astronaut-theme](https://github.com/Keyitdev/sddm-astronaut-theme)
+is pinned as a submodule at `abb3163c724935af888ba5ea9ac0c4f22afd8048`.
+Upstream QML notices identify Keyitdev and the sugar-dark ancestry, under GPLv3+.
+The unmodified code, components, icons, metadata, presets and LICENSE are included
+in optional runtime templates. Upstream backgrounds, previews and fonts are not
+included in the binary payload. Local preparation may use media/fonts from an
+independently installed Astronaut theme; those remain local. SDDM/Qt6 are optional
+system dependencies. The integration wrapper/helper is Wallpaper Lab code.

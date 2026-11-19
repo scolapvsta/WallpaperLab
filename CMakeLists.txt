@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 1.1.0 LANGUAGES C CXX)
+project(WallpaperLab VERSION 1.2.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
@@ -121,3 +121,11 @@ add_test(NAME visible-fullscreen COMMAND visible-fullscreen-test)
 add_test(NAME patch-series COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/patch_series_test.py")
 
 set_tests_properties(awww-lifecycle PROPERTIES ENVIRONMENT "LD_LIBRARY_PATH=${ENGINE_BUILD}/output:${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/lib")
+
+# Optional SDDM templates: code, icons and notices only; no bundled wallpapers/fonts.
+configure_file(assets/sddm_integration.py sddm_integration.py COPYONLY)
+file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/sddm-astronaut")
+file(COPY vendor/sddm-astronaut-theme/Main.qml vendor/sddm-astronaut-theme/metadata.desktop vendor/sddm-astronaut-theme/LICENSE vendor/sddm-astronaut-theme/Components vendor/sddm-astronaut-theme/Assets vendor/sddm-astronaut-theme/Themes DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/sddm-astronaut")
+install(FILES assets/sddm_integration.py DESTINATION . COMPONENT app)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/sddm-astronaut" DESTINATION . COMPONENT app)
+add_test(NAME sddm-integration COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/sddm_integration_test.py")

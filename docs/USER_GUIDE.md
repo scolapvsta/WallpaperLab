@@ -407,3 +407,11 @@ outputs. Hidden workspaces and unrelated monitors do not pause that renderer.
 For a renderer spanning several outputs, all its outputs must be covered.
 The active-window policy and application exclusions still apply. Other
 compositors retain the generic fullscreen detector behavior.
+
+## SDDM login preview (source builds)
+
+Enable **Settings → Integrations → SDDM** to validate the installed Qt6 greeter.
+Once verified, open **SDDM** in the launcher, select a wallpaper and choose the
+login UI independently. **Preview** opens a bounded test greeter. This prepares
+local files only; boot installation and Wallpaper Engine scenes inside the login
+screen are planned separately. See the [SDDM guide](SDDM.md).

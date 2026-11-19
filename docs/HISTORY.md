@@ -238,3 +238,12 @@ appearance controls and native file filters follow the interface language.
 Stored notices and existing worker errors relocalize after a language change.
 The catalog contains 429 entries across 22 languages; metadata and named artwork
 remain original. Hidden native captures exercise Steam failures in every locale.
+
+## 1.2.0 development — SDDM integration preview
+
+Added a verified opt-in SDDM tab, an installed/local/Workshop media catalog and
+independent Astronaut login UI presets, position and blur. Native media is copied
+into an isolated theme and checked with the real greeter before publication.
+Failures preserve the prior selection. Bounded test-mode previews work without
+logging out. System installation, boot activation and native engine scenes in the
+greeter remain separate future work. See the SDDM guide and test report.
