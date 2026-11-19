@@ -420,8 +420,18 @@ The editor supports an optional magnetic grid, independent widget fonts, colours
 text effects and backgrounds. The clock is digital, with 12/24-hour format and
 optional seconds. X/Y widget sliders show monitor pixels. Welcome and time-based greetings belong to the
 Login UI widget, alongside editable labels and field/button/password styling.
-Search and filters follow the same rules as Library. Visual colour pickers replace
-hex entry; optional wallpaper-derived palettes support light and dark colours.
+Search and filters follow the same rules as Library. Visual colour pickers include
+numeric RGB entry and a screen eyedropper (optional Hyprpicker on Wayland).
+**Suggest colors** changes only colors, with an Undo action; opacity, layout and
+effects remain unchanged. The old palette/light switches are retired. Appearance
+uses collapsible text, effects, background, field and sign-in button sections.
+The button has an independently editable label and text effect.
+
+Save **UI presets** in the editor, or **Complete presets** in Wallpapers to include
+wallpaper assignments and image edits. Name a new preset to Save, or Update an
+existing name; Load restores it into the draft. The folder button opens the JSON
+collection under `~/.config/wallpaper-lab/login-presets`. Presets do not include
+assets or enable the feature. Reset controls sit below Grid/Snap.
 Reset a widget or the entire UI while preserving wallpaper/display settings; a
 backup of the previous draft is saved. Preferences save automatically without
 changing the desktop wallpaper.

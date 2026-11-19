@@ -6,6 +6,13 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Native login presets and colors — 2026-11-19 (source 2.4.0)
+
+UI-only/complete presets, independent button text styling, RGB input, the screen
+eyedropper and color-only suggestions are covered by the
+[presets and color controls report](../docs/LOGIN_PRESETS_TEST_RESULTS.md).
+The old palette/light switches are retired; existing opacity and layout persist.
+
 ## Native login library and editor polish — 2026-11-19 (source 2.3.0)
 
 Shared library filters/inspector controls, visual colours, light/dark wallpaper

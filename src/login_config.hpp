@@ -5,7 +5,14 @@ namespace lab::login {
 inline constexpr std::array<const char*,3> widgets={"clock","date","login"};
 json defaults();
 json resetUi(json document,int widget=-1);
-json applyPalette(json document,const unsigned char* rgb,int count);
+json applyPalette(json document,const unsigned char* rgb,int width,int height);
+json colors(const json& document);
+json restoreColors(json document,const json& colors);
+json makePreset(const json& document,const std::string& name,bool full);
+json applyPreset(json document,const json& preset,bool full,const std::vector<Item>& library={});
+fs::path presetDirectory(bool full);
+std::vector<json> listPresets(bool full);
+void savePreset(const json& document,const std::string& name,bool full);
 std::string sourceFor(const json& document,const std::string& output="");
 json validate(json document);
 json load();

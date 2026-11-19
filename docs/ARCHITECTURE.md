@@ -300,10 +300,17 @@ minute/input cache. Publication includes each selected widget font. Retired cloc
 styles migrate to digital without changing format/seconds preferences. The login
 library calls the same filter, adjustment and placement controls as Library, with
 an explicit backend route that preserves desktop profiles. Login resolution
-variants also remain independent. A cached 64×64 shader sample feeds a native
-colour histogram; tonal surfaces and contrasting button text are saved into the
-document. HSV/RGB pickers are shared with creator properties; manual colours
-turn off automatic palette updates. UI reset backs up the draft first.
+variants also remain independent. An explicit shader sample (at most 64×64) of the UI monitor's edited
+wallpaper region feeds the native histogram/contrast suggestion in `login_colors.inc`.
+Only whitelisted color fields change; undo stores a color-only snapshot. Schema 3
+migration drops retired palette/light flags without altering current widget styles.
+`login_presets.inc` serializes whitelisted UI or complete-scene settings to named
+JSON collections, backs up updates/loads and validates all referenced wallpapers
+before applying a complete preset. Authentication/activation/runtime fields are excluded.
+HSV/RGB pickers, including numeric RGB and the optional nonblocking Hyprpicker
+adapter, are shared with creator properties. Eyedropper results remain bound to
+the originating picker; cancellation never applies a color. PID/start/executable
+identity is verified before stopping the helper. UI reset backs up the draft first.
 
 `login_deploy.py` exports an independent bundle and publishes an immutable root-owned
 release. Privileged copying uses no-follow directory descriptors and hashes the

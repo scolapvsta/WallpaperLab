@@ -1,6 +1,6 @@
 # Native login screen (experimental)
 
-Source version 2.3 extends the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
+Source version 2.4 extends the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
 its own editor, native wallpaper rendering, widgets and login controls. greetd
 provides PAM authentication and session startup; Hyprland provides the dedicated
 pre-login Wayland compositor. The normal desktop launcher is not required at boot.
@@ -38,7 +38,10 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
 7. Login UI's Widget controls contain the welcome toggle and optional time-based
    greeting with the current username. Custom labels cover welcome, username,
    password, session and sign-in. Empty labels use localized defaults. Appearance
-   adds button/text/field colours, focus border, field opacity/radius/height,
+   groups typography, text effects, backgrounds, login fields and the sign-in
+   button into collapsible sections. Field/button labels live in their respective
+   sections. The button has its own text effect (off by default), weight and size,
+   independently of the rest of the widget. Appearance also adds focus border, field opacity/radius/height,
    internal padding, label/button size and password-dot size/animation duration.
    Real PAM challenge text remains authoritative for additional authentication
    prompts; custom password labels only replace the normal password placeholder.
@@ -48,16 +51,52 @@ pre-login Wayland compositor. The normal desktop launcher is not required at boo
    greetd, authenticates, launches a session or saves the entered text. Esc closes
    it (first closing an open session menu). The desktop wallpaper keeps running.
 
-**Wallpaper palette** extracts a dominant colour from the edited wallpaper frame,
-with separate light/dark tones. The colour sample is cached until the wallpaper,
-image edits or mode change. Text and panel tones are paired for readability; button
-text has at least 4.5:1 contrast against its fill. The palette is saved in the draft
-and exported with the login bundle. A manual colour edit disables automatic colours.
-Visual HSV and RGB pickers are shared with the library's project colour controls.
+**Suggest colors** proposes a restrained set of colors from the edited wallpaper
+on the monitor carrying the login UI, including its panoramic crop. The sampler
+uses the native still when available, otherwise the visible thumbnail fallback.
+It evaluates each widget's background region and saved transparency when choosing
+light or dark text. **Undo suggested colors** restores the previous colors.
+Suggestions never change opacity, position, size, fonts, effect selection or other
+non-color settings, and do not run again when the wallpaper changes. The old
+Wallpaper palette and Light mode switches have been removed. Existing saved
+colors and opacities are preserved during migration.
 
-**Reset widget** restores the selected widget; **Reset login UI** restores all
-widgets, base styling and grid settings. Both save a draft backup under the state
-backups directory and preserve wallpapers, image profiles, monitors and FPS.
+The palette is a suggestion from one frame: fully transparent widgets over moving,
+busy imagery cannot be guaranteed readable by color changes alone. Button text
+meets 4.5:1 contrast against its nominal fill; composited transparency and animation
+still require a live preview check.
+
+Visual HSV/RGB pickers are shared with the library. Each RGB channel also accepts
+a number from 0 to 255; Enter or leaving the field commits valid input, Escape
+cancels it. **Screen eyedropper** uses optional `hyprpicker` on Wayland to sample
+any display. Escape cancels sampling; nothing is copied to the clipboard. When
+Hyprpicker is unavailable the button is disabled with an explanation.
+
+**Reset widget** and **Reset UI** sit directly below Grid/Snap. Both save a draft
+backup under the state backups directory and preserve wallpapers, image profiles,
+monitors and FPS. The first resets only the selected widget; the second also resets
+base styling and grid settings.
+
+## Custom presets
+
+- **Login UI editor → UI presets** saves widgets, typography, colors and grid aids.
+  Loading one preserves wallpapers, image edits, monitors and FPS.
+- **Wallpapers → Complete presets** additionally saves the selected wallpaper(s),
+  resolution variants, per-output image edits, display mode, UI outputs and FPS.
+- Enter a name and select **Save**. Select an existing preset to load it into the
+  draft; **Update** replaces the same name, with a backup of the old file. Use a
+  different name to keep another variation. Loading also backs up the current draft.
+- Files live under `$XDG_CONFIG_HOME/wallpaper-lab/login-presets/ui` and
+  `login-presets/complete` (normally `~/.config/wallpaper-lab/login-presets`). The
+  folder button opens the corresponding collection. JSON files can be copied for
+  backup; open the preset dropdown to discover externally added files.
+- Presets contain settings and wallpaper references, not assets, passwords,
+  authentication state or feature activation. Complete presets require their
+  wallpapers to remain available in the library. A missing wallpaper or invalid
+  preset leaves the current draft unchanged. Monitor names are local references.
+- Saving/loading presets never changes the published greeter. Inspect the result,
+  then use **Apply at next boot** when ready.
+
 Text labels use bordered input fields with a caret, selection and clipboard support.
 
 The native session selector opens an actual dropdown. Click an entry or use
@@ -175,7 +214,8 @@ preview logs and publication staging remain under the desktop user's
 
 ## Current limitations and verification
 
-The [customization test report](LOGIN_CUSTOMIZATION_TEST_RESULTS.md),
+The [presets and color controls test report](LOGIN_PRESETS_TEST_RESULTS.md),
+[customization test report](LOGIN_CUSTOMIZATION_TEST_RESULTS.md),
 [refinement test report](LOGIN_REFINEMENT_TEST_RESULTS.md) and
 [initial report](NATIVE_LOGIN_TEST_RESULTS.md) distinguish real desktop output
 checks, fake greetd IPC tests and actual system-boot validation. A fast, successful

@@ -376,6 +376,7 @@ int lab_clear_app_background(){return lab_set_option("app_background_preset",0);
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
 int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return result.value("background",false)?2:1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
 #include "login_api.inc"
+#include "color_pick_api.inc"
 
 int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
 const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):localizedDiagnostic(status.value("error",std::string()));}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
@@ -722,7 +723,7 @@ int lab_popup_poll(int* steps,int* released){
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
 int lab_popup_max_width(){return popupMaxWidth;}
 int lab_popup_max_height(){return popupMaxHeight;}
-void lab_shutdown(){if(loginStillJob.valid())try{loginStillJob.get();}catch(...){}lab_login_save();lab_login_stop_preview();if(loginJob.valid())try{loginJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
+void lab_shutdown(){lab_color_pick_cancel();if(loginStillJob.valid())try{loginStillJob.get();}catch(...){}lab_login_save();lab_login_stop_preview();if(loginJob.valid())try{loginJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
 }
 int main(int argc,char**argv) {
     try {

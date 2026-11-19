@@ -29,7 +29,13 @@ def run(*args):
         return ''
     if args[:2]==('ydotool','type'):args=(*args[:2],'--key-delay','60',*args[2:])
     return subprocess.check_output([str(a) for a in args],env=env,text=True)
-def read(name):return json.loads((out/name).read_text())
+def read(name):
+    # Geometry/style diagnostics may be rewritten while the UI is drawing.
+    for attempt in range(20):
+        try:return json.loads((out/name).read_text())
+        except (FileNotFoundError,json.JSONDecodeError):
+            if attempt==19:raise
+            time.sleep(.02)
 def g():return read('ui.json.geometry')
 def s():return read('ui.json.style')
 def state():return read('ui.json')
@@ -102,16 +108,47 @@ try:
     # The label is an actual caret/selection editor, not a button.
     click(visible(lambda:g()['login_text_fields'][0]));run('ydotool','type','Welcome home');wait(lambda:draft()['widgets']['login']['welcome_text']=='Welcome home');shot('text-edit')
     click(g()['login_reset'][0]);wait(lambda:draft()['widgets']['login']['welcome_text']=='');results['text_entry_and_widget_reset']=True
-    toggle(108);wait(lambda:draft()['auto_palette'] and draft()['widgets']['login']['background_opacity']==.96);dark=draft()['widgets']['login']['button_color'];shot('palette-dark')
-    toggle(109);wait(lambda:draft()['light'] and draft()['widgets']['login']['button_color']!=dark);shot('palette-light');results['automatic_light_dark_palette']=True
-    click(g()['login_inspector_tabs'][1]);wait(lambda:g()['choices']['96']['control'][0]>0)
-    # Pick the text color, using the first color button below opacity.
-    def text_color():
-        t=g()['number_tracks']['163'];return [t[0]+t[2]/2,t[1]+60]
-    click(visible(text_color));wait(lambda:g()['login_color']['open']==2053)
-    point=visible(lambda:[g()['login_color']['square'][0]+g()['login_color']['square'][2]*.8,g()['login_color']['square'][1]+g()['login_color']['square'][3]*.3]);click(point);wait(lambda:not draft()['auto_palette']);shot('visual-color-picker');results['visual_picker_and_manual_override']=True
+    click(g()['login_inspector_tabs'][1]);time.sleep(.3)
+    before=draft();click(g()['login_palette'][0]);wait(lambda:draft()['widgets']['login']['button_color']!=before['widgets']['login']['button_color'])
+    def without_colors(value):
+        return {k:without_colors(v)for k,v in value.items()if k not in {'color','accent','background','border_color','effect_color','field_color','button_color','button_text_color','button_effect_color'}} if isinstance(value,dict)else value
+    assert without_colors(draft())==without_colors(before)
+    shot('color-suggestion');click(g()['login_palette'][1]);wait(lambda:draft()==before);results['color_suggestion_preserves_all_non_colors_and_undoes']=True
+    assert 'auto_palette'not in draft()and'light'not in draft()
+    click(visible(lambda:g()['login_color_buttons'][5]));wait(lambda:g()['login_color']['open']==2053)
+    # Exact channel editing uses real RGB values, no hexadecimal knowledge needed.
+    for channel,value in enumerate([40,160,220]):
+        click(visible(lambda:g()['color_rgb_inputs'][channel]));run('ydotool','key','29:1','30:1','30:0','29:0');run('ydotool','type',str(value));run('ydotool','key','28:1','28:0')
+    wait(lambda:draft()['widgets']['login']['color']=='#28a0dc');shot('rgb-inputs');results['numeric_rgb']=True
+    click(visible(lambda:g()['color_rgb_inputs'][0]));run('ydotool','key','29:1','30:1','30:0','29:0');run('ydotool','type','300');run('ydotool','key','28:1','28:0');time.sleep(.5);assert draft()['widgets']['login']['color']=='#28a0dc';results['invalid_rgb_preserves_color']=True
+    if subprocess.run(['which','hyprpicker'],stdout=subprocess.DEVNULL).returncode==0:
+        # Sample a solid part of the app chrome; compare with its actual composited pixel.
+        point=visible(lambda:g()['color_eye']);win=window();px,py=win['at'][0]+40,win['at'][1]+160
+        run('grim','-g',f'{px},{py} 1x1',out/'sample.png');expected=Image.open(out/'sample.png').convert('RGB').getpixel((0,0))
+        click(point);wait(lambda:g()['color_picking']>=0);time.sleep(.7);run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={px},y={py},relative=false}}))');time.sleep(.3);run('ydotool','click','0x40');time.sleep(.15);run('ydotool','click','0x80')
+        wait(lambda:draft()['widgets']['login']['color']!='#28a0dc');actual=tuple(bytes.fromhex(draft()['widgets']['login']['color'][1:]));assert max(abs(a-b)for a,b in zip(actual,expected))<=3,(actual,expected);results['desktop_eyedropper']=True
+        saved_color=draft()['widgets']['login']['color'];click(visible(lambda:g()['color_eye']));wait(lambda:g()['color_picking']>=0);time.sleep(.5)
+        for key in ['1:1','1:0']:subprocess.run(['ydotool','key',key],env=env,check=True,stdout=subprocess.DEVNULL);time.sleep(.1)
+        wait(lambda:g()['color_picking']<0);assert draft()['widgets']['login']['color']==saved_color;results['eyedropper_cancel_preserves_color']=True
+    run('ydotool','key','1:1','1:0');time.sleep(.3)
+    # Button text and effect have their own section and independently persist.
+    click(visible(lambda:g()['login_sections'][6]));time.sleep(.4)
+    click(visible(lambda:g()['login_text_fields'][4]));run('ydotool','type','Enter my desktop');wait(lambda:draft()['widgets']['login']['button_label']=='Enter my desktop')
+    click(visible(lambda:g()['choices']['113']['control']));wait(lambda:g()['choice_open']==113);click(g()['choices']['113']['options'][2]);wait(lambda:draft()['widgets']['login']['button_effect']=='extrude')
+    choose(113,0);wait(lambda:draft()['widgets']['login']['button_effect']=='none');results['independent_sign_in_label_and_effect']=True;shot('button-controls')
+    # UI-only presets preserve the selected image and its crop settings.
+    saved=draft();click(g()['login_presets'][0]);run('ydotool','type','Evening UI');click(g()['login_presets'][2]);wait(lambda:len(list((config/'login-presets/ui').glob('*.json')))==1)
+    click(g()['login_reset'][1]);wait(lambda:draft()['widgets']['login']['button_label']=='');click(g()['login_presets'][1]);wait(lambda:draft()['widgets']==saved['widgets']);assert draft()['source']==source and draft()['profiles']==saved['profiles'];results['ui_preset_save_load']=True
     kept={k:draft()[k]for k in ['source','profiles','mode','fps']};click(g()['login_reset'][1]);wait(lambda:draft()['widgets']['login']['color']=='#f5f5f5');assert all(draft()[k]==v for k,v in kept.items());assert list((out/'state/wallpaper-lab/backups').glob('login-ui-*'));results['full_ui_reset_preserves_wallpaper_and_backups']=True
-    run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1000,y=740,relative=false}}))');time.sleep(.5);shot('compact-editor');click(g()['login_tabs'][0]);time.sleep(.5);shot('compact-wallpapers')
+    # A complete preset restores both wallpaper edits and the UI, surviving an app restart.
+    click(g()['login_tabs'][0]);wait(lambda:g()['login_tab']==0);saved=draft();click(g()['login_presets'][0]);run('ydotool','type','Blue scene');click(g()['login_presets'][2]);wait(lambda:len(list((config/'login-presets/complete').glob('*.json')))==1)
+    gold=next(i for i,v in enumerate(catalog)if v['title']=='Gold');card=next(c['rect']for c in g()['login_cards']if c['index']==gold);click([card[0]+card[2]/2,card[1]+30]);wait(lambda:draft()['source']!=source)
+    click(g()['login_presets'][1]);wait(lambda:draft()['source']==source);assert draft()['profiles']==saved['profiles']and draft()['widgets']==saved['widgets'];results['complete_preset_restores_wallpaper_and_ui']=True
+    stop(ui);ui=subprocess.Popen([str(app),'--login-editor'],env=env,stdout=log,stderr=log);wait(window);time.sleep(3)
+    choose(111,1);click(g()['login_presets'][1]);wait(lambda:draft()['source']==source);results['presets_survive_restart']=True
+    imported=json.loads(next((config/'login-presets/complete').glob('*.json')).read_text());imported['name']='Imported blue';imported['data']['widgets']['login']['welcome_text']='Imported';(config/'login-presets/complete/imported.json').write_text(json.dumps(imported))
+    choose(111,2);click(g()['login_presets'][1]);wait(lambda:draft()['widgets']['login']['welcome_text']=='Imported');results['external_json_preset_discovery']=True
+    run('hyprctl','eval',f'hl.dispatch(hl.dsp.window.float({{action="on",window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.window.resize({{window="pid:{ui.pid}",x=1000,y=740,relative=false}}));hl.dispatch(hl.dsp.window.center({{window="pid:{ui.pid}"}}))');time.sleep(.5);shot('compact-wallpapers');click(g()['login_tabs'][1]);time.sleep(.5);shot('compact-editor')
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))
 finally:
     stop(ui);stop(daemon);log.close();socket.unlink(missing_ok=True)

@@ -1,3 +1,17 @@
+# Version 2.4.0 — login presets and color controls
+
+- Add named UI-only and complete wallpaper/UI presets, persistent JSON collections,
+  scope-aware loading and backups for replaced presets and drafts.
+- Organize Appearance into collapsible text, effects, background, field and button
+  sections; move reset actions below Grid/Snap.
+- Give Sign in its own editable text effect, weight and size, with no inherited
+  shadow or extrusion by default.
+- Extend the shared color picker with numeric RGB and an optional Wayland screen
+  eyedropper using Hyprpicker, with no clipboard writes.
+- Replace the palette/light switches with explicit color-only suggestions and Undo,
+  sampling the edited wallpaper region beneath widgets while preserving opacity,
+  layout and every non-color setting.
+
 # Version 2.3.0 — login library and editor polish
 
 - Reuse Library filters and image/crop controls in the native login workspace,

@@ -777,10 +777,10 @@ int selector_main(int argc,char**argv){
         int removed=lab_deleted();if(removed>=0){deleted[removed]=true;if(selected_index==removed){selected_index=lab_current();detailOpen=selected_index>=0;}snprintf(notice,sizeof(notice),"Sfondo spostato nel cestino del sistema.");}
         if(completed){applying=false;if(completed>0&&removed<0)snprintf(notice,sizeof(notice),"%s",completed==1?"Sfondo applicato":"Scena live aperta in una finestra separata");}
         refreshClock+=dt;if(refreshClock>1&&!applying){lab_refresh();refreshClock=0;}
-        bool escape=IsKeyPressed(KEY_ESCAPE);if(UpdateSettingNumber())escape=false;
+        ColorPickerPoll();if(colorPickerNumeric>=0){isSearching=false;creatorEdit=-1;wsAuthorEditing=false;placementAxis=-1;loginEditing=-1;loginSearching=false;loginPresetEditing=false;}bool escape=IsKeyPressed(KEY_ESCAPE);if(escape&&ColorPickerEscape())escape=false;if(UpdateSettingNumber())escape=false;
         if(lab_switcher_preview_active()&&(escape||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){lab_cancel_switcher_preview();escape=false;}
         if(escape&&(transitionPreview||switcherPreview||animationCustomize)){if(choiceOpen>=0)choiceOpen=-1;else{transitionPreview=switcherPreview=false;animationCustomize=0;}escape=false;}
-        if(escape&&page==5&&(loginSearching||loginEditing>=0)){loginSearching=false;loginEditing=-1;escape=false;}
+        if(escape&&page==5&&(loginSearching||loginEditing>=0||loginPresetEditing)){loginSearching=false;loginEditing=-1;loginPresetEditing=false;escape=false;}
         if(escape){if(choiceOpen>=0)choiceOpen=-1;else if(creatorEdit>=0)creatorEdit=-1;else if(wsAuthorEditing)wsAuthorEditing=false;else if(placementAxis>=0)placementAxis=-1;else if(recordingKey)SetRecording(false);else if(deleteIndex>=0)deleteIndex=-1;else if(displayPopup){displayPopup=false;displayDragging=-1;}else if(settingsOpen&&choiceOpen>=0)choiceOpen=-1;else if(settingsOpen)settingsOpen=false;else if(isSearching)isSearching=false;else if(detailOpen)detailOpen=false;else if(page==3&&wsSelected>=0)wsSelected=-1;else if(page!=0)ChangePage(0);}
         if(page==5&&!loginTab&&!inputBlocked&&(IsKeyDown(KEY_LEFT_CONTROL)||IsKeyDown(KEY_RIGHT_CONTROL))&&IsKeyPressed(KEY_L)){loginSearching=true;loginEditing=-1;choiceOpen=-1;EditFocus(&loginSearchEdit,loginSearch,true);}
         if(recordingKey)RecordShortcut();

@@ -176,5 +176,9 @@
   "Native login preview failed; see renderer.log": "Operazione non riuscita. Dettagli nel registro.",
   "Native login publication failed": "Operazione non riuscita. Dettagli nel registro.",
   "Native login restoration failed": "Operazione non riuscita. Dettagli nel registro.",
-  "Native login configuration failed": "Operazione non riuscita. Dettagli nel registro."
+  "Native login configuration failed": "Operazione non riuscita. Dettagli nel registro.",
+  "Cannot start screen color picker": "Impossibile avviare il contagocce.",
+  "Invalid preset name": "Inserisci un nome valido per il preset.",
+  "Invalid login preset": "Preset non valido.",
+  "Preset wallpaper is unavailable": "Lo sfondo del preset non è disponibile nella libreria."
 }
