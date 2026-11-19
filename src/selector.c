@@ -780,7 +780,7 @@ int carousel_popup_main(void) {
     RenderTexture2D panel=LoadRenderTexture(layout.width,layout.height);
     RenderTexture2D canvas=LoadRenderTexture(frame.width,frame.height);
     Vector2 previousMouse=GetMousePosition();
-    bool confirm=false,closing=false,hadFocus=false;int lastSteps=steps;double lastEvent=GetTime();
+    bool persistent=lab_option("carousel_persistent"),confirm=false,closing=false,hadFocus=false;int lastSteps=steps;double lastEvent=GetTime();
     float targetPhase=position,visibility=0;
     PopupMotion scrollMotion={position,0},zoomMotion[MAX_POSSIBLE_WALLPAPERS]={0};
     // Explicit test-only export of this app's own canvas, before the global
@@ -795,20 +795,34 @@ int carousel_popup_main(void) {
             int reset=lab_popup_poll(&steps,&released);
             if(reset<0)closing=true;
             else {
-                if(reset){baseline=-1;for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;rotationBase=baseline;stepBase=1;lastSteps=-1;}
+                if(reset){
+                    if(persistent){rotationBase=position;stepBase=0;lastSteps=0;}
+                    else{baseline=-1;for(int j=0;j<count;j++)if(indices[j]==lab_current())baseline=j;rotationBase=baseline;stepBase=1;lastSteps=-1;}
+                }
                 if(lastSteps!=steps){
                     int previousPosition=position;position=popup_rotation_selection(count,rotationBase,steps,stepBase,transient);
                     if(lastSteps>=0&&steps>=lastSteps)targetPhase+=popup_rotation_distance(count,previousPosition,steps-lastSteps,transient);
                     else {targetPhase=position;scrollMotion=(PopupMotion){position,0};}
                     lastSteps=steps;lastEvent=GetTime();
                 }
+                int navigation=0;
+                if(IsKeyPressed(KEY_RIGHT)||IsKeyPressedRepeat(KEY_RIGHT))navigation=1;
+                else if(IsKeyPressed(KEY_LEFT)||IsKeyPressedRepeat(KEY_LEFT))navigation=-1;
+                else if(IsKeyPressed(KEY_DOWN)||IsKeyPressedRepeat(KEY_DOWN))navigation=g_targetMode==MODE_GRID?layout.columns:1;
+                else if(IsKeyPressed(KEY_UP)||IsKeyPressedRepeat(KEY_UP))navigation=g_targetMode==MODE_GRID?-layout.columns:-1;
+                else if(IsKeyPressed(KEY_TAB)||IsKeyPressedRepeat(KEY_TAB))navigation=IsKeyDown(KEY_LEFT_SHIFT)||IsKeyDown(KEY_RIGHT_SHIFT)?-1:1;
+                if(navigation&&count>0){
+                    int next=popup_keyboard_selection(count,position,navigation,transient);
+                    targetPhase+=navigation>0?(next-position+count)%count:-((position-next+count)%count);
+                    position=next;rotationBase=position;stepBase=steps;lastEvent=GetTime();
+                }
                 Vector2 mouse=GetMousePosition();bool moved=GetTime()>.2&&Vector2Distance(mouse,previousMouse)>1;previousMouse=mouse;int hovered=-1;
                 for(int hit=popupHitCount-1;hit>=0&&hovered<0;hit--)if(CheckCollisionPointRec(mouse,popupHits[hit].rect))for(int j=0;j<count;j++)if(indices[j]==popupHits[hit].index){hovered=j;break;}
                 if(hovered>=0&&((g_targetMode==MODE_GRID&&moved)||IsMouseButtonPressed(MOUSE_BUTTON_LEFT))){float delta=popup_distance(hovered,position,count);position=hovered;targetPhase+=delta;rotationBase=position;stepBase=steps;lastEvent=GetTime();}
                 if(hovered>=0){SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){confirm=true;closing=true;}}
                 bool focused=IsWindowFocused();if(focused)hadFocus=true;bool outside=IsMouseButtonPressed(MOUSE_BUTTON_LEFT)&&!CheckCollisionPointRec(GetMousePosition(),(Rectangle){frame.padding,frame.padding,layout.width,layout.height});
-                if(WindowShouldClose()||IsKeyPressed(KEY_ESCAPE)||outside||GetTime()-lastEvent>60)closing=true;
-                else if(released){confirm=true;closing=true;}
+                if(WindowShouldClose()||IsKeyPressed(KEY_ESCAPE)||outside||(!persistent&&GetTime()-lastEvent>60))closing=true;
+                else if(released||IsKeyPressed(KEY_ENTER)||IsKeyPressed(KEY_KP_ENTER)){confirm=true;closing=true;}
             }
         }
         float dt=fminf(GetFrameTime(),0.1f);

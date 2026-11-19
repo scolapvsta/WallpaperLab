@@ -83,6 +83,11 @@ int main(){
                 check(popup_rotation_distance(count,selected,1,1)>=1,"rotation reversed across anchor");
             }
         }
+        check(popup_keyboard_selection(0,0,1,0)==-1&&popup_keyboard_selection(1,0,-1,0)==0,"keyboard empty/single list failed");
+        check(popup_keyboard_selection(4,0,-1,0)==3&&popup_keyboard_selection(4,3,1,0)==0,"keyboard wrap failed");
+        check(popup_keyboard_selection(9,4,-3,0)==1&&popup_keyboard_selection(9,4,3,0)==7,"grid arrow rows failed");
+        check(popup_keyboard_selection(4,0,1,1)==1&&popup_keyboard_selection(4,0,-1,1)==3,"keyboard cannot leave transient current");
+        for(int direction:{-1,1}){int selected=0;for(int n=0;n<100;n++){selected=popup_keyboard_selection(4,selected,direction,1);check(selected>0&&selected<4,"keyboard reselected transient slot");}}
         PopupHost first,second;
         check(first.receive("test",1,1,false),"first host not created");
         check(!second.receive("test",1,2,false),"duplicate popup owner");

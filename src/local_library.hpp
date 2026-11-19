@@ -27,7 +27,7 @@ inline fs::path importLocalMedia(const fs::path& input,const fs::path& directory
   capture({"ffmpeg","-v","error","-nostdin","-protocol_whitelist","file","-i",(stage/media).string(),"-frames:v","1","-vf","scale=640:360:force_original_aspect_ratio=decrease","-y",preview.string()});
   if(!fs::is_regular_file(preview))throw std::runtime_error("Impossibile creare l’anteprima del file");
   if(image){std::ofstream html(stage/"index.html");html<<"<!doctype html><meta charset='utf-8'><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}img{display:block;width:100%;height:100%;object-fit:cover}</style><img draggable='false' src='"<<media<<"'>";if(!html)throw std::runtime_error("Impossibile creare il progetto locale");}
-  writeJson(stage/"project.json",{{"title",file.stem().string()},{"type",image?"web":"video"},{"file",image?"index.html":media},{"preview","preview.png"},{"lab_origin","local"},{"lab_media_kind",image?"image":"video"},{"lab_width",w},{"lab_height",h},{"general",{{"supportsaudioprocessing",false}}}});
+  writeJson(stage/"project.json",{{"title",file.stem().string()},{"type",image?"web":"video"},{"file",image?"index.html":media},{"preview","preview.png"},{"lab_origin","local"},{"lab_media_kind",image?"image":"video"},{"lab_media_file",media},{"lab_width",w},{"lab_height",h},{"general",{{"supportsaudioprocessing",false}}}});
   fs::rename(stage,dest);return dest;
  }catch(...){std::error_code ec;fs::remove_all(stage,ec);throw;}
 }

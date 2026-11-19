@@ -68,6 +68,13 @@ json loadSettings() {
     prefs["window_opacity"]=std::clamp(prefs.value("window_opacity",100),70,100);
     const std::pair<const char*,int> animationDefaults[]={{"switcher_size",100},{"switcher_zoom",132},{"switcher_fade_in",140},{"switcher_fade_out",140},{"switcher_motion",350},{"switcher_reverse",0},{"wave_speed",100},{"wave_height",24},{"transition_duration",700},{"transition_direction",0},{"transition_curve",0},{"transition_zoom",30},{"caelestia_palette",0},{"caelestia_mode",0}};
     for(auto [key,value]:animationDefaults)if(!prefs.contains(key))prefs[key]=value;
+    const std::pair<const char*,int> backendDefaults[]={{"wallpaper_backend",0},{"awww_transition",12},{"awww_step",2},{"awww_duration",2000},{"awww_fps",144},{"awww_position",0},{"awww_angle",45}};
+    for(auto [key,value]:backendDefaults)if(!prefs.contains(key))prefs[key]=value;
+    prefs["awww_step"]=std::clamp(prefs.value("awww_step",2),1,100);
+    prefs["awww_duration"]=std::clamp(prefs.value("awww_duration",2000),100,10000);
+    if(!prefs.contains("awww_invert_y"))prefs["awww_invert_y"]=true;
+    if(!prefs.contains("wallpaper_post_hook_enabled"))prefs["wallpaper_post_hook_enabled"]=false;
+    if(!prefs.contains("carousel_persistent"))prefs["carousel_persistent"]=false;
     int pageSize=prefs.value("page_size",100);prefs["page_size"]=pageSize<=50?50:pageSize<=100?100:200;
     return prefs;
 }

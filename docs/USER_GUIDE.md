@@ -4,6 +4,65 @@ For installation, updates, rollback and removal, see the [installation guide](BE
 The current release targets Arch Linux x86_64 with Hyprland. Project compatibility
 depends on the features used by each wallpaper.
 
+## Local image backend: awww
+
+In builds with awww support, open **Settings → Playback → Local image backend**
+and choose **awww**. Install awww separately and start `awww-daemon` through your
+normal session setup. Wallpaper Lab uses the existing daemon. Imported images
+and animated GIFs go to awww; videos and Workshop scene/web projects continue
+using the native renderer. Preview windows still use the native renderer.
+
+**Import from Caelestia CLI** reads `~/.config/caelestia/cli.json` (or its XDG
+equivalent), backs up Wallpaper Lab's settings, and imports a wallpaper hook
+beginning with `awww img "$WALLPAPER_PATH"`. It recognizes transition type, step,
+duration, FPS, angle, named origin, and `--invert-y`, including the Hyprland
+cursor expression `$(hyprctl cursorpos | tr -d ' ')`. Unsupported command forms
+fail without changing settings. The CLI configuration remains unchanged.
+
+A shell command following `&&` is saved as the **Imported post-hook**. Importing
+enables that command; review its displayed text and use the toggle to disable it.
+It runs after a successful awww application with `WALLPAPER_PATH` set to the
+actual imported media file. This can retain an existing cursor-theme rebuild.
+Output and failures are recorded in the app's XDG state directory as
+`post-hook.log` and `post-hook-status.json`. A failed post-hook keeps the wallpaper
+active and displays a notice in Playback settings.
+
+When **Colors from wallpaper** is enabled, awww images use the installed
+Caelestia CLI wallpaper pipeline on the actual media file. Scheme flavour, smart
+mode/variant selection, quantization, thumbnail cache and theme application follow
+`caelestia wallpaper -f`, as with Hellpaper. The CLI wallpaper hook is suppressed
+only in the adapter process: Wallpaper Lab already runs awww with your GUI
+settings and executes the imported trailing hook separately. Your `cli.json`
+stays unchanged. CLI theme hooks still run normally. There is no additional
+Wallpaper Lab tint or forced fidelity preset for these images.
+
+Under **Settings → Carousel → Transition**, select any awww effect. **Transition
+step** and **Transition duration** sliders appear directly below the style
+selector. Step ranges from **1 to 100**, and duration from **0.1 to 10 seconds**.
+Click either number to type a value; Enter or clicking elsewhere saves it, and
+Esc cancels the edit. The **↑ / ↓** buttons add or subtract one step or one
+second from the current value. Duration supports fractional seconds such as
+`2.25`; dragging its slider uses 0.1-second increments. Limits also apply to
+typed values and backend arguments.
+The customize button also exposes duration, step, FPS, origin and Y inversion.
+Wipe/wave also expose the angle. These preferences are separate from native transitions
+and from the switcher's own animation. Native shader previews are disabled for
+awww; apply an image to see the actual effect. Reduced motion selects `none`.
+
+Use one monitor or mirror mode. Multi-monitor panorama is rejected before
+launching because awww does not implement Wallpaper Lab's combined canvas.
+Native image adjustments, positioning, zoom and playback controls are hidden for
+awww images; awww uses its default crop scaling. Cursor origin uses the same
+Hyprland coordinates as the imported CLI expression. Mixed-DPI cursor alignment
+has not been independently certified.
+
+Carousel selection, saved monitor assignments and restore use the selected
+backend. Stop clears only outputs still displaying that application's awww
+image, leaves the shared daemon running, and verifies renderer ownership before
+signaling a process. A failed awww launch preserves the previous renderer.
+`wallpaper-lab --import-awww` performs the same import as the GUI, and `--plan ID`
+prints the actual awww argument list for an imported image.
+
 ## Library and displays
 
 Click a wallpaper card to apply it and open its live inspector. Closing the UI
@@ -110,7 +169,15 @@ allow click confirmation without moving their strips on hover.
 The shortcut is configured explicitly in the app. On Hyprland, activation checks
 conflicts, backs up configuration and manages an app-specific include/binding.
 Disabling removes the managed binding; the reusable include remains. Releasing
-a modifier confirms the selection; Esc cancels. The app respects shortcut
+a modifier confirms the selection by default; Esc cancels. Beside the shortcut
+settings, **Keep carousel open** switches to press-once operation. It is off by
+default. When enabled, release the shortcut and browse with arrows, Tab or
+subsequent shortcut presses. Enter or a click applies the selected wallpaper;
+Esc or an outside click cancels. Grid Up/Down moves by a row. Shift+Tab moves
+backward when that combination is not itself captured by a global binding.
+The persistent popup stays open until you apply or cancel, without an idle
+timeout. Toggling this preference does not change or enable your global shortcut;
+it takes effect the next time the carousel opens. The app respects shortcut
 inhibitors. On other compositors, a manually configured `wallpaper-lab --next`
 binding provides direct switching; popup integration needs separate verification.
 

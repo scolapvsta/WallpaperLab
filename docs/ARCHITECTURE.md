@@ -1,5 +1,26 @@
 # Architecture
 
+Local images can select awww through `wallpaper_backend`. The controller resolves
+the imported media file, builds an argument vector without shell interpolation,
+and launches the same executable in `--awww-render` session mode. This session
+reports readiness only after `awww img` succeeds and exits when its outputs no
+longer display its image. PID, start-time and executable ownership checks remain
+the same as for native renderers. Handoff does not terminate the shared daemon.
+Explicit Stop clears only matching, owned output assignments. Native renderer
+handoff clears the previous owned awww assignment after readiness.
+
+The Caelestia hook importer accepts a restricted awww command grammar and stores
+its optional trailing shell hook separately. Only that explicitly imported hook
+runs through a shell, with the media path passed as a positional argument. Native
+previews, videos and Workshop projects retain the embedded engine path.
+
+For awww images, optional colour integration invokes `caelestia_cli.py` using
+the installed CLI's `set_wallpaper` implementation and the full media file. Its
+in-process wallpaper config omits `postHook`, preserving GUI transition arguments;
+theme config and theme hooks remain unchanged. This keeps smart mode/variant,
+flavour, quantization, caching and full theme application identical to the CLI.
+The previous custom palette generator remains for native scene/video artwork.
+
 Wallpaper Lab builds one application executable with a raylib UI and a C++
 controller exposed through a C API. Its `--render` mode links the native engine
 library directly. Rendering runs in a separate instance of the same executable,
