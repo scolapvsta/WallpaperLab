@@ -51,6 +51,7 @@ not included in the source repository or application runtime.
 | `engine-compositor-transitions.patch` | RGBA composition and antialiased iris |
 | `engine-live-audio-mute.patch` | Live CEF/MPV audio mute |
 | `engine-output-hotplug.patch` | Wayland output removal and reconnection |
+| `engine-visible-fullscreen.patch` | Fullscreen pause limited to fullscreen windows shown on the renderer's outputs (Hyprland) |
 | `raylib-app-id.patch` | Application desktop identity |
 
 Patches live in `patches/`; application-side compositor rules are in
