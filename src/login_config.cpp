@@ -2,6 +2,7 @@
 #include "login_assets.hpp"
 #include "preferences.hpp"
 #include "project_source.hpp"
+#include "project_properties.hpp"
 #include "local_library.hpp"
 #include <cmath>
 #include <set>
@@ -10,7 +11,7 @@
 #include <pwd.h>
 namespace lab::login {
 json defaults(){
-    json d={{"schema",3},{"enabled",false},{"source",""},{"mode","span"},{"output",""},{"ui_outputs","primary"},{"ui_primary",""},{"fps",60},{"muted",true},{"profiles",json::object()},{"wallpapers",json::object()},{"output_profiles",json::object()},{"message","Wallpaper Lab"},{"font","Oxanium"},{"accent","#87cfdf"},{"panel_opacity",.65},{"radius",20},{"field_opacity",.10},{"border_width",1.0},{"field_radius",10},{"show_welcome",true},{"show_labels",true}};
+    json d={{"schema",3},{"enabled",false},{"source",""},{"mode","span"},{"output",""},{"ui_outputs","primary"},{"ui_primary",""},{"fps",60},{"muted",true},{"project_profiles",json::object()},{"profiles",json::object()},{"wallpapers",json::object()},{"output_profiles",json::object()},{"message","Wallpaper Lab"},{"font","Oxanium"},{"accent","#87cfdf"},{"panel_opacity",.65},{"radius",20},{"field_opacity",.10},{"border_width",1.0},{"field_radius",10},{"show_welcome",true},{"show_labels",true}};
     auto widget=[&](const char* id,bool enabled,double x,double y,double w,double h,int size){d["widgets"][id]={{"enabled",enabled},{"x",x},{"y",y},{"width",w},{"height",h},{"size",size}};};
     widget("clock",true,.36,.12,.28,.12,86);widget("date",true,.32,.25,.36,.05,22);widget("login",true,.36,.39,.28,.43,20);
     d["variants"]=json::object();
@@ -18,7 +19,7 @@ json defaults(){
     for(auto id:widgets){auto& w=d["widgets"][id];w.update(json{{"font",""},{"color","#f5f5f5"},{"accent","#87cfdf"},{"background","#101522"},{"background_opacity",std::string(id)=="login"?.65:0.},{"opacity",1.},{"radius",20.},{"bold",std::string(id)=="clock"},{"italic",false},{"underline",false},{"effect","shadow"},{"effect_depth",2.},{"effect_color","#000000"},{"align","center"},{"tracking",0.},{"border_width",0.},{"border_color","#87cfdf"}});}
     d["widgets"]["clock"].update(json{{"format","24"},{"seconds",false}});
     d["widgets"]["date"].update(json{{"format","long"},{"uppercase",false}});
-    d["widgets"]["login"].update(json{{"welcome_enabled",true},{"dynamic_welcome",false},{"welcome_text",""},{"user_label",""},{"password_label",""},{"session_label",""},{"button_label",""},{"labels",true},{"field_color","#ffffff"},{"field_opacity",.1},{"field_radius",10.},{"focus_width",1.},{"button_color","#87cfdf"},{"button_text_color","#101522"},{"button_effect","none"},{"button_effect_color","#000000"},{"button_effect_depth",2.},{"button_bold",false},{"button_text_size",.85},{"padding",24.},{"field_height",.13},{"button_height",.12},{"animation",.18},{"dot_size",3.1},{"label_size",.65}});
+    d["widgets"]["login"].update(json{{"welcome_enabled",true},{"dynamic_welcome",false},{"welcome_text",""},{"user_label",""},{"password_label",""},{"session_label",""},{"button_label",""},{"labels",true},{"field_color","#ffffff"},{"field_opacity",.1},{"field_radius",10.},{"focus_width",1.},{"button_color","#87cfdf"},{"button_text_color","#101522"},{"button_effect","none"},{"button_effect_color","#000000"},{"button_effect_depth",2.},{"button_bold",false},{"button_text_size",.85},{"padding",24.},{"field_height",.13},{"button_height",.12},{"animation",.28},{"dot_size",3.1},{"label_size",.65}});
     auto& form=d["widgets"]["login"];form["layout"]="base";
     form["astronaut"]={{"content_width",.5},{"field_y",.5326},{"row_gap",.018},{"button_y",.67},{"session_y",.924},{"keyboard_y",.947},{"actions_y",.821},{"action_centers",{-.16,-.052,.048,.16}},{"header_y",.142},{"header_height",.05},{"header_size",48.},{"button_visible",true},{"system_buttons",false},{"virtual_keyboard",false},{"blur",0.},{"password_color","#f5f5f5"},{"password_background","#ffffff"},{"placeholder_color","#f5f5f5"},{"user_icon_color","#f5f5f5"},{"password_icon_color","#f5f5f5"},{"header_color","#f5f5f5"},{"system_color","#f5f5f5"},{"session_color","#f5f5f5"},{"keyboard_color","#f5f5f5"},{"warning_color","#ff6677"},{"dropdown_color","#f5f5f5"},{"dropdown_background","#101522"},{"dropdown_selected","#405060"},{"highlight","#87cfdf"},{"highlight_opacity",.2}};
     return d;
@@ -68,6 +69,13 @@ json validate(json d){
     for(auto& [output,path]:d["wallpapers"].items())if(output.empty()||output.size()>128||!path.is_string()||path.get_ref<const std::string&>().size()>4096)throw std::invalid_argument("Invalid login text");
     if(!d["variants"].is_object())throw std::invalid_argument("Invalid login collections");
     for(auto& [path,v]:d["variants"].items())for(auto key:{"property","value"})if(!v.is_object()||!v.contains(key)||!v[key].is_string()||v[key].get_ref<const std::string&>().size()>256)throw std::invalid_argument("Invalid login text");
+    if(!d["project_profiles"].is_object())throw std::invalid_argument("Invalid login collections");
+    for(auto& [path,profile]:d["project_profiles"].items()){
+        if(path.empty()||path.size()>4096||!profile.is_object())throw std::invalid_argument("Invalid wallpaper profile");
+        auto properties=profile.value("properties",json::object()),playback=profile.value("playback",json::object());if(!properties.is_object()||properties.size()>1024||!playback.is_object())throw std::invalid_argument("Invalid wallpaper profile");
+        for(auto& [key,value]:properties.items())if(key.empty()||key.size()>256||!(value.is_string()||value.is_number()||value.is_boolean())||(value.is_string()&&value.get_ref<const std::string&>().size()>4096)||(value.is_number()&&!std::isfinite(value.get<double>())))throw std::invalid_argument("Invalid project property");
+        for(auto& [key,value]:playback.items())if(!value.is_boolean()||(key!="audio"&&key!="reactive"&&key!="mouse"&&key!="parallax"&&key!="particles"))throw std::invalid_argument("Invalid wallpaper playback");
+    }
     return d;
 }
 json resetUi(json d,int widget){
@@ -85,6 +93,8 @@ json imageProfile(const json& d,const std::string& output){
     auto source=sourceFor(d,output);p.merge_patch(d.value("profiles",json::object()).value(source,json::object()));
     if(d.value("mode",std::string())=="single")p.merge_patch(d.value("output_profiles",json::object()).value(output.empty()?d.value("output",std::string()):output,json::object()).value(source,json::object()));return p;
 }
+// Shared with the one-shot library import and still/full renderer paths.
+#include "login_library_copy.inc"
 std::array<double,2> snapPosition(const json& d,int widget,double x,double y){
     auto& w=d.at("widgets").at(widgets.at(widget));if(d["grid"]["snap"]){double step=d["grid"]["step"];x=std::round(x/step)*step;y=std::round(y/step)*step;}return {std::clamp(x,0.,1-w["width"].get<double>()),std::clamp(y,0.,1-w["height"].get<double>())};
 }
@@ -118,7 +128,7 @@ fs::path prepare(const json& document,const Item& item,const json& desktop,const
         if(desktop.contains("display_layout"))d["display_layout"]=desktop["display_layout"];
         auto profile=imageProfile(d);d["image_profile"]=profile;profile.erase("crop");
         // Use the renderer's exact profile shape, including independently saved creator properties.
-        auto original=loadPlacements().value(item.path,json::object());original.erase("variant");if(d["variants"].contains(item.path)){original["variant"]=d["variants"][item.path];for(const auto& variant:item.variants)if(original["variant"]["property"]==variant.property&&original["variant"]["value"]==variant.value)original["properties"][variant.property]=variant.value;}for(auto& [key,value]:profile.items())if(key=="x"||key=="y"||key=="zoom")original["position"][key]=value;else original["image"][key]=value;
+        auto original=projectProfile(d,item.path,loadPlacements());original.erase("variant");if(d["variants"].contains(item.path)){original["variant"]=d["variants"][item.path];for(const auto& variant:item.variants)if(original["variant"]["property"]==variant.property&&original["variant"]["value"]==variant.value)original["properties"][variant.property]=variant.value;}for(auto& [key,value]:profile.items())if(key=="x"||key=="y"||key=="zoom")original["position"][key]=value;else original["image"][key]=value;
         writeJson(dir/"wallpaper_profiles.json",{{item.path,original}});
         d["profile_file"]=(dir/"wallpaper_profiles.json").string();writeJson(dir/"settings.json",{{"muted",d["muted"]}});
         if(d.value("mode",std::string())=="single"){

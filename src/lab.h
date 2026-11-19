@@ -81,6 +81,7 @@ float lab_login_image(const char* key);
 float lab_login_output_image(int output,const char* key);
 const char* lab_login_still(int index);
 const char* lab_login_still_notice(void);
+int lab_login_copy_library(void);
 int lab_login_image_set(const char* key,float value);
 const unsigned char* lab_login_pixels(int preset,int width,int height);
 const char* lab_login_shader(void);

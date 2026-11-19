@@ -1,3 +1,17 @@
+# Version 2.5.1 — login Library import and motion polish
+
+- Add **Copy settings from Library** to the login wallpaper inspector, importing
+  that project's image edits, position/zoom, resolution and supported creator
+  options with a backup and no desktop-profile writes.
+- Keep imported creator options as a snapshot in complete presets; preserve the
+  legacy behavior for drafts that have not explicitly imported a project.
+- Animate individual password dots with fade/rise/settling pulses, including rapid
+  typing. Add smooth focus, caret, dropdown, keyboard and initial UI transitions.
+  Redraw/upload only the affected overlay region during animation.
+- Fix newly enabled Welcome text in all Astronaut designs and existing personal
+  presets; fit labels vertically and respect the configured header font weight.
+- Record verification in the [copy and motion report](LOGIN_COPY_MOTION_TEST_RESULTS.md).
+
 # Version 2.5.0 — native Astronaut UI presets
 
 - Add ten editable UI-only presets derived from the pinned Astronaut designs,

@@ -809,6 +809,7 @@ int main(int argc,char**argv) {
                 std::string action=argc>2?argv[2]:"status";ensureLogin();
                 if(action=="enable"||action=="disable"){if(!lab_login_enable(action=="enable"))throw std::runtime_error("Native login configuration failed");while(lab_login_busy()){lab_login_poll();std::this_thread::sleep_for(std::chrono::milliseconds(50));}if(loginDocument.value("enabled",false)!=(action=="enable"))throw std::runtime_error("Native login configuration failed");}
                 else if(action=="set"){if(argc!=4)throw std::invalid_argument("Usage: --login set JSON_PATCH");auto next=loginDocument;next.merge_patch(json::parse(argv[3]));loginDocument=login::validate(next);login::save(loginDocument);}
+                else if(action=="copy-library"){if(!lab_login_copy_library())throw std::runtime_error("Native login configuration failed");}
                 else if(action=="prepare"){int selected=lab_login_selected();if(selected<0)throw std::invalid_argument("Select a login wallpaper first");auto file=login::prepare(loginDocument,items[selected],settings,monitors,items);std::cout<<json({{"prepared",file.string()}}).dump()<<'\n';return 0;}
                 else if(action!="status")throw std::invalid_argument("Unknown login action");std::cout<<loginDocument.dump(2)<<'\n';return 0;
             }

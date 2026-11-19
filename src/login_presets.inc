@@ -1,6 +1,6 @@
 // Presets contain configuration only; wallpaper assets and authentication state stay local.
 static const std::array<const char*,4> uiPresetKeys={"widgets","grid","font","accent"};
-static const std::array<const char*,10> scenePresetKeys={"source","mode","output","ui_outputs","ui_primary","fps","profiles","wallpapers","output_profiles","variants"};
+static const std::array<const char*,11> scenePresetKeys={"source","mode","output","ui_outputs","ui_primary","fps","profiles","wallpapers","output_profiles","variants","project_profiles"};
 json makePreset(const json& document,const std::string& name,bool full){
     if(name.empty()||name.size()>96||name.find_first_not_of(" \t\r\n")==std::string::npos||std::any_of(name.begin(),name.end(),[](unsigned char c){return c<32;}))throw std::invalid_argument("Invalid preset name");
     auto d=validate(document);json data=json::object();for(auto key:uiPresetKeys)data[key]=d[key];if(full)for(auto key:scenePresetKeys)data[key]=d[key];
@@ -8,7 +8,7 @@ json makePreset(const json& document,const std::string& name,bool full){
 }
 json applyPreset(json d,const json& preset,bool full,const std::vector<Item>& library){
     if(preset.value("format",std::string())!="wallpaper-lab-login-preset"||preset.value("version",0)!=1||preset.value("kind",std::string())!=(full?"complete":"ui")||!preset.at("data").is_object())throw std::invalid_argument("Invalid login preset");
-    auto& data=preset.at("data");for(auto key:uiPresetKeys)d[key]=data.at(key);if(full)for(auto key:scenePresetKeys)d[key]=data.at(key);d=validate(d);
+    auto& data=preset.at("data");for(auto key:uiPresetKeys)d[key]=data.at(key);if(full)for(auto key:scenePresetKeys)d[key]=std::string(key)=="project_profiles"?data.value(key,json::object()):data.at(key);d=validate(d);
     if(full){
         std::set<std::string> sources;auto source=sourceFor(d);if(!source.empty())sources.insert(source);
         if(d["mode"]=="single")for(auto& [output,path]:d["wallpapers"].items())sources.insert(path.get<std::string>());

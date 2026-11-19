@@ -97,6 +97,16 @@ base styling and grid settings.
 - Saving/loading presets never changes the published greeter. Inspect the result,
   then use **Apply at next boot** when ready.
 
+**Copy settings from Library**, below the selected wallpaper's preview, imports
+that same project's current desktop image adjustments, position, zoom, resolution
+variant and supported creator options. This replaces the selected login image's
+edits and saves a draft backup; it never writes the Library profile or changes
+widgets, display mode, FPS or login audio policy. In single mode the image edits
+target the selected output; resolution and creator options are shared by uses of
+the same project. Projects without saved Library edits import their defaults.
+Copied creator options are a snapshot, retained in complete presets; subsequent
+desktop edits require another explicit copy. UI-only presets preserve this snapshot.
+
 Text labels use bordered input fields with a caret, selection and clipboard support.
 
 The native session selector opens an actual dropdown. Click an entry or use
@@ -115,7 +125,9 @@ background launch worker.
 
 The monitor map uses the saved desktop panorama calibration, independently of any
 unsaved desktop-layout draft. UI widget geometry is local to each output. Password
-fields draw animated dots, show a blinking caret and support UTF-8 cursor movement,
+fields animate each new dot with a fade, short rise and settling pulse, including
+rapid typing. Focus, caret and dropdown transitions fade smoothly; animation-only
+frames redraw the affected UI region. Fields show a blinking caret and support UTF-8 cursor movement,
 Home/End and deletion; the interactive preview keeps its test input only in memory.
 
 Draft preferences are stored in `$XDG_CONFIG_HOME/wallpaper-lab/login-screen.json`.
@@ -238,3 +250,8 @@ preview alone does not validate PAM login, VT handoff or a cold boot.
 Version 2.5 includes ten native, editable [Astronaut UI presets](ASTRONAUT_PRESETS.md).
 Loading a UI preset preserves wallpaper and display settings; publish explicitly
 with **Apply at next boot** after previewing the selected design.
+
+Version 2.5.1 fixes enabling Welcome on designs originally shipped with the header
+hidden, including existing personal presets: the text slot expands above the
+clock/date instead of being clipped to one pixel. Fitted labels respect their
+available height. See the [copy and motion checks](LOGIN_COPY_MOTION_TEST_RESULTS.md).

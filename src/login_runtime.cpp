@@ -1,6 +1,7 @@
 #include "login_runtime.hpp"
 #include "login_canvas.hpp"
 #include "login_astronaut.hpp"
+#include "login_motion.hpp"
 #include <sys/wait.h>
 #include "login_auth.hpp"
 #include "displays.hpp"
@@ -28,13 +29,14 @@ std::string activeOutput;
 std::map<std::string,json> outputProfiles;
 std::map<std::string,std::array<float,13>> outputImages;
 std::vector<Session> choices;int selectedSession=0;std::string primary,wallpaperOutput;double pointerX=0,pointerY=0;
-std::chrono::steady_clock::time_point began,lastInput;uint64_t revision=1;std::string diagnostic;
+Motion motion;double shownAt=-1;double seconds(){return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+std::chrono::steady_clock::time_point began;uint64_t revision=1;std::string diagnostic;
 xkb_context* keyContext=nullptr;xkb_keymap* keymap=nullptr;xkb_state* keyState=nullptr;xkb_compose_state* compose=nullptr;
-GLuint program=0,vao=0;struct Overlay{GLuint texture=0;int w=0,h=0;uint64_t revision=0;std::time_t minute=0;int animation=-1;};std::map<std::string,Overlay> overlays;
+GLuint program=0,vao=0;struct Overlay{GLuint texture=0;int w=0,h=0;uint64_t revision=0;std::array<int,4> motionBounds={};std::time_t minute=0;int animation=-1;};std::map<std::string,Overlay> overlays;
 bool showUI(const std::string& output){if(output=="default")return true;auto mode=document.value("ui_outputs",std::string("primary"));return mode=="all"||(mode=="primary"?output==primary:output!=primary);}
-void touch(){lastInput=std::chrono::steady_clock::now();revision++;}
+void touch(){motion.caretSince=seconds();revision++;}
 void focus(int field){state.focus=field;state.cursor=(field==0?state.username:state.input).size();touch();}
-void wipe(){explicit_bzero(state.input.data(),state.input.size());state.input.clear();state.cursor=0;}
+void wipe(){explicit_bzero(state.input.data(),state.input.size());state.input.clear();motion.clear();state.cursor=0;state.reveal=false;}
 void submit(){
     systemStatus.clear();
     if(state.preview){state.status=translate("Anteprima");if(state.focus==0)focus(1);revision++;return;}
@@ -71,7 +73,7 @@ void poll(){
 GLuint compile(GLenum kind,const char* text){GLuint id=glCreateShader(kind);glShaderSource(id,1,&text,nullptr);glCompileShader(id);GLint ok;glGetShaderiv(id,GL_COMPILE_STATUS,&ok);if(!ok)throw std::runtime_error("Native login shader compilation failed");return id;}
 void initializeGL(){
     const char* vs="#version 330 core\nout vec2 uv;void main(){vec2 p[6]=vec2[6](vec2(-1,-1),vec2(1,-1),vec2(1,1),vec2(-1,-1),vec2(1,1),vec2(-1,1));vec2 q=p[gl_VertexID];gl_Position=vec4(q,0,1);uv=vec2(q.x*.5+.5,.5-q.y*.5);}";
-    const char* fs="#version 330 core\nin vec2 uv;out vec4 pixel;uniform sampler2D overlay;void main(){pixel=texture(overlay,uv);}";
+    const char* fs="#version 330 core\nin vec2 uv;out vec4 pixel;uniform sampler2D overlay;uniform float opacity;void main(){pixel=texture(overlay,uv)*opacity;}";
     auto vertex=compile(GL_VERTEX_SHADER,vs),fragment=compile(GL_FRAGMENT_SHADER,fs);program=glCreateProgram();glAttachShader(program,vertex);glAttachShader(program,fragment);glLinkProgram(program);glDeleteShader(vertex);glDeleteShader(fragment);GLint ok;glGetProgramiv(program,GL_LINK_STATUS,&ok);if(!ok)throw std::runtime_error("Native login shader linking failed");glGenVertexArrays(1,&vao);
 }
 #include "login_blur.inc"
@@ -93,11 +95,17 @@ extern "C" void wallpaper_lab_login_draw(const char* name,int x,int y,int w,int 
         poll();
         if(!showUI(name))return;
         GLint oldProgram,oldVao,oldActive,oldTexture,oldViewport[4],srcRGB,dstRGB,srcA,dstA,eqRGB,eqA;GLboolean blend=glIsEnabled(GL_BLEND),depth=glIsEnabled(GL_DEPTH_TEST),scissor=glIsEnabled(GL_SCISSOR_TEST),cull=glIsEnabled(GL_CULL_FACE);glGetIntegerv(GL_CURRENT_PROGRAM,&oldProgram);glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&oldVao);glGetIntegerv(GL_ACTIVE_TEXTURE,&oldActive);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&oldTexture);glGetIntegerv(GL_VIEWPORT,oldViewport);glGetIntegerv(GL_BLEND_SRC_RGB,&srcRGB);glGetIntegerv(GL_BLEND_DST_RGB,&dstRGB);glGetIntegerv(GL_BLEND_SRC_ALPHA,&srcA);glGetIntegerv(GL_BLEND_DST_ALPHA,&dstA);glGetIntegerv(GL_BLEND_EQUATION_RGB,&eqRGB);glGetIntegerv(GL_BLEND_EQUATION_ALPHA,&eqA);
-        if(!program)initializeGL();auto& image=overlays[name];auto minute=std::time(nullptr)/(document["widgets"]["clock"].value("seconds",false)?1:60);double age=std::chrono::duration<double>(std::chrono::steady_clock::now()-lastInput).count();state.caret=std::fmod(age,1.)<.55;double duration=document["widgets"]["login"].value("animation",.18);state.inputProgress=std::min(1.,age/duration);int animation=age<duration?int(age*45):state.caret?100:101;
-        if(image.w!=w||image.h!=h||image.revision!=revision||image.minute!=minute||image.animation!=animation){
-            auto pixels=draw(document,w,h,state,std::time(nullptr));if(!image.texture)glGenTextures(1,&image.texture);glBindTexture(GL_TEXTURE_2D,image.texture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.rgba.data());image.w=w;image.h=h;image.revision=revision;image.minute=minute;image.animation=animation;
+        if(!program)initializeGL();auto& image=overlays[name];auto minute=std::time(nullptr)/(document["widgets"]["clock"].value("seconds",false)?1:60);double now=seconds();if(shownAt<0)shownAt=now;bool moving=motion.sample(state,now,document["widgets"]["login"].value("animation",.28));
+        int animation=moving?int(std::fmod(now,10000.)*60):state.caretAlpha>.5?600001:600002;
+        bool full=image.w!=w||image.h!=h||image.revision!=revision||image.minute!=minute;
+        if(full||image.animation!=animation){
+            auto bounds=motionRect(document,w,h,state),region=full?std::array<int,4>{0,0,w,h}:bounds;
+            if(!full&&image.motionBounds[2]>0){auto previous=image.motionBounds;int left=std::min(region[0],previous[0]),top=std::min(region[1],previous[1]);region={left,top,std::max(region[0]+region[2],previous[0]+previous[2])-left,std::max(region[1]+region[3],previous[1]+previous[3])-top};}image.motionBounds=bounds;
+            auto pixels=draw(document,w,h,state,std::time(nullptr),region);if(!image.texture)glGenTextures(1,&image.texture);glBindTexture(GL_TEXTURE_2D,image.texture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+            if(full)glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.rgba.data());else glTexSubImage2D(GL_TEXTURE_2D,0,region[0],region[1],region[2],region[3],GL_RGBA,GL_UNSIGNED_BYTE,pixels.rgba.data());
+            image.w=w;image.h=h;image.revision=revision;image.minute=minute;image.animation=animation;
         }
-        glViewport(x,y,w,h);glDisable(GL_DEPTH_TEST);glDisable(GL_SCISSOR_TEST);glDisable(GL_CULL_FACE);blurBackdrop(name,x,y,w,h);glEnable(GL_BLEND);glBlendEquation(GL_FUNC_ADD);glBlendFuncSeparate(GL_ONE,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glUseProgram(program);glBindVertexArray(vao);glBindTexture(GL_TEXTURE_2D,image.texture);glUniform1i(glGetUniformLocation(program,"overlay"),0);glDrawArrays(GL_TRIANGLES,0,6);
+        glViewport(x,y,w,h);glDisable(GL_DEPTH_TEST);glDisable(GL_SCISSOR_TEST);glDisable(GL_CULL_FACE);blurBackdrop(name,x,y,w,h);glEnable(GL_BLEND);glBlendEquation(GL_FUNC_ADD);glBlendFuncSeparate(GL_ONE,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glUseProgram(program);glBindVertexArray(vao);glBindTexture(GL_TEXTURE_2D,image.texture);glUniform1i(glGetUniformLocation(program,"overlay"),0);glUniform1f(glGetUniformLocation(program,"opacity"),ease((now-shownAt)/.28));glDrawArrays(GL_TRIANGLES,0,6);
         glBindTexture(GL_TEXTURE_2D,oldTexture);glActiveTexture(oldActive);glBindVertexArray(oldVao);glUseProgram(oldProgram);glViewport(oldViewport[0],oldViewport[1],oldViewport[2],oldViewport[3]);glBlendFuncSeparate(srcRGB,dstRGB,srcA,dstA);glBlendEquationSeparate(eqRGB,eqA);if(!blend)glDisable(GL_BLEND);if(depth)glEnable(GL_DEPTH_TEST);if(scissor)glEnable(GL_SCISSOR_TEST);if(cull)glEnable(GL_CULL_FACE);
         static bool ready=false;if(!ready){std::cout<<"WALLPAPER_LAB_LOGIN_READY\n"<<std::flush;ready=true;}
     }catch(const std::exception& e){if(diagnostic!=e.what()){diagnostic=e.what();std::cerr<<"Login drawing failed: "<<diagnostic<<'\n';}quit=true;}
@@ -122,15 +130,15 @@ extern "C" void wallpaper_lab_login_symbol(unsigned symbol){
         if(before>0){before--;while(before>0&&(static_cast<unsigned char>(value[before])&0xc0)==0x80)before--;}
         if(after<int(value.size())){after++;while(after<int(value.size())&&(static_cast<unsigned char>(value[after])&0xc0)==0x80)after++;}
         if(symbol==XKB_KEY_Left)state.cursor=before;else if(symbol==XKB_KEY_Right)state.cursor=after;else if(symbol==XKB_KEY_Home)state.cursor=0;else if(symbol==XKB_KEY_End)state.cursor=value.size();
-        else if(symbol==XKB_KEY_BackSpace&&state.cursor>0){value.erase(before,state.cursor-before);state.cursor=before;}
-        else if(symbol==XKB_KEY_Delete)value.erase(state.cursor,after-state.cursor);else return;touch();
+        else if(symbol==XKB_KEY_BackSpace&&state.cursor>0){if(state.focus==1)motion.erased(g_utf8_strlen(value.c_str(),before));value.erase(before,state.cursor-before);state.cursor=before;}
+        else if(symbol==XKB_KEY_Delete){if(state.focus==1)motion.erased(g_utf8_strlen(value.c_str(),state.cursor));value.erase(state.cursor,after-state.cursor);}else return;touch();
     }
 }
 extern "C" void wallpaper_lab_login_text(unsigned code){
     if(!active||state.busy||state.menuOpen||state.powerConfirm>=0||code<32||code==127||code>0x10ffff||state.focus==2)return;
     auto& value=state.focus==0?state.username:state.input;if(value.size()>512)return;
     if(state.focus==0&&auth&&auth->phase!=Auth::Phase::Idle&&auth->phase!=Auth::Phase::Error)return;
-    char bytes[8]{};int n=g_unichar_to_utf8(code,bytes);state.cursor=std::clamp(state.cursor,0,int(value.size()));value.insert(state.cursor,bytes,n);state.cursor+=n;explicit_bzero(bytes,sizeof(bytes));touch();
+    char bytes[8]{};int n=g_unichar_to_utf8(code,bytes);state.cursor=std::clamp(state.cursor,0,int(value.size()));if(state.focus==1)motion.inserted(g_utf8_strlen(value.c_str(),state.cursor),seconds());value.insert(state.cursor,bytes,n);state.cursor+=n;explicit_bzero(bytes,sizeof(bytes));touch();
 }
 extern "C" void wallpaper_lab_login_pointer(const char* output,double x,double y,int pressed){
     if(!active||!showUI(output))return;if(x>=0&&y>=0){pointerX=x;pointerY=y;}if(!pressed||state.busy)return;
@@ -160,7 +168,7 @@ extern "C" void wallpaper_lab_login_key(unsigned key,unsigned pressed){
     wallpaper_lab_login_text(xkb_state_key_get_utf32(keyState,key+8));
 }
 int loginRun(const std::string& file,bool preview,bool windowed,const std::string& ready){
-    document=validate(readJson(file));setLanguage(languageIndex(document.value("language",std::string("en"))));state=CanvasState{};state.preview=preview;state.title=document.value("title",std::string());began=lastInput=std::chrono::steady_clock::now();quit=false;registerThemeFonts();
+    document=validate(readJson(file));setLanguage(languageIndex(document.value("language",std::string("en"))));state=CanvasState{};motion=Motion{};shownAt=-1;state.preview=preview;state.title=document.value("title",std::string());began=std::chrono::steady_clock::now();quit=false;registerThemeFonts();
     for(auto& file:document.value("font_files",json::array()))FcConfigAppFontAddFile(FcConfigGetCurrent(),reinterpret_cast<const FcChar8*>(file.get_ref<const std::string&>().c_str()));
     if(document.contains("font_file"))FcConfigAppFontAddFile(FcConfigGetCurrent(),reinterpret_cast<const FcChar8*>(document["font_file"].get_ref<const std::string&>().c_str()));
     choices=sessions();for(size_t n=0;n<choices.size();n++)if(choices[n].id==document.value("session",std::string()))selectedSession=n;if(!choices.empty())state.session=choices[selectedSession].name;

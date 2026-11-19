@@ -9,10 +9,14 @@ struct CanvasState {
     bool secret=true,busy=false,preview=true,paused=false;
     int focus=0,cursor=0;
     bool caret=false;float inputProgress=1;
+    std::vector<double> dotProgress;std::array<double,3> focusMix={-1,-1,-1};
+    double caretAlpha=1,buttonMix=-1,menuAlpha=-1,keyboardAlpha=-1;
     bool menuOpen=false;int menuIndex=0,menuScroll=0;std::vector<std::string> sessions;
 };
 struct Pixels { int width=0,height=0;std::vector<unsigned char> rgba; };
-Pixels draw(const json& document,int width,int height,const CanvasState& state,std::time_t time);
+Pixels draw(const json& document,int width,int height,const CanvasState& state,std::time_t time,std::array<int,4> clip={0,0,0,0});
+std::array<double,4> welcomeRect(const json& document,double textHeight,double padding);
+std::array<int,4> motionRect(const json& document,int width,int height,const CanvasState& state);
 // Normalized action regions shared by the native greeter and editor composition.
 std::array<double,4> widgetRect(const json& document,int widget);
 std::array<double,4> sessionMenuRect(const json& document,int count);

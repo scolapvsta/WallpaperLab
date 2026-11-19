@@ -74,6 +74,8 @@ for name,color,ext in [('Blue','#246bc0','png'),('Gold','#d09240','png'),('Motio
     run(app,'--import',path)
 catalog=json.loads(run(app,'--list'));source=next(v['path']for v in catalog if v['title']=='Blue')
 run(app,'--login','set',json.dumps(dict(enabled=True,source=source)))
+desktop_profiles={source:dict(position=dict(x=-.4,y=.25,zoom=1.6),image=dict(brightness=.2,contrast=1.15,saturation=.8,flip_x=1))}
+(config/'wallpaper_profiles.json').write_text(json.dumps(desktop_profiles))
 def draft():return json.loads((config/'login-screen.json').read_text())
 def scroll_inspector(amount):
     x,y,w,h=g()['login_inspector'];win=window();run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={round(win["at"][0]+x+w/2)},y={round(win["at"][1]+y+h/2)},relative=false}}))');time.sleep(.1);run('ydotool','mousemove','--wheel','--','0',str(amount));time.sleep(.4)
@@ -98,7 +100,12 @@ try:
     def contrast():
         track=g()['image_tracks'][1];return [track[0]+track[2]*.7,track[1]+2]
     click(visible(contrast));wait(lambda:draft()['profiles'].get(source,{}).get('contrast',1)>1.3)
-    assert not(config/'wallpaper_profiles.json').exists();results['image_controls_are_login_only']=True;shot('image-inspector')
+    assert json.loads((config/'wallpaper_profiles.json').read_text())==desktop_profiles;results['image_controls_are_login_only']=True;shot('image-inspector')
+    before_copy=draft();click(visible(lambda:g()['login_copy_library']));wait(lambda:draft()['profiles'][source].get('zoom')==1.6)
+    copied=draft();assert all(copied['profiles'][source][k]==v for k,v in dict(x=-.4,y=.25,zoom=1.6,brightness=.2,contrast=1.15,saturation=.8,flip_x=1).items())
+    assert copied['widgets']==before_copy['widgets'] and copied['mode']==before_copy['mode'] and copied['fps']==before_copy['fps']
+    assert json.loads((config/'wallpaper_profiles.json').read_text())==desktop_profiles and list((out/'state/wallpaper-lab/backups').glob('login-library-copy-*'))
+    results['copy_library_adjustments_without_desktop_or_ui_changes']=True;shot('copy-library')
     click(g()['login_tabs'][1]);wait(lambda:g()['login_tab']==1)
     assert len(g()['login_tabs'])==2
     monitor=next(m for m in json.loads(run('hyprctl','monitors','-j'))if m['name']==draft()['ui_primary']);assert g()['login_position_size']==[monitor['width'],monitor['height']],g()['login_position_size']
@@ -143,7 +150,7 @@ try:
     # A complete preset restores both wallpaper edits and the UI, surviving an app restart.
     click(g()['login_tabs'][0]);wait(lambda:g()['login_tab']==0);saved=draft();click(g()['login_presets'][0]);run('ydotool','type','Blue scene');click(g()['login_presets'][2]);wait(lambda:len(list((config/'login-presets/complete').glob('*.json')))==1)
     gold=next(i for i,v in enumerate(catalog)if v['title']=='Gold');card=next(c['rect']for c in g()['login_cards']if c['index']==gold);click([card[0]+card[2]/2,card[1]+30]);wait(lambda:draft()['source']!=source)
-    click(g()['login_presets'][1]);wait(lambda:draft()['source']==source);assert draft()['profiles']==saved['profiles']and draft()['widgets']==saved['widgets'];results['complete_preset_restores_wallpaper_and_ui']=True
+    click(g()['login_presets'][1]);wait(lambda:draft()['source']==source);assert draft()['profiles']==saved['profiles']and draft()['widgets']==saved['widgets'] and draft()['project_profiles']==saved['project_profiles'];results['complete_preset_restores_wallpaper_and_ui']=True
     stop(ui);ui=subprocess.Popen([str(app),'--login-editor'],env=env,stdout=log,stderr=log);wait(window);time.sleep(3)
     choose(111,1);click(g()['login_presets'][1]);wait(lambda:draft()['source']==source);results['presets_survive_restart']=True
     imported=json.loads(next((config/'login-presets/complete').glob('*.json')).read_text());imported['name']='Imported blue';imported['data']['widgets']['login']['welcome_text']='Imported';(config/'login-presets/complete/imported.json').write_text(json.dumps(imported))
@@ -164,8 +171,13 @@ try:
         click(point);wait(lambda:g()['choice_open']!=111);click(g()['login_presets'][1]);wait(lambda:draft()['widgets']['login']['font']==preset['data']['font'] and draft()['widgets']['login']['layout']=='astronaut')
         assert all(draft()[k]==v for k,v in kept.items())
         assert draft()['widgets']['login']['astronaut']==preset['data']['widgets']['login']['astronaut']
-        shot('preset-'+str(index+1))
+        click(g()['login_inspector_tabs'][0]);time.sleep(.3)
+        if not draft()['widgets']['login']['welcome_enabled']:
+            click(visible(lambda:g()['choices']['100']['control']));wait(lambda:draft()['widgets']['login']['welcome_enabled'])
+        click(visible(lambda:g()['login_text_fields'][0]));run('ydotool','key','29:1','30:1','30:0','29:0');run('ydotool','type','Welcome home');wait(lambda:draft()['widgets']['login']['welcome_text']=='Welcome home')
+        run('ydotool','key','28:1','28:0');time.sleep(.3);shot('preset-'+str(index+1)+'-welcome')
     results['ten_shipped_presets_load_in_editor_without_wallpaper_changes']=True
+    results['welcome_can_be_enabled_and_edited_on_all_ten_presets']=True
     (out/'results.json').write_text(json.dumps(results,indent=2)+'\n');print(json.dumps(results,indent=2))
 finally:
     stop(ui);stop(daemon);log.close();socket.unlink(missing_ok=True)

@@ -17,6 +17,8 @@ std::string sourceFor(const json& document,const std::string& output="");
 json validate(json document);
 json load();
 void save(const json& document);
+json copyLibrarySettings(json document,const Item& item,const json& libraryProfiles);
+json projectProfile(const json& document,const std::string& source,const json& libraryProfiles);
 json imageProfile(const json& document,const std::string& output="");
 bool supported(const Item& item);
 std::string unsupportedReason(const Item& item);
