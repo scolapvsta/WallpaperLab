@@ -30,13 +30,13 @@ static void IntegrationsBody(Rectangle area){
         integrationTabs[i]=(Rectangle){x,y+slot++*43,122,36};
         if(Button(integrationTabs[i],names[i],integrationTab==i,!applying)){integrationTab=i;choiceOpen=-1;integrationScroll=integrationScrollDraw=0;}
     }
+    if(integrationTab==1&&enabled[1]&&lab_sddm_ready()){SddmLibrary((Rectangle){area.x+148,area.y,area.width-156,area.height});return;}
     x+=140;w-=140;Rectangle body={x,y-3,w+3,area.height-21},saved=inputClip;inputClip=body;
     if(!choiceWheel&&Hot(body,true))integrationScroll=Clamp(integrationScroll-ScrollInput(body)*48,0,fmaxf(0,integrationExtent-body.height));choiceWheel=false;
     integrationScrollDraw=SmoothScroll(integrationScrollDraw,integrationScroll);BeginScissorMode(body.x,body.y,body.width,body.height);y=body.y+6-integrationScrollDraw;
     if(integrationTab==0&&enabled[0])y+=CaelestiaBody(x,y,w);
     else if(enabled[1]){
-        if(lab_sddm_ready())y+=SddmBody(x,y,w);
-        else y+=TextLines(lab_tr("Da verificare"),x,y,w,16,3,AppTheme.text)+20;
+        y+=TextLines(lab_tr("Da verificare"),x,y,w,16,3,AppTheme.text)+20;
         if(Button((Rectangle){x,y,w,34},lab_tr("Verifica SDDM"),false,!lab_sddm_busy()&&!applying))lab_sddm_action("check","");y+=46;
         if(!lab_sddm_ok()&&!lab_sddm_busy())y+=TextLines(lab_tr("Operazione non riuscita. Dettagli nel registro."),x,y,w,13,3,muted)+12;
     }

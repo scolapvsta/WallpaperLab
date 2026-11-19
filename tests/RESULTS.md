@@ -6,6 +6,12 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## SDDM visual library and image editor — 2026-11-19 (source 1.3.0)
+
+See the [SDDM library/editor report](../docs/SDDM_LIBRARY_TEST_RESULTS.md) for
+automated checks, native greeter/media captures, pixel verification and local
+installation results. System-login activation remains a separate phase.
+
 ## Cyberpunk header and local update — 2026-11-19 (source 1.2.2)
 
 See the [header and local installation report](../docs/HEADER_TEST_RESULTS.md)

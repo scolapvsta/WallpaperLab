@@ -1,3 +1,18 @@
+# Version 1.3.0 — source update
+
+- Replace SDDM's selection dropdowns with separate wallpaper and login UI card
+  catalogs, search, filters, independent favorites and a resizable inspector.
+- Add per-wallpaper image adjustments and crop/zoom controls, with immediate
+  editor feedback and validated saving. The launcher and Qt greeter share colour
+  and geometry shader code; GIFs and videos retain animation.
+- Generate actual preset and combined greeter captures in a background worker.
+  Offer bounded live wallpaper-only and full-login previews.
+- Keep desktop profiles, original media and system SDDM configuration separate.
+  Native engine scenes/web content and boot-time publication remain unsupported.
+- Fix repeated diagnostic queries invalidating status-bar text during drawing.
+- See [library/editor validation](SDDM_LIBRARY_TEST_RESULTS.md). The public
+  downloadable stable installer remains 1.0.0.
+
 # Version 1.2.2 — source update
 
 - Keep the animated Cyberpunk 2077 wordmark, subtitle and barcode within the

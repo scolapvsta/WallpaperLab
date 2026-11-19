@@ -39,10 +39,13 @@ def wait(fn,timeout=25):
     raise AssertionError('UI condition timed out')
 def window():return next(w for w in json.loads(run('hyprctl','clients','-j')) if w['pid']==ui.pid)
 def click(point):
-    w=window();x,y=round(w['at'][0]+point[0]),round(w['at'][1]+point[1])
-    run('hyprctl','eval',f'hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}));hl.dispatch(hl.dsp.cursor.move({{x={x},y={y},relative=false}}))')
-    time.sleep(.12)
-    assert json.loads(run('hyprctl','activewindow','-j')).get('pid')==ui.pid
+    for attempt in range(4):
+        run('hyprctl','eval',f'hl.dispatch(hl.dsp.focus({{window="pid:{ui.pid}"}}))');time.sleep(.2)
+        w=window();x,y=round(w['at'][0]+point[0]),round(w['at'][1]+point[1])
+        run('hyprctl','eval',f'hl.dispatch(hl.dsp.cursor.move({{x={x},y={y},relative=false}}))');time.sleep(.15)
+        cursor=json.loads(run('hyprctl','cursorpos','-j'))
+        if json.loads(run('hyprctl','activewindow','-j')).get('pid')==ui.pid and abs(cursor['x']-x)<2 and abs(cursor['y']-y)<2:break
+    else:raise AssertionError('Test window could not retain focus; no click sent')
     run('ydotool','click','0xC0');time.sleep(.25)
 def toggle(id):click(g()['choices'][str(id)]['control'])
 def shot(name):
@@ -81,7 +84,9 @@ try:
     settings();toggle(88);wait(lambda:s()['sddm_enabled'] and s()['sddm_ready'] and not s()['sddm_busy'])
     hub();click(g()['integration_tabs'][1]);wait(lambda:s()['integration_tab']==1)
     assert all(point[0]>0 for point in g()['integration_tabs'])
-    choose(90,1);wait(lambda:not s()['sddm_busy'])
+    click(g()['sddm_tabs'][1]);wait(lambda:any(card['index']==1 for card in g()['sddm_cards']))
+    card=next(card['rect'] for card in g()['sddm_cards'] if card['index']==1)
+    click((card[0]+card[2]/2,card[1]+card[3]/2));wait(lambda:not s()['sddm_busy'])
     preset=json.loads((config/'sddm.json').read_text())['ui']['preset']
     shot('both-sddm');click(g()['integration_tabs'][0]);wait(lambda:s()['integration_tab']==0)
     assert json.loads((config/'settings.json').read_text())['caelestia_palette']==2

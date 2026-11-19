@@ -13,7 +13,7 @@ buttons. Interface labels and application error summaries follow all 22 supporte
 languages, including live language changes.
 See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
 
-The source tree is now **1.2.2 (development)**, integrating community contributions for monitor
+The source tree is now **1.3.0 (development)**, integrating community contributions for monitor
 reconnection, rendering GPU selection, output-aware fullscreen pause, optional
 awww image rendering and persistent carousel controls. The downloadable stable
 installer below remains **1.0.0**; build from source to use these additions.
@@ -82,7 +82,11 @@ Enable it in **Settings → Integrations → SDDM**. Once an integration is enab
 It contains the enabled Caelestia and SDDM panels; settings holds their activation
 switches. A successful SDDM greeter check unlocks its wallpaper and login UI choices. Installed
 Astronaut backgrounds, local images/GIFs/videos and Workshop video projects share
-one catalog. Scene and web projects remain visible with an explicit limitation.
+a searchable card library, with source/type filters, favorites and an image editor.
+Separate login UI cards show real Astronaut preset captures; the final preview
+combines the chosen UI with the saved wallpaper adjustments. Images, GIFs and
+videos share brightness, contrast, saturation, colour, crop and geometry controls.
+Scene and web projects remain visible with an explicit limitation.
 This first phase prepares and previews a self-contained theme; system installation,
 boot activation and native engine scenes in the greeter are not implemented.
 
@@ -102,6 +106,10 @@ sudo pacman -S --needed base-devel cmake ninja git python pkgconf curl freetype2
 ./scripts/build.sh
 python3 scripts/install.py
 ```
+
+For the optional SDDM editor, install `qt6-shadertools` before building; CMake
+uses `qsb` to compile the shader shipped with the app. The greeter and Astronaut
+remain optional runtime prerequisites described in [SDDM setup](docs/SDDM.md).
 
 The upstream engine build downloads its pinned CEF distribution. System GPU
 libraries remain supplied by Arch and your driver. See [release tooling](docs/RELEASING.md)

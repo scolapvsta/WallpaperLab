@@ -71,6 +71,7 @@ std::string outputKey(std::string name){for(char& c:name)if(!std::isalnum((unsig
 fs::path feedFrame(const std::string& output){auto file=feedDir()/("frame-"+outputKey(output)+".bin");return fs::exists(file)?file:feedDir()/"frame.bin";}
 std::future<json> fileJob;std::string fileNotice;
 std::future<json> sddmJob;json sddmView=json::object();
+std::future<json> sddmPreviewJob;std::string sddmPreviewPath;std::set<std::string> sddmPreviewFailures;
 json selectedRunning(const json& selection);
 bool owned(const json& process);
 std::mutex integrationStatusMutex;std::future<void> integrationJob;bool integrationDirty=false;
@@ -372,6 +373,10 @@ int lab_clear_app_background(){return lab_set_option("app_background_preset",0);
 int lab_import_files(const char* const* paths,int count){if(fileJob.valid()||pending.valid()||catalogScan.valid()||count<1||count>1000)return 0;std::vector<fs::path> files;for(int n=0;n<count;n++)files.emplace_back(paths[n]);auto root=localLibrary(settings);fileJob=std::async(std::launch::async,[files,root]{for(auto& file:files)importLocalMedia(file,root);return json{{"imported",files.size()}};});return 1;}
 int lab_files_poll(){if(!fileJob.valid()||fileJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return 0;try{auto result=fileJob.get();settings=loadSettings();if(result.value("cancelled",false))return 0;fileNotice="Modifiche applicate e salvate.";return result.value("background",false)?2:1;}catch(const std::exception& e){errorMessage=e.what();return -1;}}
 void lab_sddm_poll(){
+ if(sddmPreviewJob.valid()&&sddmPreviewJob.wait_for(std::chrono::seconds(0))==std::future_status::ready){
+  try{auto result=sddmPreviewJob.get();if(!result.value("ok",false)){sddmPreviewFailures.insert(sddmPreviewPath);writeJson(stateDir()/"sddm/last-preview-error.json",result);}}
+  catch(...){sddmPreviewFailures.insert(sddmPreviewPath);}
+ }
  if(!sddmJob.valid()||sddmJob.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return;
  try{sddmView=sddmJob.get();if(!sddmView.value("ok",false)){errorMessage=sddmView.value("error",std::string());writeJson(stateDir()/"sddm/last-error.json",sddmView);}}
  catch(const std::exception& e){errorMessage=e.what();sddmView={{"ok",false},{"ready",false}};}
@@ -382,6 +387,7 @@ int lab_sddm_enabled(){return sddmView.value("enabled",false);}
 int lab_sddm_ok(){return sddmView.value("ok",false);}
 int lab_sddm_action(const char* action,const char* value){
  if(sddmJob.valid())return 0;
+ if(strcmp(action,"status"))sddmPreviewFailures.clear();
  return guarded([&]{auto roots=libraryRoots();sddmJob=std::async(std::launch::async,[action=std::string(action),value=std::string(value),roots]{return sddmRequest(action,value,roots);});});
 }
 int lab_sddm_count(int presets){auto key=presets?"presets":"backgrounds";return sddmView.contains(key)?sddmView[key].size():0;}
@@ -401,6 +407,40 @@ int lab_sddm_option(const char* option){
  return key=="crop"?config["wallpaper"].value("crop",true):config["ui"].value("blur",sddmView.value("preset_blur",true));
 }
 const char* lab_sddm_bundle(){static std::string path;path=sddmView.value("bundle",std::string());return path.c_str();}
+const char* lab_sddm_text(int kind,int index,const char* key){
+ static std::string text;text.clear();
+ if(kind==2)text=sddmView.value("final_preview",std::string());
+ else if(index>=0&&index<lab_sddm_count(kind))text=sddmView.at(kind?"ui_previews":"backgrounds").at(index).value(key,std::string());
+ return text.c_str();
+}
+int lab_sddm_preview_request(int kind,int index){
+ auto path=std::string(lab_sddm_text(kind,index,"thumbnail"));if(path.empty())return -1;
+ if(fs::is_regular_file(path))return 1;if(sddmPreviewFailures.contains(path))return -1;
+ if(!sddmPreviewJob.valid()&&!sddmJob.valid()){
+  auto id=kind==2?std::string():std::string(lab_sddm_text(kind,index,"id"));auto roots=libraryRoots();sddmPreviewPath=path;
+  sddmPreviewJob=std::async(std::launch::async,[kind,id,roots]{return sddmRequest("thumbnail",json({{"kind",kind},{"id",id}}).dump(),roots);});
+ }
+ return 0;
+}
+float lab_sddm_image(int index,const char* key){
+ bool one=!strcmp(key,"contrast")||!strcmp(key,"saturation")||!strcmp(key,"gamma")||!strcmp(key,"zoom");float fallback=one?1.f:0.f;
+ if(index<0||index>=lab_sddm_count(0)||!sddmView.contains("config"))return fallback;
+ auto wallpaper=sddmView["config"]["wallpaper"];auto source=sddmView["backgrounds"][index]["id"].get<std::string>();auto profile=wallpaper.value("profiles",json::object()).value(source,json::object());
+ if(!strcmp(key,"crop"))return profile.value("crop",wallpaper.value("crop",true));
+ return profile.value(key,fallback);
+}
+int lab_sddm_edit(int index,const float* values,int count){
+ const char* keys[]={"brightness","contrast","saturation","temperature","hue","gamma","vignette","rotation","flip_x","flip_y","zoom","x","y","crop"};
+ if(index<0||index>=lab_sddm_count(0)||count!=14)return 0;json image=json::object();
+ for(int n=0;n<count;n++){if(!std::isfinite(values[n]))return 0;if(n==13)image[keys[n]]=values[n]>.5f;else image[keys[n]]=values[n];}
+ auto argument=json({{"source",std::string(lab_sddm_text(0,index,"id"))},{"values",image}}).dump();return lab_sddm_action("edit",argument.c_str());
+}
+int lab_sddm_favorite(int index,int toggle){
+ if(index<0||index>=lab_sddm_count(0))return 0;
+ if(toggle){auto id=std::string(lab_sddm_text(0,index,"id"));return lab_sddm_action("favorite",id.c_str());}
+ return sddmView["backgrounds"][index].value("favorite",false);
+}
+const char* lab_sddm_shader(){static std::string path=(fs::read_symlink("/proc/self/exe").parent_path()/"sddm-assets/preview.frag").string();return path.c_str();}
 int lab_caelestia_available(){return fs::is_regular_file(caelestiaHelper());}
 const char* lab_caelestia_status(){static std::string result;try{auto status=readJson(stateDir()/"integration-status.json");result=status.value("ok",false)?lab_tr("Modifiche applicate e salvate."):localizedDiagnostic(status.value("error",std::string()));}catch(...){result=lab_tr(settings.value("caelestia_enabled",false)?"Attivo":"Disattivo");}return result.c_str();}
 void lab_cancel_switcher_preview(){stop(switcherDemoProcess);switcherDemoProcess=json::object();}
@@ -748,7 +788,7 @@ int lab_popup_poll(int* steps,int* released){
 int lab_popup_selection(int count,int current,int steps){return popupSelection(count,current,steps);}
 int lab_popup_max_width(){return popupMaxWidth;}
 int lab_popup_max_height(){return popupMaxHeight;}
-void lab_shutdown(){if(sddmJob.valid())try{sddmJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
+void lab_shutdown(){if(sddmPreviewJob.valid())try{sddmPreviewJob.get();}catch(...){}if(sddmJob.valid())try{sddmJob.get();}catch(...){}if(integrationJob.valid())try{integrationJob.get();}catch(...){}if(fileJob.valid())try{fileJob.get();}catch(...){}workshop::shutdown();lab_record_shortcut(0);if(catalogScan.valid())try{catalogScan.get();}catch(...){}while(pending.valid()){lab_poll();if(pending.valid())std::this_thread::sleep_for(std::chrono::milliseconds(20));}try{flushPlacements();}catch(...){}stop(previewProcess);stop(switcherDemoProcess);if(switcherDemoProcess.contains("pid")){int status;waitpid(switcherDemoProcess["pid"].get<int>(),&status,WNOHANG);}}
 }
 int main(int argc,char**argv) {
     try {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 1.2.2 LANGUAGES C CXX)
+project(WallpaperLab VERSION 1.3.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
@@ -126,8 +126,23 @@ set_tests_properties(awww-lifecycle PROPERTIES ENVIRONMENT "LD_LIBRARY_PATH=${EN
 
 # Optional SDDM templates: code, icons and notices only; no bundled wallpapers/fonts.
 configure_file(assets/sddm_integration.py sddm_integration.py COPYONLY)
+file(READ assets/sddm/adjust.glsl SDDM_ADJUST_GLSL)
+configure_file(assets/sddm/preview.frag.in sddm-assets/preview.frag @ONLY)
+configure_file(assets/sddm/greeter.frag.in sddm-assets/greeter.frag @ONLY)
+configure_file(assets/sddm/LabBackground.qml sddm-assets/LabBackground.qml COPYONLY)
+find_program(QSB_EXECUTABLE NAMES qsb HINTS /usr/lib/qt6/bin)
+if(QSB_EXECUTABLE)
+  add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/sddm-assets/greeter.frag.qsb"
+    COMMAND "${QSB_EXECUTABLE}" --glsl "100 es,120,150" -o "${CMAKE_CURRENT_BINARY_DIR}/sddm-assets/greeter.frag.qsb" "${CMAKE_CURRENT_BINARY_DIR}/sddm-assets/greeter.frag"
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/sddm-assets/greeter.frag" VERBATIM)
+  add_custom_target(sddm-shader DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/sddm-assets/greeter.frag.qsb")
+  add_dependencies(wallpaper-lab sddm-shader)
+else()
+  message(STATUS "Qt6 qsb not found: SDDM image editing requires a build with qt6-shadertools")
+endif()
 file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/sddm-astronaut")
 file(COPY vendor/sddm-astronaut-theme/Main.qml vendor/sddm-astronaut-theme/metadata.desktop vendor/sddm-astronaut-theme/LICENSE vendor/sddm-astronaut-theme/Components vendor/sddm-astronaut-theme/Assets vendor/sddm-astronaut-theme/Themes DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/sddm-astronaut")
 install(FILES assets/sddm_integration.py DESTINATION . COMPONENT app)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/sddm-assets" DESTINATION . COMPONENT app PATTERN "greeter.frag" EXCLUDE)
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/sddm-astronaut" DESTINATION . COMPONENT app)
 add_test(NAME sddm-integration COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/sddm_integration_test.py")

@@ -1,0 +1,10 @@
+#version 330
+in vec2 fragTexCoord;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform vec2 imageSize, outputSize;
+uniform vec3 basic, geometry, placement;
+uniform vec4 more;
+uniform float crop;
+@SDDM_ADJUST_GLSL@
+void main() { finalColor = labImage(texture0,fragTexCoord,imageSize,outputSize,basic,more,geometry,placement,crop,false); }
