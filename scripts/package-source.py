@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Full source archive: tracked app files + pristine pinned submodules + application patches."""
 import argparse,hashlib,io,json,pathlib,subprocess,tarfile
+from release_version import release_version
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def records(repo):
  for item in subprocess.check_output(['git','ls-files','--stage','-z'],cwd=repo).split(b'\0'):
@@ -29,7 +30,7 @@ def pinned(t,repo,prefix,expected):
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--output',type=pathlib.Path,default=ROOT/'local/releases');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
- manifest=json.loads((ROOT/'build-manifest.json').read_text());v=manifest['version']+('' if manifest.get('channel')=='stable' else '-beta.1');target=a.output/f'Wallpaper-Lab-{v}-source.tar.xz';prefix='Wallpaper-Lab-'+v
+ manifest=json.loads((ROOT/'build-manifest.json').read_text());v=release_version(manifest);target=a.output/f'Wallpaper-Lab-{v}-source.tar.xz';prefix='Wallpaper-Lab-'+v
  with tarfile.open(target,'w:xz',preset=6)as t:
   metadata=json.dumps({'release':v,'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'patches_already_applied':False}).encode();info=tarfile.TarInfo(prefix+'/.source-release.json');info.size=len(metadata);info.mode=0o644;t.addfile(info,io.BytesIO(metadata))
   for mode,oid,name in records(ROOT):

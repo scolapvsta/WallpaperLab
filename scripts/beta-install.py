@@ -71,7 +71,7 @@ def validate_runtime(stage,version):
  env=library_env(stage)
  check=subprocess.run(['ldd',str(stage/'wallpaper-lab')],env=env,text=True,capture_output=True,check=True)
  if 'not found'in check.stdout:raise RuntimeError('Unresolved runtime libraries:\n'+check.stdout)
- if version not in output(stage,'--version'):raise RuntimeError('Runtime version mismatch.')
+ if output(stage,'--version').strip()!='Wallpaper Lab '+version:raise RuntimeError('Runtime version mismatch.')
  output(stage,'--list')
 
 def uninstall(base,launcher,data,yes):

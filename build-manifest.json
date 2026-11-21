@@ -1,7 +1,7 @@
 {
   "project": "Wallpaper Lab",
-  "version": "2.5.1",
-  "date": "2026-11-19",
+  "version": "0.25.0-beta.1",
+  "date": "2026-11-21",
   "upstream_commits": {
     "engine": "b016d7d1fdcf4e5fd2f9c9fa420a8aaa07fee02d",
     "hellpaper": "9774fe954bc01957defcb62629d71139231f2b8e",
@@ -42,5 +42,6 @@
   "channel": "beta",
   "distribution": "Arch Linux x86_64 self-extracting installer; system dependencies from pacman; separate optional Steamworks download",
   "integration_ui": "Independent Caelestia integration and native Login screen editor activation in Settings",
-  "login_screen": "Opt-in native editor and engine overlay; standalone greetd session bundle with separate profiles, widgets and multi-monitor layout. Boot activation requires administrator authentication."
+  "login_screen": "Opt-in native editor and engine overlay; standalone greetd session bundle with separate profiles, widgets and multi-monitor layout. Boot activation requires administrator authentication.",
+  "versioning": "Pre-1.0 beta; supersedes legacy development labels 1.x through 2.5.1 without downgrading features or preferences"
 }

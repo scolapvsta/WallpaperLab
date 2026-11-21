@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build an allowlisted Arch beta installer from build outputs, never personal runtime data."""
 import argparse, hashlib, json, os, pathlib, shutil, subprocess, tempfile, zipfile
+from release_version import release_version
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CEF_FILES = ['libcef.so','libEGL.so','libGLESv2.so','libvk_swiftshader.so',
  'v8_context_snapshot.bin','vk_swiftshader_icd.json','chrome_100_percent.pak',
@@ -9,8 +10,8 @@ CEF_FILES = ['libcef.so','libEGL.so','libGLESv2.so','libvk_swiftshader.so',
 def run(*args): subprocess.run([str(a) for a in args], check=True)
 def digest(path): return hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=pathlib.Path,default=ROOT/'local/releases');p.add_argument('--app-build',type=pathlib.Path,default=ROOT/'build');p.add_argument('--engine-build',type=pathlib.Path,default=ROOT/'build-engine');a=p.parse_args()
- manifest=json.loads((ROOT/'build-manifest.json').read_text());version=manifest['version'];tag=version if manifest.get('channel')=='stable' else f'{version}-beta.1';a.output.mkdir(parents=True,exist_ok=True)
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=pathlib.Path,default=ROOT/'local/releases');p.add_argument('--app-build',type=pathlib.Path,default=ROOT/'build');p.add_argument('--engine-build',type=pathlib.Path,default=ROOT/'build-engine');p.add_argument('--dependency-libs',type=pathlib.Path,help='Optional extracted Arch library directory for build-host verification only; never packaged.');a=p.parse_args()
+ manifest=json.loads((ROOT/'build-manifest.json').read_text());version=release_version(manifest);tag=version;a.output.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='wallpaper-lab-package-') as tmp:
   stage=pathlib.Path(tmp);runtime=stage/'runtime'
   run('cmake','--install',a.app_build,'--prefix',runtime,'--component','app')
@@ -24,6 +25,8 @@ def main():
   for source in (a.engine_build/'lib').glob('libkissfft*.so*'):
    if source.is_file():shutil.copy2(source,runtime/'lib'/source.name,follow_symlinks=True)
   for name in ['wallpaper-lab','liblinux-wallpaperengine-lib.so','libcef.so']:run('strip','--strip-unneeded',runtime/name)
+  actual=subprocess.check_output([str(runtime/'wallpaper-lab'),'--version'],env=os.environ|{'LD_LIBRARY_PATH':':'.join([str(runtime),str(runtime/'lib')]+([str(a.dependency_libs.resolve())] if a.dependency_libs else []))},text=True).strip()
+  if actual!='Wallpaper Lab '+version:raise RuntimeError('Build version does not match manifest: '+actual)
   licenses=runtime/'licenses';licenses.mkdir()
   for source,dest in [(ROOT/'LICENSE','GPL-3.0.txt'),(ROOT/'THIRD_PARTY.md','THIRD_PARTY.md'),(ROOT/'assets/LICENSE.hellpaper','LICENSE.hellpaper'),(ROOT/'assets/LICENSE.raylib','LICENSE.raylib')]:shutil.copy2(source,licenses/dest)
   cef=next((a.engine_build/'cef').glob('cef_binary_*_linux64_minimal'))

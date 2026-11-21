@@ -6,6 +6,71 @@ results and limitations while omitting workstation session notes and local
 wallpaper choices. Logs, screenshots, generated fixtures and library assets stay
 outside Git under `local/` or isolated XDG directories.
 
+## Current beta baseline
+
+The current version is **0.25.0-beta.1**. Earlier 1.x–2.x labels below identify
+historical development snapshots, not stable support guarantees. Current scope,
+known issues and release criteria are tracked in [beta status](../docs/STATUS.md).
+
+## Consolidated beta — 2026-11-21 (0.25.0-beta.1)
+
+- Rebuilt the application with the full canonical beta identity. **24/24 CTest
+  checks passed**, including catalog/process lifecycle, login configuration and
+  authentication protocol, Astronaut assets, installer integrity and the new
+  executable/manifest/download-helper/documentation version agreement check.
+  Helper tests reject altered installers and missing matching checksums.
+- Built the allowlisted Arch installer. All **nine installer integration outcomes
+  passed**: clean CLI install, pinned Steam runtime verification, real active
+  renderer handoff, failed-upgrade rollback, preserved preferences/backups,
+  check mode, no build RPATH, a real Steam query and uninstall retaining user data.
+  These tests used isolated HOME/XDG directories and stubbed pacman package-query
+  responses with host/extracted matching Arch libraries. They did not install
+  system packages or prove a fresh-machine pacman transaction.
+- The packaged runtime passed **18 interactive editor checks**: shared filters,
+  independent image edits, Library import, position endpoints, text/reset controls,
+  color-only suggestions/Undo, RGB validation, desktop eyedropper/cancel, button
+  styling and preset save/load/import/restart. All ten shipped designs loaded and
+  accepted an enabled/edited Welcome without changing wallpaper settings.
+  Compact editor and preset screenshots were inspected.
+- Both base and Astronaut native previews passed animated GIF, editable password,
+  cursor operations, session dropdown and mock greetd authentication checks.
+  Astronaut additionally passed the preview power confirmation/cancel and virtual
+  keyboard tests. GPU blur reduced high-frequency detail while preserving color,
+  orientation and pixels outside the form; fixture readiness was below one second
+  with and without blur on this machine.
+- Real desktop lifecycle checks passed over a 106-entry local catalog: scene/video
+  previews, scene replacement, failed-replacement preservation and foreign-process
+  protection. Test renderers used isolated state and were cleaned up.
+- The full source archive audit passed safe-path and standalone patch application
+  checks: 12,385 entries and 131 patched inputs identical to the built worktree.
+  Dependency pins and existing ordered engine/raylib patches were preserved.
+- No physical cold boot, PAM/keyring login, greeter compositor shutdown, real awww
+  daemon, physical reconnect or suspend/resume cycle was rerun for this packaging
+  pass. The unresolved system-login observation below remains applicable. No
+  system login, autostart, shortcut or firmware configuration was changed.
+
+## Login Library import and motion — 2026-11-19 (former source 2.5.1)
+
+See the [Library import and motion report](../docs/LOGIN_COPY_MOTION_TEST_RESULTS.md)
+for the 23 CTest checks, 18 interactive editor checks, all-ten-preset Welcome audit,
+partial overlay rendering comparison, native preview/mock greetd and renderer
+lifecycle verification. Personal preferences and presets were retained.
+
+## Native Astronaut designs — 2026-11-19 (former source 2.5.0)
+
+See [Astronaut validation](../docs/ASTRONAUT_PRESETS_TEST_RESULTS.md) for the ten
+editable designs, source comparison, fonts/licenses, GPU blur, input actions and
+preset persistence. Reference backgrounds are excluded from the application.
+
+## Subsequent system-login observation — 2026-11-19
+
+A real local greetd login completed and the user's keyring unlocked. A crash was
+also recorded in Hyprland/Aquamarine's DRM cleanup when the dedicated greeter
+compositor exited after authentication. The desktop still started. This issue
+remains open and limits claims of reliable boot/session handoff. Separately reported
+machine-level resets have no established causal link to the application; the beta
+does not claim to resolve them. Raw system logs and machine identifiers stay local.
+
 ## Native login presets and colors — 2026-11-19 (source 2.4.0)
 
 UI-only/complete presets, independent button text styling, RGB input, the screen

@@ -1,6 +1,6 @@
 # Native login screen (experimental)
 
-Source version 2.4 extends the native editor introduced in 2.0, which replaced the SDDM preview experiment. Wallpaper Lab supplies
+Beta 0.25.0-beta.1 includes the native editor previously labeled 2.0–2.5.1, which replaced the SDDM preview experiment. Wallpaper Lab supplies
 its own editor, native wallpaper rendering, widgets and login controls. greetd
 provides PAM authentication and session startup; Hyprland provides the dedicated
 pre-login Wayland compositor. The normal desktop launcher is not required at boot.
@@ -242,16 +242,20 @@ preview alone does not validate PAM login, VT handoff or a cold boot.
 - No desktop autostart entry is needed for the login screen. Installing a bundle
   does not enable Wallpaper Lab's separate desktop autostart or shortcuts.
 - This is a login greeter, not a secure desktop lock screen. Do not use preview as
-  a lock screen. On-screen keyboards, accessibility integration and X11 sessions
-  are not implemented.
+  a lock screen. Astronaut layouts provide a compact ASCII on-screen keyboard;
+  full accessibility integration and X11 sessions are not implemented.
+- A reported crash in Hyprland/Aquamarine's DRM cleanup while closing the greeter
+  remains unresolved. Authentication and desktop launch succeeded in the observed
+  session; this does not establish reliable behavior across machines or boots.
+  See [beta status](STATUS.md#known-issues-and-limits).
 
 ## Astronaut presets
 
-Version 2.5 includes ten native, editable [Astronaut UI presets](ASTRONAUT_PRESETS.md).
+The current beta includes ten native, editable [Astronaut UI presets](ASTRONAUT_PRESETS.md).
 Loading a UI preset preserves wallpaper and display settings; publish explicitly
 with **Apply at next boot** after previewing the selected design.
 
-Version 2.5.1 fixes enabling Welcome on designs originally shipped with the header
+The Library import/motion update (formerly 2.5.1) fixes enabling Welcome on designs originally shipped with the header
 hidden, including existing personal presets: the text slot expands above the
 clock/date instead of being clipped to one pixel. Fitted labels respect their
 available height. See the [copy and motion checks](LOGIN_COPY_MOTION_TEST_RESULTS.md).

@@ -28,3 +28,8 @@
   Clearly document partial features and unsupported platforms.
 - Preserve upstream copyright and license notices. Use generic paths and examples
   in public documentation; retain canonical project links where needed.
+
+- Wallpaper Lab is pre-1.0 beta. Use the complete `0.x.y-beta.N` version from
+  `build-manifest.json` for the executable, packages and GitHub prerelease tag.
+  Do not promote a build to stable/1.0 without an explicit maintainer decision.
+  Preserve legacy version labels as history; they are not stability guarantees.

@@ -6,33 +6,29 @@ Animated wallpapers, a native Steam Workshop browser, and a customizable desktop
 carousel for **Arch Linux x86_64**. One application combines a raylib interface
 with the linux-wallpaperengine renderer. GPL-3.0.
 
-Version 1.0 includes named monitor selection, 25–300% live zoom, a compact
-**power icon**, a single library window, and a selectable monitor for Caelestia
-colours. Arcade includes vivid colours, animated pixel characters and cabinet-style
-buttons. Interface labels and application error summaries follow all 22 supported
-languages, including live language changes.
-See the [user guide](docs/USER_GUIDE.md#monitor-selection-zoom-and-stopping).
+**Current version: 0.25.0-beta.1 — open beta, not a stable 1.0 release.**
+This beta consolidates all work previously labeled 1.x through 2.5.1, including
+the native login-screen editor. The lower number changes the release policy,
+not the feature set or preference format. Future builds remain beta until the
+maintainer explicitly approves stable 1.0.
 
-The source tree is now **2.5.1 (development)**, integrating community contributions for monitor
-reconnection, rendering GPU selection, output-aware fullscreen pause, optional
-awww image rendering and persistent carousel controls. The downloadable stable
-installer below remains **1.0.0**; build from source to use these additions.
-Development builds also include an opt-in native login-screen editor and greetd
-session, described below. The Cyberpunk header now fits its animated 2077 mark above the
-toolbar and omits it when navigation needs the available width.
+See [current status, known issues and the version mapping](docs/STATUS.md).
+Historical tags and reports retain their original labels. The former `v1.0.0`
+release is now classified as a legacy experimental prerelease; it is not the
+recommended installer and does not contain the current features.
 
 ## Download and install
 
-[**Download the Arch Linux 1.0 installer**](https://github.com/scolapvsta/WallpaperLab/releases/latest/download/Wallpaper-Lab-Arch-x86_64.run)
- · [Release notes and checksums](https://github.com/scolapvsta/WallpaperLab/releases/tag/v1.0.0)
+[**Download the Arch Linux beta installer**](https://github.com/scolapvsta/WallpaperLab/releases/download/v0.25.0-beta.1/Wallpaper-Lab-0.25.0-beta.1-Arch-x86_64.run)
+ · [Release notes and checksums](https://github.com/scolapvsta/WallpaperLab/releases/tag/v0.25.0-beta.1)
 
 Open a terminal in the download folder and run:
 
 ```sh
-bash Wallpaper-Lab-Arch-x86_64.run
+bash Wallpaper-Lab-0.25.0-beta.1-Arch-x86_64.run
 ```
 
-Alternatively, download [Install-Wallpaper-Lab.sh](https://github.com/scolapvsta/WallpaperLab/releases/latest/download/Install-Wallpaper-Lab.sh) and run `sh Install-Wallpaper-Lab.sh`. This small helper downloads the latest stable installer, checks its published SHA-256 checksum and starts the guided setup. Checksums detect corruption; download only from the official repository.
+Alternatively, download [Install-Wallpaper-Lab.sh](https://github.com/scolapvsta/WallpaperLab/releases/download/v0.25.0-beta.1/Install-Wallpaper-Lab.sh) and run `sh Install-Wallpaper-Lab.sh`. This small helper downloads this exact beta installer, checks its published SHA-256 checksum and starts the guided setup. Checksums detect corruption; download only from the official repository.
 
 The guided installer verifies its payload, checks Arch dependencies, offers to
 install missing packages with `sudo pacman`, and adds Wallpaper Lab to your app
@@ -49,14 +45,14 @@ your user profile. No compilation, Node.js or npm installation is needed.
 - Local image/video imports work without Steam. A file picker, FFmpeg and fonts
   are checked by the installer. Your wallpaper library is never included.
 
-The source tree also supports **awww for local images and animated GIFs**. Choose
+This beta also supports **awww for local images and animated GIFs**. Choose
 it under **Settings → Playback**, or import a supported `awww` wallpaper hook
 from Caelestia CLI. Transition controls then use awww's effects, duration, step,
 FPS, origin and Y inversion. Videos and Workshop projects keep the native renderer.
 Step and duration sliders appear directly below the transition selector. Optional
 colours for awww images follow the installed Caelestia CLI's scheme and smart
 selection, including its theme hooks.
-This addition is a source/custom-build feature; the linked 1.0 installer predates it.
+The beta includes these controls; awww itself is an optional external dependency.
 
 [Installation, updating, removal and troubleshooting →](docs/BETA.md)
 
@@ -64,7 +60,10 @@ This addition is a source/custom-build feature; the linked 1.0 installer predate
 
 - Native scene, video and web wallpapers, local media imports and live controls.
 - Workshop search, filters, creator information and Steam downloads.
-- Independent monitor assignments, panoramic and mirror layouts.
+- Independent monitor assignments, panoramic and mirror layouts, live image edits,
+  position/zoom, rendering GPU selection and output-aware fullscreen pause.
+- Monitor reconnection handling and optional persistent carousel controls.
+- Independent Caelestia and Login screen activation in Settings.
 - Four animated carousel layouts: Grid, River, Vertical and Wave.
 - Default, Strawberry core, 2077 and Arcade: **38 palettes**, 16 app
   backgrounds, suggested fonts and an optional general font override.
@@ -90,15 +89,21 @@ secondary or all monitors. Local images, animated GIFs, videos and compatible
 Steam scenes use Wallpaper Lab's own renderer. Cached native stills preserve the
 scene aspect ratio; **Live preview** renders the real project
 for up to 60 seconds. Its interactive fields accept test text without authenticating
-or saving the input.
+or saving the input. Named UI-only and complete wallpaper/UI presets can be saved
+and reloaded. **Copy settings from Library** imports the selected project's desktop
+image edits, position/zoom, resolution and creator options into the login draft.
+Numeric RGB controls, a screen eyedropper, color-only suggestions with Undo and
+widget/UI reset actions complete the editor. Password dots, focus and menus animate
+without rebuilding the entire overlay each frame.
 
 **Apply at next boot** exports a self-contained, administrator-owned bundle and
 configures greetd with a dedicated Hyprland session. greetd handles PAM and starts
 the selected desktop; Wallpaper Lab draws and controls the login screen directly.
 The desktop launcher does not have to run. No SDDM, QML or frame-file bridge is used.
-This is an experimental source feature: read the [setup, recovery and limitations](docs/LOGIN_SCREEN.md)
+This is an experimental, opt-in beta feature: read the [setup, recovery and limitations](docs/LOGIN_SCREEN.md)
 before activation. A successful desktop preview is not evidence of a successful
-cold boot. The stable 1.0 installer predates this feature.
+cold boot. A reported Hyprland/Aquamarine crash during greeter teardown remains
+under investigation; see [known issues](docs/STATUS.md#known-issues-and-limits).
 
 ## Report a bug
 
@@ -133,7 +138,7 @@ lifecycle requirements and release checks.
 
 [User guide](docs/USER_GUIDE.md) · [Themes](docs/THEMES.md) ·
 [Architecture](docs/ARCHITECTURE.md) · [Tests](tests/RESULTS.md) ·
-[Development history](docs/HISTORY.md) · [Windows port notes](docs/WINDOWS_PORT.md)
+[Beta status and roadmap](docs/STATUS.md) · [Development history](docs/HISTORY.md) · [Windows port notes](docs/WINDOWS_PORT.md)
 
 Built on [linux-wallpaperengine](https://github.com/Almamu/linux-wallpaperengine),
 [Hellpaper](https://github.com/Belial02/hellpaper), raylib and Chromium Embedded

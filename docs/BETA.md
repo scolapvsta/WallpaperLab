@@ -1,19 +1,25 @@
-# Release 1.0 — Arch Linux x86_64
+# Wallpaper Lab open beta — Arch Linux x86_64
 
-Version: **1.0.0** (application reports 1.0.0).
+Version: **0.25.0-beta.1** (the executable reports the complete beta version).
+This is a testing release, not stable 1.0. It includes all features formerly
+labeled through 2.5.1. The version reset does not reset preferences or presets.
+See [status and known issues](STATUS.md) before enabling system login.
 The package includes the native app, patched renderer, web support and themed
-switchers. Settings, wallpaper libraries, Steam account data and credentials
+switchers, optional awww/Caelestia controls and the native login editor with ten
+Astronaut UI presets. greetd, Hyprland and administrator authentication are required
+only when publishing the optional login screen for boot. Installing this package
+alone does not activate it. Settings, wallpaper libraries, Steam account data and credentials
 are excluded.
 
 ## Install
 
 1. Update Arch normally before testing; the build needs glibc >= 2.44.
-2. Download `Wallpaper-Lab-1.0.0-Arch-x86_64.run` from the
-   [release](https://github.com/scolapvsta/WallpaperLab/releases/tag/v1.0.0).
+2. Download `Wallpaper-Lab-0.25.0-beta.1-Arch-x86_64.run` from the
+   [release](https://github.com/scolapvsta/WallpaperLab/releases/tag/v0.25.0-beta.1).
 3. From a terminal in that folder, run:
 
    ```sh
-   bash Wallpaper-Lab-1.0.0-Arch-x86_64.run
+   bash Wallpaper-Lab-0.25.0-beta.1-Arch-x86_64.run
    ```
 
 Run as your desktop user. The installer asks before installing missing Arch
@@ -38,7 +44,14 @@ not been certified.
 
 ## Updates and rollback
 
-Run a newer installer in the same way. Releases are stored separately in
+Run the selected beta installer in the same way. Installers replace the runtime
+only after validation; they do not compare versions numerically. Moving from a
+legacy 1.x/2.x installation to 0.25.0-beta.1 therefore retains configuration,
+wallpapers and personal login presets. This is a feature-continuation upgrade.
+A previously published system login bundle is separate: use **Apply at next boot**
+to update that bundle after checking the new runtime in Live preview.
+
+Releases are stored separately in
 `$XDG_DATA_HOME/wallpaper-lab/releases/` (default `~/.local/share`). Existing
 preferences and libraries are retained. If a wallpaper is active, the installer
 starts and verifies its replacement before terminating the old renderer,
@@ -57,14 +70,14 @@ referenced by that launcher. Preferences are not downgraded by this operation.
 
 ```sh
 sha256sum -c SHA256SUMS
-bash Wallpaper-Lab-1.0.0-Arch-x86_64.run --check
-bash Wallpaper-Lab-1.0.0-Arch-x86_64.run --uninstall
+bash Wallpaper-Lab-0.25.0-beta.1-Arch-x86_64.run --check
+bash Wallpaper-Lab-0.25.0-beta.1-Arch-x86_64.run --uninstall
 ```
 
 `--check` verifies the embedded payload, dependencies and CLI, without replacing
 an installation or downloading Steamworks. `--uninstall` stops this app's current
 renderer and removes the launcher/menu; it retains preferences, imported
-wallpapers and release backups. It requires a installer receipt and will
+wallpapers and release backups. It requires an installer receipt and will
 not remove an unrelated developer installation.
 
 Other flags: `--no-launch`, `--skip-steam`, `--yes` (accept installer prompts;
@@ -88,3 +101,11 @@ system packages. The installer intentionally does not remove them on uninstall.
 Use the repository bug-report form. Include app/compositor/GPU versions and
 reproduction steps, and review any logs before sharing. Reports are manual;
 no telemetry or automatic log upload is added by the installer.
+
+## Release links and history
+
+Use the exact tagged links in the current README. GitHub's `/releases/latest`
+endpoint is for stable releases and does not select this beta. The downloadable
+helper is pinned to the release beside it and checks the matching checksum.
+Old tags/assets remain available for traceability, including the former `v1.0.0`
+experimental snapshot; their version strings are historical, not a stability claim.

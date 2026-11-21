@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperLab VERSION 2.5.1 LANGUAGES C CXX)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/build-manifest.json" WALLPAPER_LAB_MANIFEST)
+string(JSON WALLPAPER_LAB_VERSION GET "${WALLPAPER_LAB_MANIFEST}" version)
+string(JSON WALLPAPER_LAB_CHANNEL GET "${WALLPAPER_LAB_MANIFEST}" channel)
+if(NOT WALLPAPER_LAB_CHANNEL STREQUAL "beta" OR NOT WALLPAPER_LAB_VERSION MATCHES "^0\\.[0-9]+\\.[0-9]+-beta\\.[1-9][0-9]*$")
+  message(FATAL_ERROR "Wallpaper Lab currently requires a pre-1.0 beta version in build-manifest.json")
+endif()
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" WALLPAPER_LAB_PROJECT_VERSION "${WALLPAPER_LAB_VERSION}")
+project(WallpaperLab VERSION "${WALLPAPER_LAB_PROJECT_VERSION}" LANGUAGES C CXX)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS build-manifest.json)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
@@ -30,7 +38,7 @@ set_target_properties(engine PROPERTIES IMPORTED_LOCATION "${ENGINE_BUILD}/outpu
 add_library(cef SHARED IMPORTED)
 set_target_properties(cef PROPERTIES IMPORTED_LOCATION "${ENGINE_BUILD}/output/libcef.so")
 add_executable(wallpaper-lab "${TRANSLATIONS_HEADER}" src/app.cpp src/workshop.cpp src/i18n.cpp src/displays.cpp src/catalog.cpp src/preferences.cpp src/shortcuts.cpp src/popup.cpp src/engine_entry.cpp src/login_config.cpp src/login_canvas.cpp src/login_auth.cpp src/login_runtime.cpp src/selector.c src/gif.c)
-target_compile_definitions(wallpaper-lab PRIVATE WALLPAPER_LAB_SOURCE_ASSETS="assets" _GNU_SOURCE WALLPAPER_LAB_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(wallpaper-lab PRIVATE WALLPAPER_LAB_SOURCE_ASSETS="assets" _GNU_SOURCE WALLPAPER_LAB_VERSION="${WALLPAPER_LAB_VERSION}")
 target_include_directories(wallpaper-lab PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" src vendor/engine/src vendor/engine/src/External/kissfft vendor/engine/src/External/json/include ${CEF_ROOT} ${SDL2_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/include")
 # Chromium's close() interposer uses RTLD_NEXT. Keep CEF before libc in the
 # executable's direct dependencies, even though only the engine calls its API.
@@ -153,3 +161,6 @@ target_include_directories(astronaut-presets-test PRIVATE src "${CMAKE_CURRENT_B
 target_compile_definitions(astronaut-presets-test PRIVATE WALLPAPER_LAB_SOURCE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 target_link_libraries(astronaut-presets-test PRIVATE PkgConfig::PANGO PkgConfig::FONTCONFIG)
 add_test(NAME astronaut-presets COMMAND astronaut-presets-test)
+
+add_test(NAME release-version COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/release_version_test.py" "$<TARGET_FILE:wallpaper-lab>")
+set_tests_properties(release-version PROPERTIES ENVIRONMENT "LD_LIBRARY_PATH=${ENGINE_BUILD}/output:${CMAKE_CURRENT_SOURCE_DIR}/local/sysroot/usr/lib")

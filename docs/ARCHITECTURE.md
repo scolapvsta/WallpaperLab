@@ -321,3 +321,23 @@ uses `systemctl enable --force`, never `--now`. `login_session.py` supervises a
 private Hyprland compositor through `start-hyprland`, native background fallback and terminal agreety
 fallback. Startup has a deadline. See [Login screen](LOGIN_SCREEN.md) and the
 [customization report](LOGIN_CUSTOMIZATION_TEST_RESULTS.md) for current boundaries.
+
+## Beta version identity and imported login profiles
+
+`build-manifest.json` stores the complete pre-1.0 beta version. CMake derives its
+numeric project version from that string but embeds the full beta identity in
+`wallpaper-lab --version`. Both packagers use `release_version.py`; the download
+helper pins the matching GitHub prerelease. A release identity check prevents the
+binary/helper/docs from drifting apart.
+
+`login_library_copy.inc` snapshots desktop creator options in `project_profiles`
+and copies image edits into the selected login image/output. Complete presets
+retain this snapshot; UI-only presets leave it untouched. Still capture and full
+native preparation read the same snapshot. Existing drafts keep the older Library
+fallback until an explicit import occurs.
+
+`login_motion.hpp` retains per-character animation timestamps, not a second
+password copy. Focus, caret and menu/keyboard fades share the native canvas;
+animation-only frames redraw/upload their affected region. Newly enabled Astronaut
+Welcome text grows into a usable slot above clock/date, including old personal
+presets whose hidden header slot was only one pixel tall.

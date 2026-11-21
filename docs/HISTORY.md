@@ -1,3 +1,24 @@
+# Version 0.25.0-beta.1 — consolidated open beta (2026-11-21)
+
+- Reclassify the project as pre-1.0 beta and continue the earlier 0.24 beta series.
+  Preserve all functionality from the former development label 2.5.1, settings,
+  presets and upstream pins. No renderer or UI behavior changes in this rebaseline.
+- Use one full version identity for the executable, source/runtime archives,
+  download helper, documentation and GitHub prerelease.
+- Consolidate native login editing, Astronaut designs, Library import, smoother
+  password/widget motion, Caelestia, monitor/GPU handling and awww documentation.
+- Record the unresolved pre-login Hyprland/Aquamarine teardown crash and distinguish
+  real login observations from preview/mock-authentication coverage.
+- Retain the old v1.0.0 tag/assets as a legacy experimental prerelease, with a
+  correction to its former stable labeling. Do not use latest/stable download links.
+
+## Historical numbering
+
+The following entries preserve the labels used at the time. Versions 1.x through
+2.5.1 describe development snapshots, not supported stable releases. Their features
+continue in 0.25.0-beta.1. Historical test reports are not renamed or rewritten as
+new test runs. See [status and release policy](STATUS.md).
+
 # Version 2.5.1 — login Library import and motion polish
 
 - Add **Copy settings from Library** to the login wallpaper inspector, importing
@@ -89,7 +110,7 @@
   restoration of the original display manager. Never restart the live session.
 - Preserve Caelestia, all four carousel layouts and the responsive Cyberpunk header.
 - See [native login verification](NATIVE_LOGIN_TEST_RESULTS.md) for tested behavior
-  and boot/session limitations. The downloadable stable installer remains 1.0.0.
+  and boot/session limitations. At that time the downloadable installer was still labeled 1.0.0.
 
 # Version 1.4.0 — source update
 
@@ -104,7 +125,7 @@
   assets required, no scene interaction/audio or desktop property/dependency export.
   Web projects and real pre-login deployment remain unsupported.
 - See [native scene and panorama checks](SDDM_SCENE_TEST_RESULTS.md). The public
-  downloadable stable installer remains 1.0.0.
+  downloadable installer at that time was still labeled 1.0.0.
 
 # Version 1.3.0 — source update
 
@@ -119,7 +140,7 @@
   Native engine scenes/web content and boot-time publication remain unsupported.
 - Fix repeated diagnostic queries invalidating status-bar text during drawing.
 - See [library/editor validation](SDDM_LIBRARY_TEST_RESULTS.md). The public
-  downloadable stable installer remains 1.0.0.
+  downloadable installer at that time was still labeled 1.0.0.
 
 # Version 1.2.2 — source update
 
@@ -132,7 +153,7 @@
   integrations after Workshop. SDDM remains a test-mode preview; system greeter
   installation and engine scene playback before login are not implemented.
 - A local source installation was upgraded and verified separately from the
-  development preview. The public downloadable stable installer remains 1.0.0.
+  development preview. The public downloadable installer at that time was still labeled 1.0.0.
 - See [header and local installation validation](HEADER_TEST_RESULTS.md).
 
 # Version 1.1.0 — source update

@@ -1,5 +1,8 @@
 # Wallpaper Lab user guide
 
+This guide describes **0.25.0-beta.1**, a pre-1.0 testing release. See
+[beta status and known issues](STATUS.md) for verified scope and current limits.
+
 For installation, updates, rollback and removal, see the [installation guide](BETA.md).
 The current release targets Arch Linux x86_64 with Hyprland. Project compatibility
 depends on the features used by each wallpaper.
@@ -461,3 +464,24 @@ The independent **Settings → Integrations → Caelestia** switch reveals the
 **Integrations** launcher tab. Configure source monitor, palette and brightness
 there. Disabling it hides that tab and preserves its choices; native login-screen
 preferences remain independent.
+
+## Optional native login screen
+
+Enable **Settings → Integrations → Login screen** and open its launcher tab.
+Caelestia has its own activation switch and remains independent.
+
+- **Wallpapers** combines the shared search/filter library, selected-wallpaper
+  inspector, image/crop edits, display preview, output layout and FPS. Single
+  mode keeps image choices and adjustments per output. **Copy settings from Library**
+  imports the selected wallpaper's desktop edits into this separate login draft.
+- **Login UI editor** contains Clock, Date and Login UI. Enable grid/snapping to
+  align widgets; edit each widget's font, colors and text effects. Welcome can
+  be custom or time-based. Use a bundled Astronaut design or save a UI-only preset.
+- **Complete presets** in Wallpapers additionally retain the wallpaper/layout;
+  UI-only presets preserve those choices. Reset and preset changes have backups.
+- **Live preview** renders animation and lets you type disposable test text.
+  **Apply at next boot** separately publishes the current draft through greetd.
+  Preview is not a screen lock, and installing the application does not activate
+  system login automatically.
+
+Read [login setup, recovery and limitations](LOGIN_SCREEN.md) before publication.
